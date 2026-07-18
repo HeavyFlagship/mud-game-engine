@@ -1,0 +1,28 @@
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Trae workspace temp
+.uploads/
+.trae-html-share-packages/
+
+# Node modules (if added later)
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build output (if added later)
+dist/
+build/
+
+# Local env files
+.env
+.env.local
