@@ -1,0 +1,54 @@
+/* ========== UI颜色变量 ==========
+   统一管理游戏界面的颜色。后续如果要扩展主题，可以新增如：
+   body[data-theme="high-contrast"] { ... }
+*/
+:root {
+  /* 基础背景 */
+  --bg: #0a0e14;
+  --bg2: #111820;
+  --bg3: #1a2230;
+
+  /* 文字颜色 */
+  --ink: #dce7f2;
+  --muted: #aebdcc;
+  --muted-bright: #cbd7e3;
+  --input-ink: #f0f6ff;
+  --input-muted: #9fb0c2;
+
+  /* 功能强调色 */
+  --accent: #00ff88;
+  --accent2: #ff6b6b;
+  --accent3: #ffd93d;
+  --accent4: #6bc5ff;
+
+  /* 边界与地图 */
+  --rule: #1e2a3a;
+  --wall: #4a1014;
+  --fog: #0f151d;
+  --map-visited-bg: #243346;
+  --map-vertical-bg: #173426;
+  --map-current-vertical-end: #7dffb8;
+  --map-visited-glow: rgb(220, 231, 242);
+  --map-visited-line: rgb(220, 231, 242);
+  --map-vertical-line: rgb(0, 255, 136);
+  --map-vertical-glow: rgb(0, 255, 136);
+  --map-current-vertical-glow: rgb(0, 255, 136);
+
+  /* 状态条 */
+  --hp-bar-end: #ff8a8a;
+  --mp-bar-start: #4a90d9;
+  --exp-bar-start: #d9a84a;
+
+  /* 特殊界面 */
+  --story-ink: #d0c3ec;
+  --vertical-btn-bg: #10251b;
+  --vertical-btn-border: rgba(0, 255, 136, 0.35);
+  --battle-bg-start: #1a0a0a;
+  --battle-bg-end: #200e0e;
+  --battle-border: rgba(255, 107, 107, 0.3);
+  --battle-menu-bg: rgba(10, 14, 20, 0.82);
+
+  /* 发光效果 */
+  --glow: rgba(0, 255, 136, 0.15);
+  --glow2: rgba(255, 107, 107, 0.15);
+}
