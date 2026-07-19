@@ -466,7 +466,13 @@ const Battle = {
     } else if (nextAction.type === 'fire') {
       const fired = this.playerAttack(nextAction.target, nextAction.slot);
       if (fired) {
-        this.scheduleNextPlayerTurn();
+        // 下一个决策点延迟 = max(initiative, weapon_cooldown)
+        // 这样冷却结束时恰好是玩家的决策点
+        const cooldown = Player.weaponCooldowns[nextAction.slot] || 0;
+        const initiative = this.calculateInitiative(Player.currentSpeed);
+        const delay = Math.max(initiative, cooldown);
+        this.scheduleEvent({ type: 'player_turn', actor: 'player' }, delay);
+        this.scheduleNext();
       } else {
         this.triggerPlayerDecision();
       }
