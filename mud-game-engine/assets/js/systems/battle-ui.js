@@ -8,16 +8,6 @@ const BattleUI = {
   init() {
     this.updateRadar();
     setInterval(() => this.updateRadar(), 500);
-    // 定时刷新武器冷却显示和时间轴
-    setInterval(() => {
-      if (Battle.active) {
-        const cdActive = Player.weaponCooldowns.primary > 0 || Player.weaponCooldowns.secondary > 0;
-        if (cdActive) {
-          if (typeof Game !== 'undefined' && Game.updateEquipInfo) Game.updateEquipInfo();
-          this.updateTimeline();
-        }
-      }
-    }, 200);
     this._initContextMenu();
   },
 
@@ -334,8 +324,9 @@ const BattleUI = {
 
   update() {
     this.updateRadar();
-    if (typeof Game !== 'undefined' && Game.updatePlayerInfo) {
-      Game.updatePlayerInfo();
+    if (typeof Game !== 'undefined') {
+      if (Game.updatePlayerInfo) Game.updatePlayerInfo();
+      if (Game.updateEquipInfo) Game.updateEquipInfo();
     }
     if (!Battle.active || !Battle.battlefield) {
       this.clearBattlePanels();
