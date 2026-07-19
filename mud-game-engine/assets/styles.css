@@ -87,7 +87,13 @@ body {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  overflow-y: auto;
+  overflow: hidden;
+}
+.battle-sidebar .sidebar-section {
+  border-bottom: 1px solid var(--rule);
+}
+.battle-sidebar .sidebar-section:last-child {
+  border-bottom: none;
 }
 .sidebar-section {
   padding: 0.75rem 1rem;
@@ -546,6 +552,7 @@ body {
 
 @media (max-width: 768px) {
   .sidebar { display: none; }
+  .battle-sidebar { display: none; }
   .main { flex-direction: column; }
   .game-area { min-height: 60vh; }
   .query-panel {
