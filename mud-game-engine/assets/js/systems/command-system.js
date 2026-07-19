@@ -272,12 +272,12 @@ const CommandSystem = {
       // 检查是否有就绪武器
       const hasReadyWeapon = ['primary', 'secondary'].some(s => (Player.weaponCooldowns[s] || 0) <= 0 && Player.equipment[s]);
       if (hasReadyWeapon && !Battle.playerFireHint) {
-        // 有就绪武器且未提示过：记录意图，提示玩家可选开火或idle跳过
+        // 有就绪武器且未提示过：记录意图，提示玩家可选移动开火或仅移动跳过开火
         Battle.playerFireHint = { pendingMove: [targetX, targetY] };
         const readyNames = ['primary', 'secondary']
           .filter(s => (Player.weaponCooldowns[s] || 0) <= 0 && Player.equipment[s])
           .map(s => Player.equipment[s].name);
-        Msg.prompt(`武器已就绪（${readyNames.join('、')}）：输入 fire <目标> 开火，或再次输入 move 跳过开火并移动。`);
+        Msg.prompt(`武器已就绪（${readyNames.join('、')}）：输入 fire <目标> 移动开火（开火与移动并行），或再次输入 move 仅移动跳过开火。`);
         return;
       }
       // 已提示过或无就绪武器：清除提示，执行移动
@@ -364,6 +364,10 @@ const CommandSystem = {
       return;
     }
 
+    // 保存待执行的移动意图（来自 move 指令的开火提示）
+    const pendingMove = Battle.playerFireHint ? Battle.playerFireHint.pendingMove : null;
+    Battle.playerFireHint = null;
+
     // 调度每个就绪武器的 player_fire 事件（前摇 0.3 秒，依次错开）
     const fireDelay = 0.3;
     for (let i = 0; i < readySlots.length; i++) {
@@ -373,16 +377,18 @@ const CommandSystem = {
       Battle.scheduleEvent({ type: 'player_fire', actor: 'player', target: targetId, slot: s, label: `攻击 ${targetId}` }, delay);
     }
 
-    Msg.info(`开火指令已下达：攻击 ${targetId} (${readySlots.map(s => Player.equipment[s].name).join('/')})`);
-
-    // 清除开火提示状态
-    Battle.playerFireHint = null;
-
-    // 如果玩家在决策点（paused），解除暂停让时间轴推进
-    if (Battle.paused && Battle.currentActor === 'player') {
-      Battle.paused = false;
+    if (pendingMove) {
+      // 移动开火：fire 由 move 触发，开火与移动并行执行
+      Msg.info(`移动开火：攻击 ${targetId} (${readySlots.map(s => Player.equipment[s].name).join('/')})，同时继续移动`);
+      Battle.setPlayerTask({ type: 'move', target: [...pendingMove] });
+    } else {
+      // 普通开火：解除 paused 让时间轴推进
+      Msg.info(`开火指令已下达：攻击 ${targetId} (${readySlots.map(s => Player.equipment[s].name).join('/')})`);
+      if (Battle.paused && Battle.currentActor === 'player') {
+        Battle.paused = false;
+      }
+      Battle.scheduleNext();
     }
-    Battle.scheduleNext();
   },
  
   cmdBattleLook(args) {
