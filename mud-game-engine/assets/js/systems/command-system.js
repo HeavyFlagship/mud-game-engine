@@ -160,22 +160,29 @@ const CommandSystem = {
 
   cmdBattleMove(args) {
     if (!Battle.active || !Battle.battlefield) return;
-    if (args.length < 2) {
-      Msg.info('用法：move <x> <y>  或  move <方向> <距离>');
+    if (args.length < 1) {
+      Msg.info('用法：');
+      Msg.info('  move <x> <y>  - 移动到指定坐标');
+      Msg.info('  move <方向> <距离> - 向指定方向移动距离(米)');
+      Msg.info('  move <敌人编号>  - 移动到敌人附近');
+      Msg.info('  move <NPC编号>   - 移动到NPC附近');
       Msg.info('方向：n/s/e/w/ne/nw/se/sw');
       Msg.info('坐标超出战场边界且该方向有出口时，非战斗状态可前往相邻场景');
       return;
     }
+
     let targetX, targetY;
-    if (/^\d+$/.test(args[0]) && /^\d+$/.test(args[1])) {
-      targetX = parseInt(args[0]);
+    const first = args[0];
+
+    if (/^\d+$/.test(first) && args.length >= 2 && /^\d+$/.test(args[1])) {
+      targetX = parseInt(first);
       targetY = parseInt(args[1]);
-    } else {
-      const dir = args[0];
-      const dist = parseInt(args[1]) || 50;
+    } else if (/^[nsew]$/.test(first.toLowerCase()) || /^(ne|nw|se|sw)$/.test(first.toLowerCase())) {
+      const dir = first.toLowerCase();
+      const dist = args.length >= 2 ? parseInt(args[1]) : 50;
       const dirMap = {
         n:[0,-1], s:[0,1], e:[1,0], w:[-1,0],
-        ne:[0.7,-0.7], nw:[-0.7,-0.7], se:[0.7,0.7], sw:[-0.7,0.7]
+        ne:[0.707,-0.707], nw:[-0.707,-0.707], se:[0.707,0.707], sw:[-0.707,0.707]
       };
       const d = dirMap[dir];
       if (!d) {
@@ -184,16 +191,45 @@ const CommandSystem = {
       }
       targetX = Player.position[0] + d[0] * dist;
       targetY = Player.position[1] + d[1] * dist;
+    } else {
+      const targetId = first.toUpperCase();
+      const enemy = Battle.battlefield.enemies.find(e => e.instanceId === targetId);
+      const npcList = Battle.battlefield.npcs || [];
+      const npc = npcList.find(n => n.instanceId === targetId);
+
+      if (enemy) {
+        const dist = Battle.getDistance(Player.position, enemy.position);
+        const weapon = Player.equipment.primary;
+        const approachDist = weapon ? Math.min(dist - 10, weapon.range * 0.9) : Math.max(dist - 20, 50);
+        const ratio = approachDist / dist;
+        targetX = Player.position[0] + (enemy.position[0] - Player.position[0]) * ratio;
+        targetY = Player.position[1] + (enemy.position[1] - Player.position[1]) * ratio;
+        Msg.info(`向 ${enemy.name}[${enemy.instanceId}] 移动，接近到 ${approachDist.toFixed(0)}m`);
+      } else if (npc) {
+        const dx = npc.position[0] - Player.position[0];
+        const dy = npc.position[1] - Player.position[1];
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const stopDist = 30;
+        if (dist <= stopDist) {
+          Msg.info('已经在通信范围内。');
+          return;
+        }
+        const ratio = (dist - stopDist) / dist;
+        targetX = Player.position[0] + dx * ratio;
+        targetY = Player.position[1] + dy * ratio;
+        Msg.info(`向 ${npc.name}[${npc.instanceId}] 移动...`);
+      } else {
+        Msg.error(`未找到目标 ${first}。用法：move <x> <y> 或 move <方向> <距离> 或 move <目标编号>`);
+        return;
+      }
     }
 
-    // 检测是否超出战场边界，尝试前往相邻场景
     const [bw, bh] = Battle.battlefield.size;
     if (targetX < 0 || targetX > bw || targetY < 0 || targetY > bh) {
       if (Battle.combatActive) {
         Msg.warn('战斗中无法离开当前场景！');
         return;
       }
-      // 根据越界方向确定出口
       const room = MapSystem.getRoom(Player.room);
       if (!room || !room.exits) {
         Msg.warning('这个方向无法通行。');
@@ -204,7 +240,6 @@ const CommandSystem = {
         Msg.warning('这个方向没有出口。');
         return;
       }
-      // 离开战场，切换房间
       Battle.end();
       BattleUI.remove();
       Game.move(exitDir);
@@ -340,6 +375,7 @@ const CommandSystem = {
     const help = `场景指令：
   move <x> <y>     - 移动到指定坐标
   move <方向> <距离> - 向方向移动 (n/s/e/w/ne/nw/se/sw)
+  move <目标编号>   - 移动到敌人/NPC附近
   fire <目标> [槽] - 攻击目标 (目标如A1，槽:primary/secondary)
   aim <目标>       - 瞄准并查看目标信息
   call <目标>      - 与 NPC 通信（需距离 ≤ 100m）
