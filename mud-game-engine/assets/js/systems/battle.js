@@ -187,6 +187,7 @@ const Battle = {
 
   addPlayerAction(action) {
     this.playerActionQueue.push(action);
+    BattleUI.update();
   },
 
   clearPlayerActionQueue() {
@@ -457,6 +458,7 @@ const Battle = {
     }
 
     const nextAction = this.playerActionQueue.shift();
+    BattleUI.update();
     Msg.info(`执行就绪行动：${nextAction.label}`);
 
     if (nextAction.type === 'move') {
