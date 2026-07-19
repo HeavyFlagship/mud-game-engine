@@ -369,6 +369,20 @@ const Battle = {
       BattleUI.clearCurrentActions();
       BattleUI.addCurrentAction('你的行动', '#0ff');
       this.onPlayerTurn();
+    } else if (event.type === 'weapon_ready') {
+      // 武器冷却完成，进入就绪列表
+      const weapon = Player.equipment[event.slot];
+      const wName = weapon ? weapon.name : event.slot;
+      Msg.info(`🔫 ${wName} 冷却完成，已就绪。`);
+      BattleUI.update();
+      // 如果玩家不在执行持续行动，触发决策点
+      const isMoving = this.continuousActions.some(a => a.actor === 'player' && a.type === 'move');
+      const isCalling = this.eventQueue.some(e => e.type === 'npc_call' && e.actor === 'player');
+      if (!isMoving && !isCalling && !this.playerIdleEnd) {
+        this.triggerPlayerDecision();
+      } else {
+        this.scheduleNext();
+      }
     }
   },
 
@@ -466,12 +480,11 @@ const Battle = {
     } else if (nextAction.type === 'fire') {
       const fired = this.playerAttack(nextAction.target, nextAction.slot);
       if (fired) {
-        // 下一个决策点延迟 = max(initiative, weapon_cooldown)
-        // 这样冷却结束时恰好是玩家的决策点
+        // 调度 weapon_ready 事件，冷却结束时武器进入就绪列表
         const cooldown = Player.weaponCooldowns[nextAction.slot] || 0;
         const initiative = this.calculateInitiative(Player.currentSpeed);
         const delay = Math.max(initiative, cooldown);
-        this.scheduleEvent({ type: 'player_turn', actor: 'player' }, delay);
+        this.scheduleEvent({ type: 'weapon_ready', actor: 'player', slot: nextAction.slot }, delay);
         this.scheduleNext();
       } else {
         this.triggerPlayerDecision();
