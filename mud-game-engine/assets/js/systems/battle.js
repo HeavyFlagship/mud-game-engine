@@ -75,12 +75,31 @@ const Battle = {
     if (this.combatActive) return;
     this.combatActive = true;
     Msg.warn(`⚔ 进入战斗状态！${reason}`);
-    BattleUI.addHistory(`进入战斗状态 ${reason}`, '#f55');
-    // 战斗中断：如果玩家在 idle 待机，立即取消并触发玩家决策点
-    if (this.playerIdleEnd) {
-      Msg.info('⚡ 战斗中断待机，立即进入行动阶段。');
-      this.triggerPlayerDecision();
+    BattleUI.addHistory('系统', '#f55', `战斗开始`);
+
+    // 战斗中断：立即触发玩家决策点
+    // 如果玩家正在执行任务（移动/通信）或处于 idle，立即中断
+    const wasMoving = this.playerTask && this.playerTask.type === 'move';
+    const wasCalling = this.playerTask && this.playerTask.type === 'call';
+    const wasIdling = this.playerIdleEnd !== null;
+
+    if (wasMoving) {
+      Msg.info('⚡ 战斗中断移动，立即进入行动阶段。');
+      this.eventQueue = this.eventQueue.filter(e => !(e.type === 'move_complete' && e.actor === 'player'));
+      BattleUI.removeCurrentAction('移动中...');
     }
+    if (wasCalling) {
+      Msg.info('⚡ 战斗中断通信，立即进入行动阶段。');
+      this.eventQueue = this.eventQueue.filter(e => e.type === 'npc_call');
+      BattleUI.removeCurrentAction('通信中...');
+    }
+    if (wasIdling) {
+      Msg.info('⚡ 战斗中断待机，立即进入行动阶段。');
+      this.cancelPlayerIdle();
+    }
+
+    this.playerTask = null;
+    this.triggerPlayerDecision();
   },
 
   cancelPlayerIdle() {
@@ -107,14 +126,20 @@ const Battle = {
   },
 
   triggerPlayerDecision() {
-    // 取消玩家相关事件，立即触发玩家决策点
+    // 取消玩家相关事件
     this.eventQueue = this.eventQueue.filter(e => e.type !== 'player_turn' && e.type !== 'player_idle_end');
     this.playerIdleEnd = null;
-    this.scheduleEvent({ type: 'player_turn', actor: 'player' }, 0);
-    if (this.paused) {
-      this.paused = false;
-    }
-    this.scheduleNext();
+
+    // 直接进入玩家决策模式：暂停时间轴，显示决策提示
+    this.paused = true;
+    this.currentActor = 'player';
+    BattleUI.clearCurrentActions();
+    BattleUI.addCurrentAction('你的行动', '#0ff');
+
+    const hint = this.combatActive
+      ? '> 战斗中（输入 move/fire/look/use/status/retreat 等）'
+      : '> 场景中（输入 move/call/fire/status/look 等）';
+    Msg.prompt(hint);
   },
 
   exitCombat() {
@@ -477,7 +502,7 @@ const Battle = {
 
   onEnemyKilled(enemy) {
     Msg.success(`🎯 击毁 ${enemy.name}[${enemy.instanceId}]！`);
-    BattleUI.addHistory(`击毁 ${enemy.name}[${enemy.instanceId}]`, '#fc0');
+    BattleUI.addHistory(enemy.name, '#fc0', '被击毁');
     Player.stats.monstersKilled++;
     Player.killCount[enemy.templateId] = (Player.killCount[enemy.templateId] || 0) + 1;
     Player.gainExp(enemy.exp);
@@ -488,7 +513,7 @@ const Battle = {
           Player.addItem(l.item, count);
           const item = ItemDB[l.item];
           Msg.loot(`获得战利品：${item ? item.name : l.item} x${count}`);
-          BattleUI.addHistory(`获得 ${item ? item.name : l.item} x${count}`, '#f8f');
+          BattleUI.addHistory('你', '#f8f', `获得${item ? item.name : l.item}x${count}`);
         }
       }
     }

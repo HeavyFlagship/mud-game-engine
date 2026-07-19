@@ -292,7 +292,7 @@ const BattleUI = {
   addHistory(text, color = '#aaa', actionType = null) {
     const time = Battle.battlefield ? Battle.battlefield.time : 0;
     const formattedTime = this.formatGameTime(time, 'mm:ss');
-    const displayText = actionType ? `${text}行动：${actionType}` : text;
+    const displayText = actionType ? `${text}行动：${actionType}` : `${text}`;
     this.historyEvents.unshift({ time: formattedTime, text: displayText, color });
     if (this.historyEvents.length > 30) {
       this.historyEvents.pop();
