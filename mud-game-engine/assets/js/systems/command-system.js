@@ -165,6 +165,7 @@ const CommandSystem = {
     if (args.length < 2) {
       Msg.info('用法：move <x> <y>  或  move <方向> <距离>');
       Msg.info('方向：n/s/e/w/ne/nw/se/sw');
+      Msg.info('坐标超出战场边界且该方向有出口时，非战斗状态可前往相邻场景');
       return;
     }
     let targetX, targetY;
@@ -186,7 +187,48 @@ const CommandSystem = {
       targetX = Player.position[0] + d[0] * dist;
       targetY = Player.position[1] + d[1] * dist;
     }
+
+    // 检测是否超出战场边界，尝试前往相邻场景
+    const [bw, bh] = Battle.battlefield.size;
+    if (targetX < 0 || targetX > bw || targetY < 0 || targetY > bh) {
+      if (Battle.combatActive) {
+        Msg.warn('战斗中无法离开当前场景！');
+        return;
+      }
+      // 根据越界方向确定出口
+      const room = MapSystem.getRoom(Player.room);
+      if (!room || !room.exits) {
+        Msg.warning('这个方向无法通行。');
+        return;
+      }
+      const exitDir = this._getExitDirection(targetX, targetY, bw, bh);
+      if (!exitDir || !room.exits[exitDir]) {
+        Msg.warning('这个方向没有出口。');
+        return;
+      }
+      // 离开战场，切换房间
+      Battle.end();
+      BattleUI.remove();
+      Game.move(exitDir);
+      return;
+    }
+
     Battle.setPlayerTask({ type: 'move', target: [targetX, targetY] });
+  },
+
+  _getExitDirection(tx, ty, bw, bh) {
+    // 根据目标坐标超出边界的方向判断出口方向
+    const overX = tx < 0 ? -1 : (tx > bw ? 1 : 0);
+    const overY = ty < 0 ? -1 : (ty > bh ? 1 : 0);
+    if (overX === -1 && overY === 0) return 'west';
+    if (overX === 1 && overY === 0) return 'east';
+    if (overX === 0 && overY === -1) return 'north';
+    if (overX === 0 && overY === 1) return 'south';
+    // 对角线时优先取主方向（偏移量更大的轴）
+    if (Math.abs(overX) >= Math.abs(overY)) {
+      return overX === -1 ? 'west' : 'east';
+    }
+    return overY === -1 ? 'north' : 'south';
   },
  
   cmdBattleFire(args) {
