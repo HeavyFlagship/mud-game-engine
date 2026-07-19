@@ -137,6 +137,8 @@ const CommandSystem = {
       Msg.warning('待机时间过长，已限制为300秒。');
       seconds = 300;
     }
+    // 清除开火提示
+    Battle.playerFireHint = null;
     Battle.playerIdle(seconds);
   },
  
@@ -263,9 +265,23 @@ const CommandSystem = {
 
     const isMoving = Battle.continuousActions.some(a => a.actor === 'player' && a.type === 'move');
     if (isMoving) {
-      Battle.addPlayerAction({ type: 'move', target: [targetX, targetY], label: `移动到(${Math.round(targetX)}, ${Math.round(targetY)})` });
-      Msg.info(`行动已加入就绪列表：移动到(${Math.round(targetX)}, ${Math.round(targetY)})`);
+      // 移动中再次下达 move：中断当前移动，以新目标重新开始
+      Battle.interruptPlayerMove();
+      Battle.setPlayerTask({ type: 'move', target: [targetX, targetY] });
     } else {
+      // 检查是否有就绪武器
+      const hasReadyWeapon = ['primary', 'secondary'].some(s => (Player.weaponCooldowns[s] || 0) <= 0 && Player.equipment[s]);
+      if (hasReadyWeapon && !Battle.playerFireHint) {
+        // 有就绪武器且未提示过：记录意图，提示玩家可选开火或idle跳过
+        Battle.playerFireHint = { pendingMove: [targetX, targetY] };
+        const readyNames = ['primary', 'secondary']
+          .filter(s => (Player.weaponCooldowns[s] || 0) <= 0 && Player.equipment[s])
+          .map(s => Player.equipment[s].name);
+        Msg.prompt(`武器已就绪（${readyNames.join('、')}）：输入 fire <目标> 开火，或再次输入 move 跳过开火并移动。`);
+        return;
+      }
+      // 已提示过或无就绪武器：清除提示，执行移动
+      Battle.playerFireHint = null;
       Battle.setPlayerTask({ type: 'move', target: [targetX, targetY] });
     }
   },
@@ -358,6 +374,9 @@ const CommandSystem = {
     }
 
     Msg.info(`开火指令已下达：攻击 ${targetId} (${readySlots.map(s => Player.equipment[s].name).join('/')})`);
+
+    // 清除开火提示状态
+    Battle.playerFireHint = null;
 
     // 如果玩家在决策点（paused），解除暂停让时间轴推进
     if (Battle.paused && Battle.currentActor === 'player') {

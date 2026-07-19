@@ -435,30 +435,18 @@ const BattleUI = {
     html += '</div>';
 
     const continuousActions = Battle.continuousActions || [];
-    const coolingWeapons = [];
-    for (const slot of ['primary', 'secondary']) {
-      const cd = Player.weaponCooldowns[slot] || 0;
-      const w = Player.equipment[slot];
-      if (cd > 0 && w) {
-        // 查找对应的 weapon_ready 事件获取剩余时间
-        const readyEvent = Battle.eventQueue.find(e => e.type === 'weapon_ready' && e.slot === slot);
-        const remaining = readyEvent ? (readyEvent.time - Battle.battlefield.time).toFixed(1) : cd.toFixed(1);
-        coolingWeapons.push({ slot, name: w.name, remaining, maxCd: w.cooldown || 1, cd });
-      }
-    }
-    if (continuousActions.length > 0 || coolingWeapons.length > 0) {
+    if (continuousActions.length > 0) {
       html += '<div class="timeline-section timeline-continuous">';
       html += '<div class="timeline-divider">— 持续动作 —</div>';
       for (const action of continuousActions) {
         const remaining = Math.max(0, action.endTime - Battle.battlefield.time).toFixed(0);
+        const total = action.duration || 1;
+        const elapsed = Battle.battlefield.time - action.startTime;
+        const pct = Math.max(0, Math.min(100, (elapsed / total) * 100));
         const typeLabel = action.type === 'move' ? '移动' : action.type;
         const actorLabel = action.actor === 'player' ? '你' : action.actor;
         html += `<div class="timeline-item continuous" style="color:#8f8;">${actorLabel} ${typeLabel} (剩余${remaining}秒)</div>`;
-      }
-      for (const w of coolingWeapons) {
-        const pct = Math.max(0, Math.min(100, (1 - w.cd / w.maxCd) * 100));
-        html += `<div class="timeline-item continuous" style="color:#8cf;">🔫 ${w.name} 冷却中 (剩余${w.remaining}秒)</div>`;
-        html += `<div style="width:90%;height:4px;background:#333;border-radius:2px;margin:2px 0 4px 8px;"><div style="width:${pct}%;height:4px;background:#8cf;border-radius:2px;"></div></div>`;
+        html += `<div style="width:90%;height:4px;background:#333;border-radius:2px;margin:2px 0 4px 8px;"><div style="width:${pct}%;height:4px;background:#8f8;border-radius:2px;"></div></div>`;
       }
       html += '</div>';
     }

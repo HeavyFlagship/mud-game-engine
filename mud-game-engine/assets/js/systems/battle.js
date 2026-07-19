@@ -14,6 +14,7 @@ const Battle = {
   playerIdleEnd: null,
   isProcessing: false,
   continuousActions: [],
+  playerFireHint: null,
 
   start(roomId, entryDir = 'south') {
     const room = MapSystem.getRoom(roomId);
@@ -40,6 +41,7 @@ const Battle = {
     this.playerIdleEnd = null;
     this.isProcessing = false;
     this.continuousActions = [];
+    this.playerFireHint = null;
 
     Msg.divider();
     Msg.info(`📍 进入场景：${room.name}`);
