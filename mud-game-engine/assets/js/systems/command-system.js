@@ -299,12 +299,13 @@ const CommandSystem = {
         const inRange = Player.equipment.primary && dist <= Player.equipment.primary.range;
         info += `  ${e.instanceId} - ${e.name} (距离${dist.toFixed(0)}m) ${inRange ? '[射程内]' : '[超射程]'}\n`;
       }
-      info += '用法：fire <目标编号> [武器槽]  武器槽: primary/secondary (默认primary)';
+      info += '用法：fire <目标编号> [武器槽]\n';
+      info += '  武器槽: primary/secondary/all (默认all, 所有就绪武器开火)';
       Msg.info(info);
       return;
     }
     const targetId = args[0].toUpperCase();
-    const slot = args[1] || 'primary';
+    const slotArg = args[1] || 'all';
     const enemy = Battle.battlefield.enemies.find(e => e.instanceId === targetId);
     if (!enemy) {
       Msg.error(`未找到目标 ${targetId}`);
@@ -314,15 +315,45 @@ const CommandSystem = {
       Msg.error('该目标已被击毁。');
       return;
     }
-    const weapon = Player.equipment[slot];
-    if (!weapon) {
-      Msg.error('该武器槽为空。');
+
+    // 确定要开火的武器槽列表
+    let slots = [];
+    if (slotArg === 'all') {
+      for (const s of ['primary', 'secondary']) {
+        const w = Player.equipment[s];
+        if (w) slots.push(s);
+      }
+    } else {
+      const w = Player.equipment[slotArg];
+      if (!w) {
+        Msg.error(`武器槽 ${slotArg} 为空或无效。可用: primary/secondary/all`);
+        return;
+      }
+      slots.push(slotArg);
+    }
+
+    if (slots.length === 0) {
+      Msg.error('没有可用的武器。');
       return;
     }
 
-    // 总是加入就绪列表
-    Battle.addPlayerAction({ type: 'fire', target: targetId, slot, label: `攻击 ${targetId}` });
-    Msg.info(`行动已加入就绪列表：攻击 ${targetId}`);
+    // 检查是否有就绪武器
+    const readySlots = slots.filter(s => (Player.weaponCooldowns[s] || 0) <= 0);
+    if (readySlots.length === 0) {
+      const cdInfo = slots.map(s => `${s}:${(Player.weaponCooldowns[s]||0).toFixed(1)}s`).join(' ');
+      Msg.warn(`所有指定武器都在冷却中（${cdInfo}），行动已加入就绪列表。`);
+      // 把每个武器槽都加入就绪列表
+      for (const s of slots) {
+        Battle.addPlayerAction({ type: 'fire', target: targetId, slot: s, label: `攻击 ${targetId}(${s})` });
+      }
+      return;
+    }
+
+    // 将就绪武器的开火行动加入就绪列表
+    for (const s of readySlots) {
+      Battle.addPlayerAction({ type: 'fire', target: targetId, slot: s, label: `攻击 ${targetId}(${s})` });
+    }
+    Msg.info(`行动已加入就绪列表：攻击 ${targetId} (${readySlots.join('/')})`);
 
     // 如果玩家在决策点（paused 且当前是玩家回合），立即触发执行
     if (Battle.paused && Battle.currentActor === 'player') {
@@ -435,7 +466,7 @@ const CommandSystem = {
   move <x> <y>     - 移动到指定坐标
   move <方向> <距离> - 向方向移动 (n/s/e/w/ne/nw/se/sw)
   move <目标编号>   - 移动到敌人/NPC附近
-  fire <目标> [槽] - 攻击目标 (目标如A1，槽:primary/secondary)
+  fire <目标> [槽] - 攻击目标 (目标如A1，槽:primary/secondary/all，默认all所有就绪武器)
   call <目标>      - 与 NPC 通信（需距离 ≤ 100m）
   idle <秒数>      - 待机指定秒数（期间时间轴推进，被攻击立即行动）
   use <物品>       - 使用物品

@@ -8,6 +8,12 @@ const BattleUI = {
   init() {
     this.updateRadar();
     setInterval(() => this.updateRadar(), 500);
+    // 定时刷新武器冷却显示
+    setInterval(() => {
+      if (Battle.active && (Player.weaponCooldowns.primary > 0 || Player.weaponCooldowns.secondary > 0)) {
+        if (typeof Game !== 'undefined' && Game.updateEquipInfo) Game.updateEquipInfo();
+      }
+    }, 200);
     this._initContextMenu();
   },
 

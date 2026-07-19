@@ -702,10 +702,28 @@ const Game = {
     ];
     el.innerHTML = slots.map(s => {
       const item = Player.equipment[s.key];
-      const itemStr = item
-        ? `<span class="equip-slot-item">${item.name}</span>`
-        : '<span class="equip-slot-item empty">（空）</span>';
-      return `<div class="equip-slot"><span class="equip-slot-name">${s.label}</span>${itemStr}</div>`;
+      if (!item) {
+        const emptyStr = '<span class="equip-slot-item empty">（空）</span>';
+        return `<div class="equip-slot"><span class="equip-slot-name">${s.label}</span>${emptyStr}</div>`;
+      }
+      const itemStr = `<span class="equip-slot-item">${item.name}</span>`;
+      let cooldownHtml = '';
+      // 仅武器显示冷却进度
+      if (s.key === 'primary' || s.key === 'secondary') {
+        const cd = Player.weaponCooldowns[s.key] || 0;
+        const maxCd = item.cooldown || 1;
+        const isReady = cd <= 0;
+        const pct = isReady ? 100 : Math.max(0, Math.min(100, (1 - cd / maxCd) * 100));
+        const statusText = isReady ? '就绪' : `冷却 ${cd.toFixed(1)}s`;
+        const fillClass = isReady ? 'ready' : 'cooling';
+        const statusClass = isReady ? 'ready' : 'cooling';
+        cooldownHtml = `
+          <div class="weapon-cooldown">
+            <div class="weapon-cooldown-bar"><div class="weapon-cooldown-fill ${fillClass}" style="width:${pct}%"></div></div>
+            <div class="weapon-cooldown-status ${statusClass}"><span>${statusText}</span></div>
+          </div>`;
+      }
+      return `<div class="equip-slot"><span class="equip-slot-name">${s.label}</span>${itemStr}</div>${cooldownHtml}`;
     }).join('');
   },
  
