@@ -435,6 +435,32 @@ const BattleUI = {
     }
     html += '</div>';
 
+    const continuousActions = Battle.continuousActions || [];
+    if (continuousActions.length > 0) {
+      html += '<div class="timeline-section timeline-continuous">';
+      html += '<div class="timeline-divider">— 持续动作 —</div>';
+      for (const action of continuousActions) {
+        const remaining = Math.max(0, action.endTime - Battle.battlefield.time).toFixed(0);
+        const typeLabel = action.type === 'move' ? '移动' : action.type;
+        const actorLabel = action.actor === 'player' ? '你' : action.actor;
+        html += `<div class="timeline-item continuous" style="color:#8f8;">${actorLabel} ${typeLabel} (剩余${remaining}秒)</div>`;
+      }
+      html += '</div>';
+    }
+
+    const playerQueue = Battle.playerActionQueue || [];
+    if (playerQueue.length > 0) {
+      html += '<div class="timeline-section timeline-queue">';
+      html += '<div class="timeline-divider">— 就绪列表 —</div>';
+      for (let i = 0; i < playerQueue.length; i++) {
+        const action = playerQueue[i];
+        const typeLabel = action.type === 'move' ? '移动' : action.type === 'fire' ? '攻击' : action.type === 'call' ? '通信' : action.type;
+        const targetLabel = action.target ? ` ${action.target}` : '';
+        html += `<div class="timeline-item queue" style="color:#ff8;">${i + 1}. ${typeLabel}${targetLabel}</div>`;
+      }
+      html += '</div>';
+    }
+
     html += '<div class="timeline-section timeline-history">';
     html += '<div class="timeline-divider">— 历史记录 —</div>';
     for (const h of this.historyEvents.slice(0, 8)) {

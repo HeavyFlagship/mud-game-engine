@@ -13,6 +13,8 @@ const Battle = {
   playerTask: null,
   playerIdleEnd: null,
   isProcessing: false,
+  continuousActions: [],
+  playerActionQueue: [],
 
   start(roomId, entryDir = 'south') {
     const room = MapSystem.getRoom(roomId);
@@ -38,6 +40,8 @@ const Battle = {
     this.playerTask = null;
     this.playerIdleEnd = null;
     this.isProcessing = false;
+    this.continuousActions = [];
+    this.playerActionQueue = [];
 
     Msg.divider();
     Msg.info(`📍 进入场景：${room.name}`);
@@ -69,6 +73,8 @@ const Battle = {
     this.playerIdleEnd = null;
     this.paused = false;
     this.isProcessing = false;
+    this.continuousActions = [];
+    this.playerActionQueue = [];
   },
 
   enterCombat(reason = '') {
@@ -142,6 +148,45 @@ const Battle = {
     Msg.prompt(hint);
   },
 
+  createContinuousAction(actor, type, startTime, duration, data) {
+    return {
+      actor,
+      type,
+      startTime,
+      endTime: startTime + duration,
+      duration,
+      data,
+      getPosition: (currentTime) => {
+        if (type !== 'move') return null;
+        const elapsed = currentTime - startTime;
+        const ratio = Math.min(1, elapsed / duration);
+        return [
+          data.startPos[0] + (data.endPos[0] - data.startPos[0]) * ratio,
+          data.startPos[1] + (data.endPos[1] - data.startPos[1]) * ratio
+        ];
+      },
+      isActive: (currentTime) => currentTime >= startTime && currentTime <= startTime + duration
+    };
+  },
+
+  addContinuousAction(action) {
+    this.continuousActions.push(action);
+  },
+
+  removeContinuousAction(actor, type) {
+    this.continuousActions = this.continuousActions.filter(
+      a => !(a.actor === actor && a.type === type)
+    );
+  },
+
+  addPlayerAction(action) {
+    this.playerActionQueue.push(action);
+  },
+
+  clearPlayerActionQueue() {
+    this.playerActionQueue = [];
+  },
+
   exitCombat() {
     if (!this.combatActive) return;
     this.combatActive = false;
@@ -175,6 +220,24 @@ const Battle = {
   advanceTime(delta) {
     if (delta <= 0) return;
     this.battlefield.time += delta;
+    const currentTime = this.battlefield.time;
+
+    for (const action of this.continuousActions) {
+      if (action.isActive(currentTime)) {
+        const pos = action.getPosition(currentTime);
+        if (pos) {
+          if (action.actor === 'player') {
+            Player.position = pos;
+          } else {
+            const enemy = this.battlefield.enemies.find(e => e.instanceId === action.actor);
+            if (enemy) enemy.position = pos;
+          }
+        }
+      }
+    }
+
+    this.continuousActions = this.continuousActions.filter(a => a.isActive(currentTime));
+
     this.updateCooldowns(delta);
     this.updateStatusEffects(delta);
     this.regenEnergy(delta);
@@ -260,11 +323,9 @@ const Battle = {
       BattleUI.addCurrentAction('你的行动', '#0ff');
       this.onPlayerTurn();
     } else if (event.type === 'enemy_turn') {
-      BattleUI.clearCurrentActions();
       this.currentActor = event.actor;
       const enemy = this.battlefield.enemies.find(e => e.instanceId === event.actor);
       if (enemy) {
-        BattleUI.addCurrentAction(`${enemy.name}[${event.actor}]行动`, '#f66');
         this.onEnemyTurn(enemy);
       } else {
         this.scheduleNext();
@@ -346,6 +407,7 @@ const Battle = {
   },
 
   startPlayerMove(targetPos) {
+    const startPos = [...Player.position];
     const dx = targetPos[0] - Player.position[0];
     const dy = targetPos[1] - Player.position[1];
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -353,10 +415,14 @@ const Battle = {
     const time = dist / speed * 10;
 
     const clamped = this.clampToBattlefield(targetPos);
-    Player.position = clamped;
     Player.facing = Math.atan2(dy, dx);
 
     BattleUI.addHistory('你', '#8f8', '移动');
+    const moveAction = this.createContinuousAction('player', 'move', this.battlefield.time, time, {
+      startPos,
+      endPos: clamped
+    });
+    this.addContinuousAction(moveAction);
     this.scheduleEvent({ type: 'move_complete', actor: 'player' }, time);
     this.currentActor = 'player';
     BattleUI.addCurrentAction('移动中...', '#8f8');
@@ -369,7 +435,33 @@ const Battle = {
     if (this.playerTask && this.playerTask.type === 'move') {
       this.playerTask = null;
     }
-    this.scheduleNextPlayerTurn();
+    this.executeNextPlayerAction();
+  },
+
+  executeNextPlayerAction() {
+    if (this.playerActionQueue.length === 0) {
+      this.scheduleNextPlayerTurn();
+      return;
+    }
+
+    const nextAction = this.playerActionQueue.shift();
+    Msg.info(`执行就绪行动：${nextAction.label}`);
+
+    if (nextAction.type === 'move') {
+      this.startPlayerMove(nextAction.target);
+    } else if (nextAction.type === 'fire') {
+      const fired = this.playerAttack(nextAction.target, nextAction.slot);
+      if (fired) {
+        this.executeNextPlayerAction();
+      } else {
+        this.scheduleNextPlayerTurn();
+      }
+    } else if (nextAction.type === 'call') {
+      BattleUI.addHistory('你', '#8cf', '通信');
+      BattleUI.addCurrentAction('通信中...', '#8cf');
+      this.scheduleEvent({ type: 'npc_call', actor: 'player', npcId: nextAction.npcId }, 5);
+      this.scheduleNext();
+    }
   },
 
   playerAttack(targetId, slot = 'primary') {
@@ -520,15 +612,21 @@ const Battle = {
   },
 
   startEnemyMove(enemy, targetPos) {
+    const startPos = [...enemy.position];
     const dx = targetPos[0] - enemy.position[0];
     const dy = targetPos[1] - enemy.position[1];
     const dist = Math.sqrt(dx * dx + dy * dy);
     const time = dist / enemy.speed * 10;
 
-    enemy.position = this.clampToBattlefield(targetPos);
+    const clamped = this.clampToBattlefield(targetPos);
     enemy.facing = Math.atan2(dy, dx);
 
     BattleUI.addHistory(`${enemy.name}[${enemy.instanceId}]`, '#8f8', '移动');
+    const moveAction = this.createContinuousAction(enemy.instanceId, 'move', this.battlefield.time, time, {
+      startPos,
+      endPos: clamped
+    });
+    this.addContinuousAction(moveAction);
     BattleUI.addCurrentAction(`${enemy.name}[${enemy.instanceId}]移动中...`, '#8f8');
     this.scheduleEvent({ type: 'move_complete', actor: enemy.instanceId }, time);
   },

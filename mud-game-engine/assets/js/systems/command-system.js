@@ -261,7 +261,13 @@ const CommandSystem = {
       return;
     }
 
-    Battle.setPlayerTask({ type: 'move', target: [targetX, targetY] });
+    const isMoving = Battle.continuousActions.some(a => a.actor === 'player' && a.type === 'move');
+    if (isMoving) {
+      Battle.addPlayerAction({ type: 'move', target: [targetX, targetY], label: `移动到(${Math.round(targetX)}, ${Math.round(targetY)})` });
+      Msg.info(`行动已加入就绪列表：移动到(${Math.round(targetX)}, ${Math.round(targetY)})`);
+    } else {
+      Battle.setPlayerTask({ type: 'move', target: [targetX, targetY] });
+    }
   },
 
   _getExitDirection(tx, ty, bw, bh) {
@@ -308,6 +314,16 @@ const CommandSystem = {
       Msg.error('该目标已被击毁。');
       return;
     }
+    const weapon = Player.equipment[slot];
+    const isOnCooldown = weapon && Player.weaponCooldowns[slot] > 0;
+    const isMoving = Battle.continuousActions.some(a => a.actor === 'player' && a.type === 'move');
+
+    if (isOnCooldown || isMoving) {
+      Battle.addPlayerAction({ type: 'fire', target: targetId, slot, label: `攻击 ${targetId}` });
+      Msg.info(`行动已加入就绪列表：攻击 ${targetId}`);
+      return;
+    }
+
     const fired = Battle.playerAttack(targetId, slot);
     // 开火成功后：消耗一个决策点，推进时间轴
     if (fired) {
@@ -321,7 +337,6 @@ const CommandSystem = {
         // idle 中开火：取消 idle，让时间轴继续推进
         Battle.cancelPlayerIdle();
       }
-      // 移动中开火：不影响移动，无需额外处理
     }
   },
  
