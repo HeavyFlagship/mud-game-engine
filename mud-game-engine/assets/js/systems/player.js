@@ -10,14 +10,13 @@ const Player = {
   gold: 50,
   room: 'village_square',
   inventory: [],       // [{id, count}]
-  equipment: { weapon:null, armor:null, accessory:null, primary:null },
+  equipment: { weapon:null, armor:null, accessory:null },
   skills: ['slash','heal'],
   visitedRooms: new Set(),
   buffs: [],
   statusEffects: [],
   killCount: {},
   stats: { totalDmg:0, totalHeal:0, monstersKilled:0, deaths:0 },
-  position: [500, 500],  // 战场坐标（时间轴战斗系统用）
 
   get atk() {
     let a = this.baseAtk;
@@ -47,12 +46,7 @@ const Player = {
     this.inventory.push({ id:'hp_small', count:3 });
     this.inventory.push({ id:'mp_small', count:2 });
     const starter = ItemDB.get('wooden_sword');
-    if (starter) {
-      // 时间轴战斗系统需要 range 属性
-      starter.range = 300;
-      this.equipment.weapon = starter;
-      this.equipment.primary = starter;
-    }
+    if (starter) this.equipment.weapon = starter;
     const starterArmor = ItemDB.get('cloth_armor');
     if (starterArmor) this.equipment.armor = starterArmor;
   },

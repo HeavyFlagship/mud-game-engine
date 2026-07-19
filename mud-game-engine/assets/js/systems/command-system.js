@@ -115,13 +115,6 @@ const CommandSystem = {
     switch (parsed.cmd) {
       case 'attack': case '攻击': case 'a':
         Battle.action('attack'); break;
-      case 'fire': case '射击': case 'f':
-        if (parsed.args[0]) {
-          Battle.setPlayerTask({ type: 'attack', target: parsed.args[0].toUpperCase() });
-        } else {
-          Battle.action('attack');
-        }
-        break;
       case 'skill': case '技能': case 's':
         Battle.action('skill', parsed.args.join(' ')); break;
       case 'potion': case '药水': case 'p':
