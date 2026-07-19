@@ -8,6 +8,7 @@ const Game = {
     MapSystem.init();
     Player.init();
     Player.visitedRooms.add(Player.room);
+    if (typeof BattleUI !== 'undefined') BattleUI.init();
 
     // 输入事件
     const inputEl = document.getElementById('input');

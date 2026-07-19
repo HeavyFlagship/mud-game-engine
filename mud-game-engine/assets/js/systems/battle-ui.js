@@ -23,26 +23,34 @@ const BattleUI = {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
-    const cx = w / 2, cy = h / 2;
     const scale = Math.min(w, h) / 1000;
+    const offsetX = (w - 1000 * scale) / 2;
+    const offsetY = (h - 1000 * scale) / 2;
 
     ctx.clearRect(0, 0, w, h);
 
-    ctx.strokeStyle = '#1a4a1a';
+    ctx.fillStyle = '#051005';
+    ctx.fillRect(offsetX, offsetY, 1000 * scale, 1000 * scale);
+
+    ctx.strokeStyle = '#1a3a1a';
     ctx.lineWidth = 0.5;
-    ctx.beginPath();
-    ctx.arc(cx, cy, w / 2 - 2, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(cx, cy, w / 3, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(cx, cy, w / 6, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(cx, 0); ctx.lineTo(cx, h);
-    ctx.moveTo(0, cy); ctx.lineTo(w, cy);
-    ctx.stroke();
+    const gridSize = 200;
+    for (let x = 0; x <= 1000; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(offsetX + x * scale, offsetY);
+      ctx.lineTo(offsetX + x * scale, offsetY + 1000 * scale);
+      ctx.stroke();
+    }
+    for (let y = 0; y <= 1000; y += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(offsetX, offsetY + y * scale);
+      ctx.lineTo(offsetX + 1000 * scale, offsetY + y * scale);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = '#2d5';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(offsetX, offsetY, 1000 * scale, 1000 * scale);
 
     let playerX = 500, playerY = 500;
     if (Battle.active && Battle.battlefield) {
@@ -50,8 +58,8 @@ const BattleUI = {
       playerY = Player.position[1];
     }
 
-    const px = cx + (playerX - 500) * scale;
-    const py = cy + (playerY - 500) * scale;
+    const px = offsetX + playerX * scale;
+    const py = offsetY + playerY * scale;
     ctx.fillStyle = '#0ff';
     ctx.beginPath();
     ctx.arc(px, py, 5, 0, Math.PI * 2);
@@ -65,8 +73,8 @@ const BattleUI = {
     if (Battle.active && Battle.battlefield) {
       for (const enemy of Battle.battlefield.enemies) {
         if (enemy.hp <= 0) continue;
-        const ex = cx + (enemy.position[0] - 500) * scale;
-        const ey = cy + (enemy.position[1] - 500) * scale;
+        const ex = offsetX + enemy.position[0] * scale;
+        const ey = offsetY + enemy.position[1] * scale;
         const dist = Battle.getDistance(Player.position, enemy.position);
 
         if (dist <= enemy.attackRange) {
@@ -93,8 +101,8 @@ const BattleUI = {
           const npcId = room.npcs[i];
           const npc = NPCDB[npcId];
           if (!npc) continue;
-          const nx = cx + (200 + i * 200 - 500) * scale;
-          const ny = cy + (450 - 500) * scale;
+          const nx = offsetX + (150 + i * 200) * scale;
+          const ny = offsetY + 400 * scale;
           ctx.fillStyle = '#8cf';
           ctx.beginPath();
           ctx.arc(nx, ny, 4, 0, Math.PI * 2);
