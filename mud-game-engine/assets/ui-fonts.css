@@ -5,7 +5,7 @@
 :root {
   /* 标题类 */
   --font-title: 1.1rem;          /* 页面主标题 */
-  --font-section-title: 0.75rem;/* 侧边栏区块标题（大写字母带间距） */
+  --font-section-title: 0.85rem;/* 侧边栏区块标题（大写字母带间距） */
   --font-room-name: 1rem;       /* 房间名称 */
   --font-combat-title: 1rem;    /* 战斗标题 */
 
@@ -43,9 +43,9 @@
   /* 战斗UI类 */
   --font-radar: 9px;            /* 雷达画布文字 */
   --font-radar-legend: 11px;    /* 雷达图例 */
-  --font-enemy-list: 0.85rem;   /* 敌人列表 */
-  --font-enemy-stat: 0.8rem;    /* 敌人数据 */
-  --font-enemy-header: 11px;    /* 敌人列表标题 */
+  --font-enemy-list: 0.8rem;   /* 敌人/单位列表正文 */
+  --font-enemy-stat: 0.78rem;   /* 敌人/单位数据 */
+  --font-enemy-header: 0.75rem; /* 敌人列表计数标题 */
 
   /* 时间轴类 */
   --font-timeline: 0.82rem;    /* 时间轴正文 */

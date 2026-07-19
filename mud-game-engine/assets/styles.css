@@ -81,13 +81,16 @@ body {
   overflow-y: auto;
 }
 .battle-sidebar {
-  width: 220px;
+  width: 260px;
+  min-width: 220px;
+  max-width: 400px;
   background: var(--bg2);
   border-right: 1px solid var(--rule);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
   overflow: hidden;
+  resize: horizontal;
 }
 .battle-sidebar .sidebar-section {
   border-bottom: 1px solid var(--rule);
@@ -110,6 +113,32 @@ body {
   padding-bottom: 0.75rem;
 }
 .enemy-list { font-size: var(--font-enemy-list); }
+
+/* 单位/敌人卡片用 grid 布局让名称列与距离列对齐 */
+.unit-card, .enemy-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 6px;
+  padding: 6px;
+  background: #1a2230;
+  border-radius: 4px;
+}
+.unit-card .name, .enemy-card .name {
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.unit-card .dist, .enemy-card .dist {
+  text-align: right;
+  white-space: nowrap;
+}
+.unit-card .sub, .enemy-card .sub {
+  grid-column: 1 / -1;
+  font-size: var(--font-enemy-stat);
+}
 
 /* ===== TIMELINE PANEL ===== */
 .timeline-panel {

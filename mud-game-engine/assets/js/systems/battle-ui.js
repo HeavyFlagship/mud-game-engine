@@ -178,14 +178,13 @@ const BattleUI = {
       const visible = broadcast || dist <= Player.visionRadius;
       if (!visible) continue;
       const inCallRange = dist <= 100;
-      const shopIcon = npcDef.shopItems ? ' 🛒' : '';
-      const broadcastTag = broadcast ? ' 📡' : '';
-      html += `<div style="margin-bottom:6px;padding:6px;background:#1a2230;border-radius:4px;">
-        <div style="display:flex;justify-content:space-between;">
-          <span style="color:#8cf;font-weight:bold;">${npcUnit.instanceId} ${npcDef.name}${broadcastTag}${shopIcon}</span>
-          <span style="color:var(--muted);font-size:var(--font-enemy-header);">${dist.toFixed(0)}m ${inCallRange ? '📞' : '📏'}</span>
-        </div>
-        <div style="font-size:var(--font-enemy-stat);color:var(--muted-bright);">${npcDef.title || ''}</div>
+      const shopIcon = npcDef.shopItems ? '🛒' : '';
+      const broadcastTag = broadcast ? '📡' : '';
+      const nameText = `${npcUnit.instanceId} ${npcDef.name} ${broadcastTag}${shopIcon}`;
+      html += `<div class="unit-card">
+        <span class="name" style="color:#8cf;" title="${nameText}">${nameText}</span>
+        <span class="dist" style="color:var(--muted);font-size:var(--font-enemy-header);">${dist.toFixed(0)}m ${inCallRange ? '📞' : '📏'}</span>
+        <span class="sub" style="color:var(--muted-bright);">${npcDef.title || ''}</span>
       </div>`;
     }
     unitEl.innerHTML = html || '<div style="color:var(--muted);font-style:italic;font-size:var(--font-hint);">视野内无单位</div>';
@@ -259,19 +258,19 @@ const BattleUI = {
       const arPct = enemy.maxArmor > 0 ? (enemy.armor / enemy.maxArmor * 100).toFixed(0) : 0;
       const dead = enemy.hp <= 0;
       const inRange = Player.equipment.primary && dist <= Player.equipment.primary.range;
-      html += `<div style="margin-bottom:6px;padding:6px;background:${dead ? '#222' : '#1a1a1a'};border-radius:4px;opacity:${dead ? 0.5 : 1};">
-        <div style="display:flex;justify-content:space-between;">
-          <span style="color:${dead ? '#666' : '#f66'};font-weight:bold;">${enemy.instanceId} ${enemy.name}</span>
-          <span style="color:var(--muted);font-size:var(--font-enemy-header);">${dist.toFixed(0)}m ${inRange ? '🎯' : '📏'}</span>
-        </div>
-        <div style="font-size:var(--font-enemy-stat);color:var(--muted-bright);">结构: ${enemy.hp}/${enemy.maxHp}
+      const nameText = `${enemy.instanceId} ${enemy.name}`;
+      const distText = `${dist.toFixed(0)}m ${inRange ? '🎯' : '📏'}`;
+      html += `<div class="enemy-card" style="background:${dead ? '#222' : '#1a1a1a'};opacity:${dead ? 0.5 : 1};">
+        <span class="name" style="color:${dead ? '#666' : '#f66'};" title="${nameText}">${nameText}</span>
+        <span class="dist" style="color:var(--muted);font-size:var(--font-enemy-header);">${distText}</span>
+        <span class="sub" style="color:var(--muted-bright);">结构: ${enemy.hp}/${enemy.maxHp}
           <div style="display:inline-block;width:90px;height:7px;background:#333;border-radius:2px;vertical-align:middle;margin-left:4px;">
           <div style="width:${hpPct}%;height:7px;background:${hpPct>50?'#4f4':hpPct>25?'#fa2':'#f44'};border-radius:2px;"></div></div>
-        </div>
-        <div style="font-size:var(--font-enemy-stat);color:var(--muted-bright);">装甲: ${enemy.armor}/${enemy.maxArmor}
+        </span>
+        <span class="sub" style="color:var(--muted-bright);">装甲: ${enemy.armor}/${enemy.maxArmor}
           <div style="display:inline-block;width:90px;height:7px;background:#333;border-radius:2px;vertical-align:middle;margin-left:4px;">
           <div style="width:${arPct}%;height:7px;background:#88f;border-radius:2px;"></div></div>
-        </div>
+        </span>
       </div>`;
     }
     enemyEl.innerHTML = html;
