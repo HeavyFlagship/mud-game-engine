@@ -1,0 +1,1645 @@
+diff --git a/mud-game-engine/assets/js/data/enemies.js b/mud-game-engine/assets/js/data/enemies.js
+index 464ff72..5cbe067 100644
+--- a/mud-game-engine/assets/js/data/enemies.js
++++ b/mud-game-engine/assets/js/data/enemies.js
+@@ -1,5 +1,8 @@
+ // ========== 敌人数据库 ==========
++// 时间轴战斗系统专用格式
++// loot: [{ item, chance, min, max }] - item 为物品 id，显示时从 ItemDB 取 name
+ const EnemyDB = {
++  // ===== 原版敌人（保留，用于旧地图兼容） =====
+   slime:         { id:'slime',         name:'史莱姆',       hp:30,   atk:5,  def:2,  exp:10,  gold:5,   drops:[['hp_small',0.5]], level:1 },
+   bat:           { id:'bat',           name:'巨型蝙蝠',     hp:40,   atk:8,  def:3,  exp:15,  gold:8,   drops:[['hp_small',0.3]], level:1 },
+   goblin:        { id:'goblin',        name:'哥布林',       hp:60,   atk:12, def:5,  exp:25,  gold:15,  drops:[['hp_small',0.4],['leather_armor',0.1]], level:2 },
+@@ -8,8 +11,112 @@ const EnemyDB = {
+   orc:           { id:'orc',           name:'兽人武士',     hp:150,  atk:25, def:14, exp:65,  gold:40,  drops:[['chain_mail',0.08],['hp_medium',0.4]], level:5 },
+   dark_mage:     { id:'dark_mage',     name:'暗黑法师',     hp:100,  atk:35, def:8,  exp:80,  gold:50,  drops:[['mp_medium',0.5],['ring_atk',0.05]], level:6, canMagic:true },
+   stone_golem:   { id:'stone_golem',   name:'石头傀儡',     hp:250,  atk:20, def:25, exp:100, gold:60,  drops:[['plate_armor',0.05],['hp_large',0.3]], level:7 },
+-  vampire:       { id:'vampire',       name:'吸血鬼',       hp:180,  atk:32, def:12, exp:120, gold:80,  drops:[['shadow_dagger',0.05],['ring_hp',0.08]], level:8, canDrain:true },
++  vampire:       { id:'vampire',        name:'吸血鬼',       hp:180,  atk:32, def:12, exp:120, gold:80,  drops:[['shadow_dagger',0.05],['ring_hp',0.08]], level:8, canDrain:true },
+   wyvern:        { id:'wyvern',        name:'双足飞龙',     hp:300,  atk:40, def:20, exp:180, gold:120, drops:[['steel_blade',0.08],['hp_large',0.4]], level:10 },
+   lich:          { id:'lich',          name:'巫妖',         hp:350,  atk:50, def:18, exp:250, gold:200, drops:[['flame_sword',0.05],['mystic_robe',0.06],['crystal',0.2]], level:12, canMagic:true },
+   dragon:        { id:'dragon',        name:'远古巨龙',     hp:800,  atk:65, def:35, exp:500, gold:500, drops:[['dragon_slay',0.08],['dragon_fang',0.3]], level:15, isBoss:true },
++
++  // ===== 时间轴战斗系统敌人 =====
++  // category: bug/npc/machine - 影响 AI 行为
++  // speed: 行动速度（越小越快）
++  // visionRadius: 视野范围（米）
++  // signalRadius: 信号范围（影响警觉传播）
++  // targetRadius: 接敌距离（米）
++  // damage/damageType: 攻击伤害与类型
++  // attackRange: 攻击射程（米）
++  // attackCooldown: 攻击冷却（tick）
++  // spread: 散布精度（0=完美，越大越不准）
++  // aiType: AI 行为类型
++  // loot: [{ item, chance, min, max }] - 战利品
++  worker_bug: {
++    id: 'worker_bug',
++    name: '工虫',
++    category: 'bug',
++    hp: 60,
++    armor: 10,
++    speed: 12,
++    visionRadius: 300,
++    signalRadius: 1.5,
++    targetRadius: 1.5,
++    damage: 12,
++    damageType: 'kinetic',
++    attackRange: 150,
++    attackCooldown: 15,
++    spread: 0.1,
++    exp: 20,
++    loot: [
++      { item: 'chitin_fragment', chance: 0.7, min: 1, max: 3 }
++    ],
++    aiType: 'bug_worker',
++    desc: '虫族的基础单位，负责巢穴维护与资源搬运，遇到威胁会发出警报并撤退。'
++  },
++  assault_bug: {
++    id: 'assault_bug',
++    name: '突击虫',
++    category: 'bug',
++    hp: 70,
++    armor: 30,
++    speed: 10,
++    visionRadius: 350,
++    signalRadius: 2.0,
++    targetRadius: 1.8,
++    damage: 18,
++    damageType: 'kinetic',
++    attackRange: 200,
++    attackCooldown: 12,
++    spread: 0.05,
++    exp: 35,
++    loot: [
++      { item: 'chitin_fragment', chance: 0.8, min: 2, max: 5 },
++      { item: 'acid_gland', chance: 0.3, min: 1, max: 1 }
++    ],
++    aiType: 'bug_charge',
++    desc: '中型战斗虫，前肢特化为锋利的切割器官，冲锋速度快，对轻型装甲威胁较大。'
++  },
++  acid_spitter: {
++    id: 'acid_spitter',
++    name: '酸液虫',
++    category: 'bug',
++    hp: 50,
++    armor: 15,
++    speed: 14,
++    visionRadius: 400,
++    signalRadius: 1.8,
++    targetRadius: 2.0,
++    damage: 22,
++    damageType: 'corrosive',
++    attackRange: 300,
++    attackCooldown: 18,
++    spread: 0.08,
++    exp: 40,
++    loot: [
++      { item: 'acid_gland', chance: 0.6, min: 1, max: 2 },
++      { item: 'chitin_fragment', chance: 0.5, min: 1, max: 2 }
++    ],
++    aiType: 'bug_ranged',
++    desc: '远程酸液攻击单位，能在较远距离喷吐腐蚀性液体，对装甲有破坏作用。'
++  },
++  sentinel_drone: {
++    id: 'sentinel_drone',
++    name: '哨兵无人机',
++    category: 'machine',
++    hp: 80,
++    armor: 20,
++    speed: 8,
++    visionRadius: 500,
++    signalRadius: 3.0,
++    targetRadius: 2.0,
++    damage: 15,
++    damageType: 'kinetic',
++    attackRange: 350,
++    attackCooldown: 10,
++    spread: 0.03,
++    exp: 50,
++    loot: [
++      { item: 'circuit_board', chance: 0.7, min: 1, max: 2 },
++      { item: 'power_cell', chance: 0.4, min: 1, max: 1 }
++    ],
++    aiType: 'drone_patrol',
++    desc: '自动化巡逻无人机，装备轻型自动武器，视野宽广，发现目标后会持续追击。'
++  },
+ };
+diff --git a/mud-game-engine/assets/js/data/items.js b/mud-game-engine/assets/js/data/items.js
+index f81c509..384ffa1 100644
+--- a/mud-game-engine/assets/js/data/items.js
++++ b/mud-game-engine/assets/js/data/items.js
+@@ -33,6 +33,11 @@ const ItemDB = {
+     crystal:    { id:'crystal',    name:'魔法水晶',   type:'quest', desc:'散发微光的蓝色水晶，蕴含着强大的魔力。' },
+     dragon_fang: { id:'dragon_fang', name:'龙牙',      type:'quest', desc:'从巨龙口中拔出的锋利獠牙。' },
+     letter:     { id:'letter',     name:'神秘信件',   type:'quest', desc:'一封没有署名的信件，字迹模糊。' },
++    // ===== 战利品材料 =====
++    chitin_fragment: { id:'chitin_fragment', name:'虫壳碎片', type:'material', desc:'虫族外壳的碎片，坚硬且富有韧性，可加工为防护材料。', price:5 },
++    acid_gland:      { id:'acid_gland',      name:'酸液腺体', type:'material', desc:'虫族酸液腺体，内含高浓度腐蚀性液体，小心处理。', price:12 },
++    circuit_board:   { id:'circuit_board',   name:'电路板',   type:'material', desc:'无人机的控制电路板，上面布满精密元件。', price:15 },
++    power_cell:      { id:'power_cell',      name:'能量电池', type:'material', desc:'高能量密度的电池，可为电子设备供电。', price:20 },
+   },
+   get(id) {
+     for (const cat of Object.values(this)) {
+diff --git a/mud-game-engine/assets/js/systems/battle-ui.js b/mud-game-engine/assets/js/systems/battle-ui.js
+new file mode 100644
+index 0000000..6e7027f
+--- /dev/null
++++ b/mud-game-engine/assets/js/systems/battle-ui.js
+@@ -0,0 +1,221 @@
++// ========== 战斗 UI 系统 ==========
++const BattleUI = {
++  historyEvents: [],
++
++  init() {
++    this.updateRadar();
++    this.updateEnemyList();
++    this.updateTimeline();
++    setInterval(() => {
++      this.updateRadar();
++      if (Battle.active) {
++        this.updateEnemyList();
++        this.updateTimeline();
++        if (typeof Game !== 'undefined' && Game.updatePlayerInfo) {
++          Game.updatePlayerInfo();
++        }
++      }
++    }, 500);
++  },
++
++  updateRadar() {
++    const canvas = document.getElementById('radar-canvas');
++    if (!canvas) return;
++    const ctx = canvas.getContext('2d');
++    const w = canvas.width, h = canvas.height;
++    const cx = w / 2, cy = h / 2;
++    const scale = Math.min(w, h) / 1000;
++
++    ctx.clearRect(0, 0, w, h);
++
++    ctx.strokeStyle = '#1a4a1a';
++    ctx.lineWidth = 0.5;
++    ctx.beginPath();
++    ctx.arc(cx, cy, w / 2 - 2, 0, Math.PI * 2);
++    ctx.stroke();
++    ctx.beginPath();
++    ctx.arc(cx, cy, w / 3, 0, Math.PI * 2);
++    ctx.stroke();
++    ctx.beginPath();
++    ctx.arc(cx, cy, w / 6, 0, Math.PI * 2);
++    ctx.stroke();
++    ctx.beginPath();
++    ctx.moveTo(cx, 0); ctx.lineTo(cx, h);
++    ctx.moveTo(0, cy); ctx.lineTo(w, cy);
++    ctx.stroke();
++
++    let playerX = 500, playerY = 500;
++    if (Battle.active && Battle.battlefield) {
++      playerX = Player.position[0];
++      playerY = Player.position[1];
++    }
++
++    const px = cx + (playerX - 500) * scale;
++    const py = cy + (playerY - 500) * scale;
++    ctx.fillStyle = '#0ff';
++    ctx.beginPath();
++    ctx.arc(px, py, 5, 0, Math.PI * 2);
++    ctx.fill();
++    ctx.strokeStyle = '#0ff';
++    ctx.lineWidth = 1;
++    ctx.beginPath();
++    ctx.arc(px, py, 9, 0, Math.PI * 2);
++    ctx.stroke();
++
++    if (Battle.active && Battle.battlefield) {
++      for (const enemy of Battle.battlefield.enemies) {
++        if (enemy.hp <= 0) continue;
++        const ex = cx + (enemy.position[0] - 500) * scale;
++        const ey = cy + (enemy.position[1] - 500) * scale;
++        const dist = Battle.getDistance(Player.position, enemy.position);
++
++        if (dist <= enemy.attackRange) {
++          ctx.fillStyle = '#f44';
++        } else if (enemy.state === 'pursue' || enemy.state === 'alert') {
++          ctx.fillStyle = '#fa2';
++        } else {
++          ctx.fillStyle = '#fd0';
++        }
++
++        ctx.beginPath();
++        ctx.arc(ex, ey, 4, 0, Math.PI * 2);
++        ctx.fill();
++
++        ctx.fillStyle = '#fff';
++        ctx.font = '9px monospace';
++        ctx.textAlign = 'center';
++        ctx.fillText(enemy.instanceId, ex, ey - 7);
++      }
++    } else {
++      const room = MapSystem.getRoom(Player.room);
++      if (room && room.npcs && room.npcs.length > 0) {
++        for (let i = 0; i < room.npcs.length; i++) {
++          const npcId = room.npcs[i];
++          const npc = NPCDB[npcId];
++          if (!npc) continue;
++          const nx = cx + (200 + i * 200 - 500) * scale;
++          const ny = cy + (450 - 500) * scale;
++          ctx.fillStyle = '#8cf';
++          ctx.beginPath();
++          ctx.arc(nx, ny, 4, 0, Math.PI * 2);
++          ctx.fill();
++          ctx.fillStyle = '#fff';
++          ctx.font = '9px monospace';
++          ctx.textAlign = 'center';
++          ctx.fillText('NPC', nx, ny - 7);
++        }
++      }
++    }
++
++    const legendEl = document.getElementById('radar-legend');
++    if (legendEl) {
++      if (Battle.active) {
++        const alive = Battle.battlefield ? Battle.battlefield.enemies.filter(e => e.hp > 0).length : 0;
++        legendEl.innerHTML = `<span style="color:#0ff;">●</span> 玩家 &nbsp; <span style="color:#f44;">●</span> 威胁 &nbsp; <span style="color:#fd0;">●</span> 未警觉 &nbsp; 敌人: ${alive}`;
++      } else {
++        const room = MapSystem.getRoom(Player.room);
++        const npcCount = room && room.npcs ? room.npcs.length : 0;
++        legendEl.innerHTML = `<span style="color:#0ff;">●</span> 玩家 &nbsp; <span style="color:#8cf;">●</span> NPC &nbsp; NPC: ${npcCount}`;
++      }
++    }
++  },
++
++  updateEnemyList() {
++    const el = document.getElementById('enemy-list');
++    if (!el) return;
++
++    if (!Battle.active || !Battle.battlefield) {
++      el.innerHTML = '<div style="color:#666;font-size:11px;">非战斗状态</div>';
++      return;
++    }
++
++    let html = '';
++    for (const enemy of Battle.battlefield.enemies) {
++      const dist = Battle.getDistance(Player.position, enemy.position);
++      const hpPct = (enemy.hp / enemy.maxHp * 100).toFixed(0);
++      const arPct = enemy.maxArmor > 0 ? (enemy.armor / enemy.maxArmor * 100).toFixed(0) : 0;
++      const dead = enemy.hp <= 0;
++      const inRange = Player.equipment.primary && dist <= Player.equipment.primary.range;
++      html += `<div style="margin-bottom:6px;padding:4px;background:${dead ? '#222' : '#1a1a1a'};border-radius:3px;opacity:${dead ? 0.5 : 1};">
++        <div style="display:flex;justify-content:space-between;font-size:12px;">
++          <span style="color:${dead ? '#666' : '#f66'};font-weight:bold;">${enemy.instanceId} ${enemy.name}</span>
++          <span style="color:#888;font-size:11px;">${dist.toFixed(0)}m ${inRange ? '🎯' : '📏'}</span>
++        </div>
++        <div style="font-size:10px;color:#aaa;margin-top:2px;">结构: ${enemy.hp}/${enemy.maxHp}
++          <div style="display:inline-block;width:60px;height:5px;background:#333;border-radius:2px;vertical-align:middle;margin-left:4px;">
++          <div style="width:${hpPct}%;height:5px;background:${hpPct>50?'#4f4':hpPct>25?'#fa2':'#f44'};border-radius:2px;"></div></div>
++        </div>
++        <div style="font-size:10px;color:#aaa;">装甲: ${enemy.armor}/${enemy.maxArmor}
++          <div style="display:inline-block;width:60px;height:5px;background:#333;border-radius:2px;vertical-align:middle;margin-left:4px;">
++          <div style="width:${arPct}%;height:5px;background:#88f;border-radius:2px;"></div></div>
++        </div>
++      </div>`;
++    }
++    el.innerHTML = html;
++  },
++
++  addHistory(text, color = '#aaa') {
++    const time = Battle.battlefield ? Battle.battlefield.time.toFixed(0) : '?';
++    this.historyEvents.unshift({ time, text, color });
++    if (this.historyEvents.length > 30) {
++      this.historyEvents.pop();
++    }
++  },
++
++  updateTimeline() {
++    const content = document.getElementById('timeline-content');
++    if (!content) return;
++
++    if (!Battle.active || !Battle.eventQueue) {
++      content.innerHTML = '<div style="color:#666;">非战斗状态</div>';
++      return;
++    }
++
++    let html = '<div style="color:#888;margin-bottom:4px;border-bottom:1px solid #333;padding-bottom:2px;">— 即将到来 —</div>';
++
++    const sorted = [...Battle.eventQueue].sort((a, b) => a.time - b.time).slice(0, 5);
++    for (const evt of sorted) {
++      const timeOffset = (evt.time - Battle.battlefield.time).toFixed(0);
++      let label = '';
++      let color = '#aaa';
++      if (evt.type === 'player_turn') {
++        label = '你的行动';
++        color = '#0ff';
++      } else if (evt.type === 'enemy_turn') {
++        const enemy = Battle.battlefield.enemies.find(e => e.instanceId === evt.actor);
++        label = enemy ? `${enemy.name}[${evt.actor}]行动` : `敌人[${evt.actor}]行动`;
++        color = '#f66';
++      } else if (evt.type === 'move_complete') {
++        label = evt.actor === 'player' ? '移动完成' : `${evt.actor}移动完成`;
++        color = '#8f8';
++      } else if (evt.type === 'attack_complete') {
++        label = evt.actor === 'player' ? '攻击完成' : `${evt.actor}攻击完成`;
++        color = '#fa4';
++      }
++      html += `<div style="color:${color};padding:1px 0;">+${timeOffset}t ${label}</div>`;
++    }
++
++    if (this.historyEvents.length > 0) {
++      html += '<div style="color:#888;margin:6px 0 4px;border-bottom:1px solid #333;padding-bottom:2px;">— 历史记录 —</div>';
++      for (const h of this.historyEvents.slice(0, 8)) {
++        html += `<div style="color:${h.color};padding:1px 0;opacity:0.7;">${h.time}t ${h.text}</div>`;
++      }
++    }
++
++    content.innerHTML = html;
++  },
++
++  render() {
++    this.historyEvents = [];
++    this.updateRadar();
++    this.updateEnemyList();
++    this.updateTimeline();
++  },
++
++  remove() {
++    this.historyEvents = [];
++    this.updateRadar();
++    this.updateEnemyList();
++    this.updateTimeline();
++  }
++};
+diff --git a/mud-game-engine/assets/js/systems/battle.js b/mud-game-engine/assets/js/systems/battle.js
+index 919f229..c68ecab 100644
+--- a/mud-game-engine/assets/js/systems/battle.js
++++ b/mud-game-engine/assets/js/systems/battle.js
+@@ -1,214 +1,268 @@
+-// ========== 战斗系统 ==========
+-// TODO: 未来大修战斗、任务与属性系统：
+-// 1. 统一角色属性模型（力量/敏捷/体质/精神/速度/抗性等）；
+-// 2. 重构战斗流程为可扩展的行动队列、状态效果、技能效果管线；
+-// 3. 接入任务系统，让击杀、收集、对话、探索等目标可追踪并触发奖励。
++// ========== 时间轴回合制战斗系统 ==========
++// 基于时间轴的行动队列：所有单位按时间顺序行动，行动消耗时间推进时间轴
++// 战场为 1000x1000 坐标系，单位在其中移动、瞄准、射击
++
+ const Battle = {
+   active: false,
+-  enemy: null,       // 当前战斗的敌人实例
+-  enemyMaxHp: 0,
+-  round: 0,
++  paused: true,
++  currentActor: null,
++  battlefield: null,
++  eventQueue: [],
+   onEnd: null,
++  tickInterval: null,
++  enemyCounter: 0,
+ 
++  // ===== 战斗启动 =====
+   start(enemyId) {
+-    const template = EnemyDB[enemyId];
+-    if (!template) return;
++    const room = MapSystem.getRoom(Player.room);
++    if (!room || !room.enemies || room.enemies.length === 0) {
++      Msg.warning('这里没有可以攻击的目标。');
++      return;
++    }
++
++    // 重置战场状态，避免缓存导致敌人血量为 0
++    this.battlefield = {
++      width: 1000,
++      height: 1000,
++      time: 0,
++      enemies: [],
++      playerTask: null,
++    };
++    this.eventQueue = [];
++    this.enemyCounter = 0;
++    this.paused = true;
++    this.currentActor = 'player';
++
++    // 玩家位置
++    Player.position = [500, 950];
++
++    // 生成敌人
++    const possible = room.enemies.filter(([_, chance]) => Utils.chance(chance * 100));
++    if (possible.length === 0) {
++      Msg.info('周围一片安静，没有发现敌人。');
++      this.battlefield = null;
++      return;
++    }
++
++    for (const [eid, _] of possible) {
++      const template = EnemyDB[eid];
++      if (!template) continue;
++      this.enemyCounter++;
++      const instanceId = eid.substring(0, 3).toUpperCase() + this.enemyCounter;
++      const enemy = {
++        ...template,
++        // 时间轴战斗系统属性（为旧版敌人提供默认值）
++        armor: template.armor || template.def || 0,
++        speed: template.speed || 10,
++        visionRadius: template.visionRadius || 350,
++        signalRadius: template.signalRadius || 1.5,
++        targetRadius: template.targetRadius || 1.5,
++        damage: template.damage || template.atk || 10,
++        damageType: template.damageType || 'kinetic',
++        attackRange: template.attackRange || 200,
++        attackCooldown: template.attackCooldown || 12,
++        spread: template.spread || 0.1,
++        aiType: template.aiType || 'default',
++        loot: template.loot || null,
++        // 实例属性
++        instanceId,
++        templateId: eid,
++        maxHp: template.hp,
++        maxArmor: template.armor || template.def || 0,
++        position: [
++          Utils.rand(300, 700),
++          Utils.rand(100, 400)
++        ],
++        state: 'idle',
++        lastAttackTime: -999,
++        target: null,
++      };
++      this.battlefield.enemies.push(enemy);
++    }
++
+     this.active = true;
+-    this.enemy = { ...template, currentHp: template.hp };
+-    this.enemyMaxHp = template.hp;
+-    this.round = 0;
+     document.getElementById('battle-bar').classList.add('active');
+-    document.getElementById('battle-enemy-name').textContent = template.name;
++    document.getElementById('battle-enemy-name').textContent = `${this.battlefield.enemies.length} 个敌人`;
++
+     Msg.divider();
+-    Msg.add(`⚔ 遭遇 <span class="enemy-name">${template.name}</span> (Lv.${template.level})！`, 'combat-title');
+-    Msg.info(`${template.name} 出现了！准备战斗！`);
+-    this.updateBattleUI();
+-    this.renderBattleMenus();
+-  },
++    Msg.add(`⚔ 遭遇 <span class="enemy-name">${this.battlefield.enemies.length}</span> 个敌人！`, 'combat-title');
++    this.battlefield.enemies.forEach(e => {
++      Msg.info(`  ${e.instanceId} ${e.name} (HP:${e.hp} 装甲:${e.armor})`);
++    });
++    Msg.info('输入 fire 敌人编号 进行攻击，或使用战斗按钮。');
+ 
+-  toggleSkillMenu() {
+-    if (!this.active) return;
+-    this.renderBattleMenus();
+-    this.toggleMenu('battle-skill-menu');
++    // 初始化事件队列：玩家先行动
++    this.scheduleEvent({ type: 'player_turn', time: 0, actor: 'player' });
++    // 敌人行动
++    this.battlefield.enemies.forEach(e => {
++      this.scheduleEvent({ type: 'enemy_turn', time: e.speed, actor: e.instanceId });
++    });
++
++    if (typeof BattleUI !== 'undefined') BattleUI.render();
++    Game.updateUI();
+   },
+ 
+-  togglePotionMenu() {
+-    if (!this.active) return;
+-    this.renderBattleMenus();
+-    this.toggleMenu('battle-potion-menu');
++  // ===== 事件队列管理 =====
++  scheduleEvent(evt) {
++    this.eventQueue.push(evt);
+   },
+ 
+-  toggleMenu(id) {
+-    const target = document.getElementById(id);
+-    if (!target) return;
+-    const shouldOpen = !target.classList.contains('active');
+-    this.hideMenus();
+-    if (shouldOpen) target.classList.add('active');
++  removeEventsByActor(actor) {
++    this.eventQueue = this.eventQueue.filter(e => e.actor !== actor);
+   },
+ 
+-  hideMenus() {
+-    ['battle-skill-menu', 'battle-potion-menu'].forEach(id => {
+-      const el = document.getElementById(id);
+-      if (el) el.classList.remove('active');
+-    });
++  getNextEvent() {
++    if (this.eventQueue.length === 0) return null;
++    return this.eventQueue.reduce((min, e) => e.time < min.time ? e : min);
+   },
+ 
+-  renderBattleMenus() {
+-    const skillMenu = document.getElementById('battle-skill-menu');
+-    const potionMenu = document.getElementById('battle-potion-menu');
+-
+-    if (skillMenu) {
+-      const skillButtons = Player.skills.map(sid => {
+-        const skill = SkillDB[sid];
+-        if (!skill) return '';
+-        const disabled = Player.mp < skill.mpCost ? ' disabled' : '';
+-        const title = `${skill.desc} 消耗${skill.mpCost}MP`;
+-        return `<button class="battle-choice skill" onclick="Battle.action('skill','${skill.id}')" title="${title}"${disabled}>${skill.name} · ${skill.mpCost}MP</button>`;
+-      }).join('');
+-      skillMenu.innerHTML = skillButtons || '<span class="battle-menu-empty">尚未习得技能</span>';
+-    }
++  advanceTime() {
++    const next = this.getNextEvent();
++    if (!next) return;
+ 
+-    if (potionMenu) {
+-      const potionButtons = Player.inventory
+-        .filter(entry => {
+-          const item = ItemDB.get(entry.id);
+-          return item && item.type === 'potion';
+-        })
+-        .map(entry => {
+-          const item = ItemDB.get(entry.id);
+-          return `<button class="battle-choice potion" onclick="Battle.action('potion','${item.id}')" title="${item.desc}">${item.name} ×${entry.count}</button>`;
+-        }).join('');
+-      potionMenu.innerHTML = potionButtons || '<span class="battle-menu-empty">没有可用药水</span>';
+-    }
++    const dt = next.time - this.battlefield.time;
++    this.battlefield.time = next.time;
++
++    // 移除该事件
++    const idx = this.eventQueue.indexOf(next);
++    if (idx !== -1) this.eventQueue.splice(idx, 1);
++
++    return next;
+   },
+ 
+-  action(type, param) {
+-    if (!this.active) return;
+-    if (param) this.hideMenus();
+-    let playerActed = false;
+-    switch (type) {
+-      case 'attack': playerActed = this.playerAttack(); break;
+-      case 'skill': playerActed = this.playerSkill(param); break;
+-      case 'potion': playerActed = this.playerPotion(param); break;
+-      case 'flee':
+-        this.round++;
+-        document.getElementById('battle-round').textContent = `第 ${this.round} 回合`;
+-        this.playerFlee();
+-        Game.updateUI();
+-        return;
+-    }
++  // ===== 玩家行动 =====
++  setPlayerTask(task) {
++    this.battlefield.playerTask = task;
++    this.processPlayerAction(task);
++  },
+ 
+-    if (!playerActed) {
+-      this.updateBattleUI();
+-      this.renderBattleMenus();
+-      Game.updateUI();
++  processPlayerAction(task) {
++    if (task.type === 'attack' || task.type === 'fire') {
++      const enemy = this.battlefield.enemies.find(e => e.instanceId === task.target);
++      if (!enemy || enemy.hp <= 0) {
++        Msg.warning('目标无效或已死亡。');
++        this.paused = true;
++        return;
++      }
++      this.playerAttack(enemy);
++    } else if (task.type === 'move') {
++      this.playerMove(task.target);
++    } else if (task.type === 'skill') {
++      this.playerSkill(task.skill);
++    } else if (task.type === 'potion') {
++      this.playerPotion(task.potion);
++    } else if (task.type === 'flee') {
++      this.playerFlee();
+       return;
+     }
+ 
+-    this.round++;
+-    document.getElementById('battle-round').textContent = `第 ${this.round} 回合`;
++    // 安排下一次玩家行动
++    const weapon = Player.equipment.primary;
++    const attackTime = weapon && weapon.attackTime ? weapon.attackTime : 10;
++    this.scheduleEvent({ type: 'player_turn', time: this.battlefield.time + attackTime, actor: 'player' });
++  },
+ 
+-    if (this.enemy.currentHp <= 0) { this.victory(); return; }
+-    if (Player.isDead()) { this.defeat(); return; }
+-    Game.updateUI();
++  playerAttack(enemy) {
++    const dist = this.getDistance(Player.position, enemy.position);
++    const weapon = Player.equipment.primary;
+ 
+-    // 敌人行动
+-    setTimeout(() => {
+-      this.enemyAction();
+-      Game.updateUI();
+-      if (Player.isDead()) { this.defeat(); return; }
+-      // 处理持续效果
+-      this.processEffects();
+-      this.updateBattleUI();
+-      this.renderBattleMenus();
+-      Game.updateUI();
+-    }, 300);
+-  },
++    // 命中率计算
++    let hitRate = 0.9; // 基础命中率 90%
++    if (weapon && weapon.range) {
++      const rangeRatio = dist / weapon.range;
++      if (rangeRatio > 1) {
++        hitRate *= 0.3; // 超出射程大幅降低命中率
++      } else if (rangeRatio > 0.7) {
++        hitRate *= 0.7;
++      }
++    }
++    // 目标移动修正
++    if (enemy.state === 'pursue') hitRate *= 0.85;
++
++    const hit = Utils.chance(hitRate * 100);
+ 
+-  playerAttack() {
++    if (!hit) {
++      Msg.warning(`❌ 你攻击 ${enemy.name}[${enemy.instanceId}] 未命中！`);
++      if (typeof BattleUI !== 'undefined') BattleUI.addHistory(`你攻击 ${enemy.name}[${enemy.instanceId}] 未命中`, '#888');
++      return;
++    }
++
++    // 伤害计算
+     let dmg = Player.atk;
+-    let isCrit = Utils.chance(Player.critRate);
++    // 暴击
++    const isCrit = Utils.chance(Player.critRate);
+     if (isCrit) dmg = Math.floor(dmg * 1.8);
+-    // 暗影匕首双倍
+-    const weapon = Player.equipment.weapon;
+-    if (weapon && weapon.special === 'double_strike' && Utils.chance(25)) {
+-      dmg *= 2;
+-      Msg.warning(`🗡 暗影匕首触发了双倍伤害！`);
+-    }
+-    dmg = Math.max(1, dmg - Math.floor(this.enemy.def * 0.5));
++
++    // 装甲减免
++    const armorReduction = enemy.armor / (enemy.armor + 50);
++    dmg = Math.floor(dmg * (1 - armorReduction));
+     dmg = Utils.rand(Math.floor(dmg * 0.9), Math.floor(dmg * 1.1));
+-    this.enemy.currentHp -= dmg;
++    dmg = Math.max(1, dmg);
++
++    enemy.hp -= dmg;
+     Player.stats.totalDmg += dmg;
++
+     const critText = isCrit ? ' <span class="damage">暴击！</span>' : '';
+-    Msg.info(`⚔ 你对 ${this.enemy.name} 造成了 <span class="damage">${dmg}</span> 点伤害！${critText}`);
+-    return true;
++    Msg.info(`🔫 你攻击 ${enemy.name}[${enemy.instanceId}] 命中 <span class="damage">${dmg}</span> 伤害${critText}`);
++    if (typeof BattleUI !== 'undefined') BattleUI.addHistory(`你攻击 ${enemy.name}[${enemy.instanceId}] 命中 ${dmg}伤害`, '#4f4');
++
++    // 检查敌人是否死亡
++    if (enemy.hp <= 0) {
++      this.onEnemyKilled(enemy);
++    } else {
++      // 敌人警觉
++      if (enemy.state === 'idle') {
++        enemy.state = 'alert';
++      }
++    }
++  },
++
++  playerMove(targetPos) {
++    const dx = targetPos[0] - Player.position[0];
++    const dy = targetPos[1] - Player.position[1];
++    const dist = Math.sqrt(dx * dx + dy * dy);
++    const moveSpeed = 100; // 每tick移动100米
++    const moveTime = Math.ceil(dist / moveSpeed);
++
++    // 简化：直接移动到目标位置
++    Player.position = [...targetPos];
++    Msg.info(`🏃 移动到 (${targetPos[0].toFixed(0)}, ${targetPos[1].toFixed(0)})，耗时 ${moveTime}t`);
++    if (typeof BattleUI !== 'undefined') BattleUI.addHistory(`移动到 (${targetPos[0].toFixed(0)}, ${targetPos[1].toFixed(0)})`, '#8f8');
++
++    this.scheduleEvent({ type: 'move_complete', time: this.battlefield.time + moveTime, actor: 'player' });
+   },
+ 
+   playerSkill(skillId) {
+-    if (!skillId) {
+-      // 列出可用技能
+-      Msg.info('可用技能：');
+-      Player.skills.forEach(sid => {
+-        const s = SkillDB[sid];
+-        if (s) Msg.info(`  <span class="help-cmd">${s.name}</span> - ${s.desc} (消耗${s.mpCost}MP)`);
+-      });
+-      Msg.info('使用方法: 技能 技能名');
+-      return false;
+-    }
+-    // 模糊匹配
+     let skill = null;
+     for (const [id, s] of Object.entries(SkillDB)) {
+       if (s.name === skillId || id === skillId) { skill = s; break; }
+     }
+     if (!skill || !Player.skills.includes(skill.id)) {
+       Msg.danger('未知技能或尚未习得。');
+-      return false;
++      return;
+     }
+     if (Player.mp < skill.mpCost) {
+       Msg.danger('法力不足！');
+-      return false;
++      return;
+     }
+     Player.mp -= skill.mpCost;
+ 
+     if (skill.type === 'attack') {
+-      const hits = skill.hits || 1;
+-      let totalDmg = 0;
+-      for (let i = 0; i < hits; i++) {
++      const target = this.battlefield.enemies.find(e => e.hp > 0);
++      if (target) {
+         let dmg = Math.floor(Player.atk * skill.mult);
+-        dmg = Math.max(1, dmg - Math.floor(this.enemy.def * 0.3));
+-        dmg = Utils.rand(Math.floor(dmg * 0.9), Math.floor(dmg * 1.1));
+-        this.enemy.currentHp -= dmg;
+-        totalDmg += dmg;
+-        if (hits > 1) Msg.info(`  第${i+1}击: <span class="damage">${dmg}</span> 点伤害`);
+-      }
+-      Player.stats.totalDmg += totalDmg;
+-      if (hits > 1) Msg.magic(`✨ ${skill.name} 共造成 <span class="damage">${totalDmg}</span> 点伤害！`);
+-      else Msg.magic(`✨ ${skill.name}！对 ${this.enemy.name} 造成 <span class="damage">${totalDmg}</span> 点伤害！`);
+-      if (skill.effect === 'poison' && Utils.chance(60)) {
+-        Player.statusEffects.push({ type:'poison', damage: Math.floor(Player.atk * 0.3), duration:3 });
+-        Msg.warning('🐍 敌人中毒了！');
+-      }
+-    } else if (skill.type === 'magic') {
+-      let dmg = Math.floor((Player.atk + Player.level * 3) * skill.mult);
+-      dmg = Math.max(1, dmg - Math.floor(this.enemy.def * 0.2));
+-      dmg = Utils.rand(Math.floor(dmg * 0.9), Math.floor(dmg * 1.1));
+-      this.enemy.currentHp -= dmg;
+-      Player.stats.totalDmg += dmg;
+-      const elemText = skill.element === 'fire' ? '🔥' : skill.element === 'ice' ? '❄' : '⚡';
+-      Msg.magic(`${elemText} ${skill.name}！对 ${this.enemy.name} 造成 <span class="damage">${dmg}</span> 点${skill.element === 'fire' ? '火焰' : skill.element === 'ice' ? '冰霜' : '雷电'}伤害！`);
+-      if (skill.effect === 'stun' && Utils.chance(30)) {
+-        this.enemy.stunned = true;
+-        Msg.warning('💫 敌人被眩晕了！');
++        dmg = Math.max(1, dmg - Math.floor(target.armor * 0.3));
++        target.hp -= dmg;
++        Player.stats.totalDmg += dmg;
++        Msg.magic(`✨ ${skill.name}！对 ${target.name} 造成 <span class="damage">${dmg}</span> 点伤害！`);
++        if (typeof BattleUI !== 'undefined') BattleUI.addHistory(`${skill.name} 命中 ${target.name} ${dmg}伤害`, '#f8f');
++        if (target.hp <= 0) this.onEnemyKilled(target);
+       }
+     } else if (skill.type === 'heal') {
+-      const amount = Player.heal(Math.floor((Player.maxHp * 0.1) + Player.level * skill.mult * 5));
++      const amount = Player.heal(Math.floor(Player.maxHp * 0.3 + Player.level * skill.mult * 5));
+       Msg.magic(`💚 ${skill.name}！恢复了 <span class="heal">${amount}</span> 点生命值！`);
+-    } else if (skill.type === 'buff') {
+-      Player.buffs.push({ type: skill.effect, duration: skill.duration });
+-      if (skill.effect === 'berserk') Msg.warning(`🔥 ${skill.name}！攻击力提升50%，持续${skill.duration}回合！`);
+-      if (skill.effect === 'shield') Msg.info(`🛡 ${skill.name}！防御力提升30%，持续${skill.duration}回合！`);
++      if (typeof BattleUI !== 'undefined') BattleUI.addHistory(`${skill.name} 恢复 ${amount}HP`, '#8f8');
+     }
+-    return true;
+   },
+ 
+   playerPotion(potionId) {
+@@ -218,7 +272,7 @@ const Battle = {
+     });
+     if (potions.length === 0) {
+       Msg.danger('没有药水了！');
+-      return false;
++      return;
+     }
+     let target = null;
+     if (potionId) {
+@@ -226,131 +280,251 @@ const Battle = {
+         const item = ItemDB.get(p.id);
+         return item && (item.id === potionId || item.name === potionId);
+       });
+-      if (!target) {
+-        Msg.danger('没有找到指定药水。');
+-        return false;
+-      }
+-    } else {
+-      // 命令行未指定药水时，保留原有自动选择逻辑。
+-      target = potions.find(p => { const it = ItemDB.get(p.id); return it.heal && Player.hp < Player.maxHp; });
+-      if (!target) target = potions.find(p => { const it = ItemDB.get(p.id); return it.mana && Player.mp < Player.maxMp; });
+-      if (!target) target = potions[0];
+     }
++    if (!target) target = potions[0];
++    if (!target) return;
+ 
+     const item = ItemDB.get(target.id);
+     Player.removeItem(target.id);
+     if (item.heal) {
+       const amount = Player.heal(item.heal);
+       Msg.success(`🧪 使用了 ${item.name}，恢复 <span class="heal">${amount}</span> 点生命！`);
++      if (typeof BattleUI !== 'undefined') BattleUI.addHistory(`使用 ${item.name} 恢复 ${amount}HP`, '#8f8');
+     }
+     if (item.mana) {
+       const amount = Player.restoreMp(item.mana);
+       Msg.success(`🧪 使用了 ${item.name}，恢复 <span class="magic">${amount}</span> 点法力！`);
+     }
+-    return true;
+   },
+ 
+   playerFlee() {
+-    const chance = 40 + (Player.level - this.enemy.level) * 10;
+-    if (Utils.chance(chance)) {
++    const success = Utils.chance(50);
++    if (success) {
+       Msg.info('🏃 你成功逃离了战斗！');
+       this.end();
+     } else {
+       Msg.warning('逃跑失败！');
+-      this.enemyAction();
+-      Game.updateUI();
+-      if (Player.isDead()) this.defeat();
++      if (typeof BattleUI !== 'undefined') BattleUI.addHistory('逃跑失败', '#888');
+     }
+   },
+ 
+-  enemyAction() {
+-    if (this.enemy.stunned) {
+-      Msg.info(`${this.enemy.name} 处于眩晕状态，无法行动！`);
+-      this.enemy.stunned = false;
+-      return;
+-    }
+-    let dmg = Utils.rand(Math.floor(this.enemy.atk * 0.8), this.enemy.atk);
+-    // 吸血鬼
+-    if (this.enemy.canDrain) {
+-      const drain = Math.floor(dmg * 0.3);
+-      this.enemy.currentHp = Math.min(this.enemyMaxHp, this.enemy.currentHp + drain);
++  // ===== 敌人 AI =====
++  enemyTurn(enemy) {
++    if (enemy.hp <= 0) return;
++
++    const dist = this.getDistance(Player.position, enemy.position);
++
++    // AI 状态机
++    if (enemy.aiType === 'bug_charge' || enemy.aiType === 'bug_worker') {
++      if (dist <= enemy.attackRange) {
++        // 在攻击范围内，攻击
++        this.enemyAttack(enemy, dist);
++        this.scheduleEvent({ type: 'enemy_turn', time: this.battlefield.time + enemy.attackCooldown, actor: enemy.instanceId });
++      } else {
++        // 移动接近玩家
++        this.enemyMoveToward(enemy, Player.position);
++        enemy.state = 'pursue';
++        this.scheduleEvent({ type: 'enemy_turn', time: this.battlefield.time + enemy.speed, actor: enemy.instanceId });
++      }
++    } else if (enemy.aiType === 'bug_ranged') {
++      if (dist <= enemy.attackRange) {
++        this.enemyAttack(enemy, dist);
++        this.scheduleEvent({ type: 'enemy_turn', time: this.battlefield.time + enemy.attackCooldown, actor: enemy.instanceId });
++      } else {
++        this.enemyMoveToward(enemy, Player.position);
++        enemy.state = 'pursue';
++        this.scheduleEvent({ type: 'enemy_turn', time: this.battlefield.time + enemy.speed, actor: enemy.instanceId });
++      }
++    } else if (enemy.aiType === 'drone_patrol') {
++      if (dist <= enemy.visionRadius) {
++        enemy.state = 'pursue';
++        if (dist <= enemy.attackRange) {
++          this.enemyAttack(enemy, dist);
++          this.scheduleEvent({ type: 'enemy_turn', time: this.battlefield.time + enemy.attackCooldown, actor: enemy.instanceId });
++        } else {
++          this.enemyMoveToward(enemy, Player.position);
++          this.scheduleEvent({ type: 'enemy_turn', time: this.battlefield.time + enemy.speed, actor: enemy.instanceId });
++        }
++      } else {
++        // 巡逻
++        enemy.state = 'idle';
++        this.scheduleEvent({ type: 'enemy_turn', time: this.battlefield.time + enemy.speed, actor: enemy.instanceId });
++      }
++    } else {
++      // 默认 AI
++      if (dist <= enemy.attackRange) {
++        this.enemyAttack(enemy, dist);
++        this.scheduleEvent({ type: 'enemy_turn', time: this.battlefield.time + enemy.attackCooldown, actor: enemy.instanceId });
++      } else {
++        this.enemyMoveToward(enemy, Player.position);
++        this.scheduleEvent({ type: 'enemy_turn', time: this.battlefield.time + enemy.speed, actor: enemy.instanceId });
++      }
+     }
+-    // 暗黑法师魔法攻击
+-    if (this.enemy.canMagic && Utils.chance(40)) {
+-      dmg = Math.floor(dmg * 1.5);
+-      Msg.danger(`🔮 ${this.enemy.name} 释放了暗黑魔法！`);
++  },
++
++  enemyMoveToward(enemy, targetPos) {
++    const dx = targetPos[0] - enemy.position[0];
++    const dy = targetPos[1] - enemy.position[1];
++    const dist = Math.sqrt(dx * dx + dy * dy);
++    const moveSpeed = 80; // 敌人移动速度
++    if (dist <= moveSpeed) {
++      enemy.position = [...targetPos];
++    } else {
++      enemy.position[0] += (dx / dist) * moveSpeed;
++      enemy.position[1] += (dy / dist) * moveSpeed;
+     }
+-    const actual = Player.takeDamage(dmg);
+-    if (this.enemy.canDrain) Msg.danger(`🧛 ${this.enemy.name} 攻击了你，造成 <span class="damage">${actual}</span> 点伤害并恢复了生命！`);
+-    else Msg.danger(`👊 ${this.enemy.name} 攻击了你，造成 <span class="damage">${actual}</span> 点伤害！`);
+   },
+ 
+-  processEffects() {
+-    // 玩家buff倒计时
+-    Player.buffs = Player.buffs.filter(b => {
+-      b.duration--;
+-      return b.duration > 0;
+-    });
+-    // 玩家中毒
+-    Player.statusEffects = Player.statusEffects.filter(e => {
+-      if (e.type === 'poison') {
+-        // 这是给敌人的效果，在敌人回合处理
+-      }
+-      e.duration--;
+-      return e.duration > 0;
+-    });
+-    // 敌人中毒伤害
+-    if (this.enemy.currentHp > 0) {
+-      // 简化：检查有没有对敌人的毒
+-      // (毒效果实际需要更复杂的系统，这里简化处理)
++  enemyAttack(enemy, dist) {
++    // 命中率
++    let hitRate = 1.0 - enemy.spread;
++    if (dist > enemy.attackRange * 0.7) hitRate *= 0.8;
++
++    const hit = Utils.chance(hitRate * 100);
++    if (!hit) {
++      Msg.info(`💨 ${enemy.name}[${enemy.instanceId}] 的攻击落空了！`);
++      if (typeof BattleUI !== 'undefined') BattleUI.addHistory(`${enemy.name}[${enemy.instanceId}] 攻击落空`, '#888');
++      return;
++    }
++
++    // 伤害计算
++    let dmg = enemy.damage;
++    const armorReduction = Player.def / (Player.def + 50);
++    dmg = Math.floor(dmg * (1 - armorReduction));
++    dmg = Utils.rand(Math.floor(dmg * 0.9), Math.floor(dmg * 1.1));
++    dmg = Math.max(1, dmg);
++
++    Player.hp = Math.max(0, Player.hp - dmg);
++    Msg.danger(`👊 ${enemy.name}[${enemy.instanceId}] 攻击了你，造成 <span class="damage">${dmg}</span> 点伤害！`);
++    if (typeof BattleUI !== 'undefined') BattleUI.addHistory(`${enemy.name}[${enemy.instanceId}] 攻击你 ${dmg}伤害`, '#f44');
++
++    if (Player.isDead()) {
++      this.defeat();
+     }
+   },
+ 
+-  victory() {
+-    const e = this.enemy;
+-    Msg.divider();
+-    Msg.success(`🎉 你击败了 <span class="enemy-name">${e.name}</span>！`);
+-    Player.gainExp(e.exp);
+-    Player.gold += e.gold;
+-    Msg.loot(`💰 获得 ${e.exp} 经验、${e.gold} 金币`);
++  // ===== 敌人死亡 =====
++  onEnemyKilled(enemy) {
++    enemy.hp = 0;
++    Msg.success(`🎯 击毁 ${enemy.name}[${enemy.instanceId}]！`);
++    if (typeof BattleUI !== 'undefined') BattleUI.addHistory(`击毁 ${enemy.name}[${enemy.instanceId}]`, '#fc0');
+     Player.stats.monstersKilled++;
+-    Player.killCount[e.id] = (Player.killCount[e.id] || 0) + 1;
++    Player.killCount[enemy.templateId] = (Player.killCount[enemy.templateId] || 0) + 1;
++    Player.gainExp(enemy.exp);
+ 
+-    // 掉落物品
+-    if (e.drops) {
+-      e.drops.forEach(([itemId, chance]) => {
++    // 战利品
++    if (enemy.loot) {
++      for (const l of enemy.loot) {
++        if (Math.random() < l.chance) {
++          const count = Utils.rand(l.min || 1, l.max || 1);
++          Player.addItem(l.item, count);
++          const item = ItemDB.get(l.item);
++          Msg.loot(`获得战利品：${item ? item.name : l.item} x${count}`);
++          if (typeof BattleUI !== 'undefined') BattleUI.addHistory(`获得 ${item ? item.name : l.item} x${count}`, '#f8f');
++        }
++      }
++    } else if (enemy.drops) {
++      // 兼容旧版 drops 格式
++      enemy.drops.forEach(([itemId, chance]) => {
+         if (Utils.chance(chance * 100)) {
+           const item = ItemDB.get(itemId);
+           if (item) {
+             Player.addItem(itemId);
+             Msg.loot(`🎁 获得: <span class="item-tag ${item.type}">${item.name}</span>`);
++            if (typeof BattleUI !== 'undefined') BattleUI.addHistory(`获得 ${item.name}`, '#f8f');
+           }
+         }
+       });
+     }
++
++    // 移除该敌人的所有事件
++    this.removeEventsByActor(enemy.instanceId);
++
++    // 检查是否所有敌人都已死亡
++    const alive = this.battlefield.enemies.filter(e => e.hp > 0);
++    if (alive.length === 0) {
++      this.victory();
++    }
++  },
++
++  // ===== 战斗结束 =====
++  victory() {
++    Msg.divider();
++    Msg.success('🎉 战斗胜利！');
++    const totalExp = this.battlefield.enemies.reduce((s, e) => s + e.exp, 0);
++    Msg.info(`获得 ${totalExp} 经验`);
+     this.end();
+   },
+ 
+   defeat() {
+     Msg.divider();
+-    Msg.danger(`💀 你被 <span class="enemy-name">${this.enemy.name}</span> 击败了……`);
++    Msg.danger('💀 你被击败了……');
+     Msg.warning('你在昏迷中被传送回了村庄。');
+     Player.respawn();
+     this.end();
+     Game.look();
+-    Game.updateUI();
+   },
+ 
+   end() {
+     this.active = false;
+-    this.enemy = null;
+-    this.hideMenus();
++    this.paused = true;
++    this.battlefield = null;
++    this.eventQueue = [];
++    this.currentActor = null;
+     document.getElementById('battle-bar').classList.remove('active');
++    if (typeof BattleUI !== 'undefined') BattleUI.remove();
+     Game.updateUI();
+   },
+ 
++  // ===== 工具方法 =====
++  getDistance(pos1, pos2) {
++    const dx = pos1[0] - pos2[0];
++    const dy = pos1[1] - pos2[1];
++    return Math.sqrt(dx * dx + dy * dy);
++  },
++
++  // ===== 兼容旧版接口 =====
++  action(type, param) {
++    if (!this.active) return;
++    if (type === 'attack') {
++      // 找第一个活着的敌人
++      const target = this.battlefield.enemies.find(e => e.hp > 0);
++      if (target) {
++        this.setPlayerTask({ type: 'attack', target: target.instanceId });
++      }
++    } else if (type === 'skill') {
++      this.setPlayerTask({ type: 'skill', skill: param });
++    } else if (type === 'potion') {
++      this.setPlayerTask({ type: 'potion', potion: param });
++    } else if (type === 'flee') {
++      this.setPlayerTask({ type: 'flee' });
++    }
++  },
++
++  toggleSkillMenu() {
++    if (!this.active) return;
++    const menu = document.getElementById('battle-skill-menu');
++    if (menu) menu.classList.toggle('active');
++  },
++
++  togglePotionMenu() {
++    if (!this.active) return;
++    const menu = document.getElementById('battle-potion-menu');
++    if (menu) menu.classList.toggle('active');
++  },
++
++  hideMenus() {
++    ['battle-skill-menu', 'battle-potion-menu'].forEach(id => {
++      const el = document.getElementById(id);
++      if (el) el.classList.remove('active');
++    });
++  },
++
++  renderBattleMenus() {
++    // 兼容旧版
++  },
++
+   updateBattleUI() {
+-    if (!this.enemy) return;
+-    // 不做额外UI，信息通过消息流展示
+-  }
++    // 兼容旧版
++  },
+ };
+diff --git a/mud-game-engine/assets/js/systems/command-system.js b/mud-game-engine/assets/js/systems/command-system.js
+index 78917bf..4ef88b8 100644
+--- a/mud-game-engine/assets/js/systems/command-system.js
++++ b/mud-game-engine/assets/js/systems/command-system.js
+@@ -115,6 +115,13 @@ const CommandSystem = {
+     switch (parsed.cmd) {
+       case 'attack': case '攻击': case 'a':
+         Battle.action('attack'); break;
++      case 'fire': case '射击': case 'f':
++        if (parsed.args[0]) {
++          Battle.setPlayerTask({ type: 'attack', target: parsed.args[0].toUpperCase() });
++        } else {
++          Battle.action('attack');
++        }
++        break;
+       case 'skill': case '技能': case 's':
+         Battle.action('skill', parsed.args.join(' ')); break;
+       case 'potion': case '药水': case 'p':
+diff --git a/mud-game-engine/assets/js/systems/game.js b/mud-game-engine/assets/js/systems/game.js
+index 003de93..e17b21f 100644
+--- a/mud-game-engine/assets/js/systems/game.js
++++ b/mud-game-engine/assets/js/systems/game.js
+@@ -8,6 +8,7 @@ const Game = {
+     MapSystem.init();
+     Player.init();
+     Player.visitedRooms.add(Player.room);
++    if (typeof BattleUI !== 'undefined') BattleUI.init();
+ 
+     // 输入事件
+     const inputEl = document.getElementById('input');
+diff --git a/mud-game-engine/assets/js/systems/player.js b/mud-game-engine/assets/js/systems/player.js
+index fe4d03a..05b7678 100644
+--- a/mud-game-engine/assets/js/systems/player.js
++++ b/mud-game-engine/assets/js/systems/player.js
+@@ -10,13 +10,14 @@ const Player = {
+   gold: 50,
+   room: 'village_square',
+   inventory: [],       // [{id, count}]
+-  equipment: { weapon:null, armor:null, accessory:null },
++  equipment: { weapon:null, armor:null, accessory:null, primary:null },
+   skills: ['slash','heal'],
+   visitedRooms: new Set(),
+   buffs: [],
+   statusEffects: [],
+   killCount: {},
+   stats: { totalDmg:0, totalHeal:0, monstersKilled:0, deaths:0 },
++  position: [500, 500],  // 战场坐标（时间轴战斗系统用）
+ 
+   get atk() {
+     let a = this.baseAtk;
+@@ -46,7 +47,12 @@ const Player = {
+     this.inventory.push({ id:'hp_small', count:3 });
+     this.inventory.push({ id:'mp_small', count:2 });
+     const starter = ItemDB.get('wooden_sword');
+-    if (starter) this.equipment.weapon = starter;
++    if (starter) {
++      // 时间轴战斗系统需要 range 属性
++      starter.range = 300;
++      this.equipment.weapon = starter;
++      this.equipment.primary = starter;
++    }
+     const starterArmor = ItemDB.get('cloth_armor');
+     if (starterArmor) this.equipment.armor = starterArmor;
+   },
+diff --git a/mud-game-engine/assets/styles.css b/mud-game-engine/assets/styles.css
+index 815b3a8..e924633 100644
+--- a/mud-game-engine/assets/styles.css
++++ b/mud-game-engine/assets/styles.css
+@@ -80,6 +80,15 @@ body {
+   flex-shrink: 0;
+   overflow-y: auto;
+ }
++.battle-sidebar {
++  width: 240px;
++  background: var(--bg2);
++  border-right: 1px solid var(--rule);
++  display: flex;
++  flex-direction: column;
++  flex-shrink: 0;
++  overflow-y: auto;
++}
+ .sidebar-section {
+   padding: 0.75rem 1rem;
+   border-bottom: 1px solid var(--rule);
+diff --git a/mud-game-engine/mud-game-engine.html b/mud-game-engine/mud-game-engine.html
+index fad437a..f4d351f 100644
+--- a/mud-game-engine/mud-game-engine.html
++++ b/mud-game-engine/mud-game-engine.html
+@@ -51,6 +51,22 @@
+     </div>
+   </div>
+ 
++  <div class="battle-sidebar" id="battle-sidebar">
++    <div class="sidebar-section">
++      <div class="sidebar-title">📡 雷达</div>
++      <canvas id="radar-canvas" width="220" height="220" style="width:100%;background:#051005;border:1px solid #2d5;border-radius:4px;display:block;"></canvas>
++      <div id="radar-legend" style="font-size:11px;color:#888;margin-top:6px;"></div>
++    </div>
++    <div class="sidebar-section">
++      <div class="sidebar-title">⚔ 敌人</div>
++      <div id="enemy-list" style="font-size:12px;"></div>
++    </div>
++    <div class="sidebar-section">
++      <div class="sidebar-title">⏱ 时间轴</div>
++      <div id="timeline-content" style="font-size:11px;max-height:200px;overflow-y:auto;"></div>
++    </div>
++  </div>
++
+   <div class="game-area">
+     <div class="output" id="output"></div>
+     <div class="battle-bar" id="battle-bar">
+@@ -103,6 +119,7 @@
+ <script src="assets/js/data/npcs.js"></script>
+ <script src="assets/js/systems/player.js"></script>
+ <script src="assets/js/systems/battle.js"></script>
++<script src="assets/js/systems/battle-ui.js"></script>
+ <script src="assets/js/systems/command-system.js"></script>
+ <script src="assets/js/systems/game.js"></script>
+ <script src="assets/js/main.js"></script>
+diff --git "a/\350\256\276\350\256\241\346\226\207\346\241\243/\346\210\230\346\226\227\347\263\273\347\273\237\350\256\276\350\256\241\344\271\246.md" "b/\350\256\276\350\256\241\346\226\207\346\241\243/\346\210\230\346\226\227\347\263\273\347\273\237\350\256\276\350\256\241\344\271\246.md"
+index e427f6c..f488055 100644
+--- "a/\350\256\276\350\256\241\346\226\207\346\241\243/\346\210\230\346\226\227\347\263\273\347\273\237\350\256\276\350\256\241\344\271\246.md"
++++ "b/\350\256\276\350\256\241\346\226\207\346\241\243/\346\210\230\346\226\227\347\263\273\347\273\237\350\256\276\350\256\241\344\271\246.md"
+@@ -1,6 +1,6 @@
+ # 战斗系统设计书
+ 
+-## 1 概述
++## 概述
+ 
+ ### 游戏背景（战斗相关）
+ 
+@@ -26,7 +26,7 @@
+ 
+ #### 时间轴回合制
+ 
+-游戏中所有角色的行动均通过时间轴推进。从进入场景开始，便是一个时间轴的开始。时间轴上排在最前面的单位获得下一个行动权，如果玩家决定移动，则根据移动速度计算会消耗的时间，从而决定行动何时结束，技能或装备冷却等均如此。每个单位执行一个动作后，根据动作耗时推进世界时间轴。
++战斗中所有角色的行动均通过速度计算时间流逝，从而决定行动次序、技能或装备冷却等。每个单位执行一个动作后，根据动作耗时推进世界时间轴，时间轴上排在最前面的单位获得下一个行动权。
+ 准确的说，在一个地图中，所有的行动都可以放入时间轴中，战斗状态和平常状态的分界模糊了。例如，玩家远远看到怪物，选择靠近（移动过程消耗时间），到达目的地选择开火（进入战斗状态），敌人行动开火，随后玩家规避机动，装备冷却。整个过程变成了一种接近即时动作的时间轴模式。
+ 
+ ### 地图与战斗场景
+@@ -84,9 +84,9 @@
+ 
+ 游戏中，先遣队员本质都是数字备份生命，不存在生物学死亡的概念。电子脑损毁后，可通过备份继续产生新的电子脑。玩家死亡后，数据备份直接从大本营中恢复。但损毁的机体可能会消失，回到死亡地点有可能打捞部分残骸以及未损坏的装备。拥有逃生舱的载具可在机体损毁前自动弹射电子脑，降低损失。
+ 
+-## 2 战斗系统
++## 战斗系统
+ 
+-### 2.1 数值表
++### 数值表
+ 
+ #### 基本战斗数值
+ 
+@@ -113,7 +113,7 @@
+ | 散布率 | 炮类武器炮弹落点的散步范围，乘以目标距离就会获得散布半径，目标半径和散布半径之比即为命中率。受武器本身属性、传感器性能影响 | 小数 |
+ | 穿透率 | 一些武器具有击穿装甲的特性，可以直接穿透装甲造成伤害 | 百分比，基础值0% |
+ 
+-### 2.2 伤害类型
++### 伤害类型
+ 
+ - **动能**：火炮炮弹、电磁炮弹丸等实体投射物主要造成的伤害类型。动能伤害对装甲具有直接的削减效果，每点动能伤害优先扣除等量装甲值，装甲归零后剩余部分转化为结构伤害。对无装甲目标全额转化为结构伤害。特性：相关武器伤害高，类型丰富，但射弹会被主动防御武器偏转，降低命中率。
+ - **热能**：微波武器、燃烧弹、离子炮、光束武器等造成的主要伤害类型。热量伤害武器一般基础伤害低，但会给敌人增加高热buff，高热buff的层数越高，热能伤害造成的倍率越高。特性：伤害发生慢，适合持久战。
+@@ -121,12 +121,12 @@
+ - **EMP**：离子束、离子炮武器或其他武器附带的伤害。EMP伤害主要作用于载具的电子系统和接口，不直接削减装甲或结构值，而是有概率对目标外部接口、内部电子装备造成干扰，附加电磁干扰buff，导致装备暂时离线。特性：对付高算力依赖的敌人效果显著，但对低电子化程度的虫群几乎无效。
+ - **腐蚀**：酸性喷射、腐蚀弹头等造成的持续伤害类型。腐蚀伤害不立即扣减数值，而是直接增加一个buff，每秒同时削减装甲值和结构值，大部分机体结构自带腐蚀抗性。腐蚀效果可叠加，叠加层数越高每秒伤害越大，每次发生损失一定比例腐蚀层数。特性：适合持续消耗战，但单次爆发伤害低。
+ 
+-### 2.3 伤害方式
++### 伤害方式
+ - **命中**：单体伤害类型，根据武器类型完成命中判定即造成伤害效果。不区分远程和进程伤害，只用攻击距离或者射程即可完成两种伤害方式的统一设计。
+ - **爆炸**：导弹、火箭、高爆弹等武器可以造成范围伤害效果。爆炸伤害具有范围衰减，在爆炸中心半径内造成全额伤害，向外按距离线性衰减至50%。范围伤害类型可能为以上所有类型。特性：对付集群敌人，但存在友军伤害风险。
+ - **环境影响**：部分武器会在地面留下伤害影响区域，属于临时影响区域，一定时间后小时；也有自然生成的区域，如熔岩区、酸液区等。
+ 
+-### 2.4 状态效果系统
++### 状态效果系统
+ 
+ 状态效果是战斗中施加给单位的持续性效果，具有持续时间、叠加规则和解除条件。
+ 
+@@ -156,11 +156,11 @@
+ - **施加来源**：武器特效（离子炮、腐蚀弹）、环境危害（酸雨区自动施加腐蚀）、电子战设备（电磁干扰）、技能效果。
+ - **解除条件**：持续时间自然结束、使用特定装备解除（如装甲修复器可清除腐蚀）、脱离特定区域（环境危害施加的效果离开区域后每秒衰减）。
+ 
+-#### 其他生效加成（暂不实现）
++### 其他生效加成
+ 
+ - **弱点命中**：敌人的特定部位可被标记为弱点（如传感器、动力核心、武器接口等），弱点区域通常具有更低的装甲值。攻击命中弱点区域时，伤害额外+50%，并且可能触发部位特殊效果（如命中传感器导致目标视野降低，命中动力核心导致目标速度降低）。弱点命中概率 = 基础概率(10%) + 武器精度加成 - 目标弱点大小惩罚。（暂不添加该机制）
+ 
+-### 2.5 相关公式
++### 相关公式
+ 
+ **伤害计算公式**
+ 
+@@ -171,24 +171,25 @@
+ 其中：
+ - 基础伤害 = 武器基础伤害 x (1 + 技能加成 + 词缀加成)
+ - 伤害类型修正：动能1.0，热能(1 + 高热buff叠加结果)，激波0.8（装甲减免20%，剩余扣结构），EMP伤害0（不直接扣数值，转化为EMP干扰buff），腐蚀1.0
+-- 伤害抗性 = 配合装备系统设计，默认为0。
++- 伤害抗性 = 
+ 
+ **命中率公式**
+ 
+ ```
+-命中率 = 基础命中率 x 目标运动修正 x 掩体遮挡 x 射程修正
++命中率 = 基础命中率 x (1 + 传感器加成) x (1 - 目标运动闪避) x (1 - 掩体遮挡) x 射程修正
+ ```
+ 
+ 其中：
+-- 基础命中率：基础命中率指的是由射弹类武器的散布与目标半径决定的命中率，基础命中率 = min(1, (目标半径/武器散布半径)^2)
+-- 目标运动修正：移动中的目标获得闪避加成，这个由炮台类武器跟踪速度、目标角速度决定（暂不实装）。
+-- 掩体遮挡：目标处于掩体后时，遮挡率由掩体高度和攻击角度决定（暂不实装）
+-- 射程修正：根据目标距离在射程分段表中对应当前修正值（暂不实装）
++- 基础命中率：由武器精度属性决定，通常为70%-95%
++- 传感器加成：载具传感器等级提供的命中加成，每级+5%
++- 目标运动闪避：移动中的目标获得闪避加成，闪避率 = 目标速度 / 100（上限25%）。冲刺中的目标闪避率额外+10%
++- 掩体遮挡：目标处于掩体后时，遮挡率由掩体高度和攻击角度决定，通常为20%-60%
++- 射程修正：根据目标距离在射程分段表中对应当前修正值
+ 
+-实际命中判定：生成0-100.0的随机数，低于命中率则命中。
++实际命中判定：生成0-100的随机数，低于命中率则命中。
+ 
+ **速度与行动间隔公式**
+-// todo 时间轴设计中详细描述
++
+ ```
+ 行动间隔 = 基础动作时间 / (1 + 速度加成)
+ ```
+@@ -199,7 +200,18 @@
+ - 武器开火间隔 = 武器运行周期 / (1 + 算力加成)。算力由核心计算机提供，详见《装备系统设计书》
+ - 装备启动时间 = 装备启动需求 / 当前可用功率（秒）。功率由核心动力提供，详见《装备系统设计书》
+ 
+-### 2.6 敌人AI行为详细设计（暂不实装）
++**装甲减免公式**
++
++```
++实际装甲减免 = min(当前装甲值, 伤害 x 类型系数)
++剩余结构伤害 = max(0, 伤害 - 实际装甲减免)
++```
++
++- 动能类型系数 = 1.0（动能全额先扣装甲）
++- 能量类型系数 = 0.6（能量穿透部分装甲）
++- 爆炸类型系数 = 0.5（爆炸同时打击装甲和结构，各承受一半）
++
++### 敌人AI行为详细设计
+ 
+ #### AI状态机
+ 
+@@ -250,7 +262,7 @@
+ | 机械 | <30% | 寻找掩体；<15%时尝试撤退或原地强化护盾 |
+ | 叛军 | <40% | 寻找掩体修复；<20%时撤退，若被包围则投降（停止攻击） |
+ 
+-### 2.7 战斗场景数据结构
++### 战斗场景数据结构
+ 
+ #### 房间战场数据
+ 
+@@ -302,42 +314,40 @@ unit_state: {
+ }
+ ```
+ 
+-### 2.8 MUD战斗指令集
+-
+-战斗中玩家通过文字指令操控载具，无特殊说明，以下指令均为任务指令，所有任务指令再执行后生效，不占用行动，可覆盖，可取消，可执行多个任务，大部分情况下不支持任务链。
+-指令格式如下：
+-
+-#### 执行指令
++### MUD战斗指令集
+ 
+-| 指令 | 格式 | 说明 |
+-|------|------|------|
+-| 执行 | `task -execute` 或 `task -e` | 执行所有待执行任务 |
+-| 取消 | `task -cancel` 或 `task -c` | 取消所有待执行任务 |
++战斗中玩家通过文字指令操控载具，指令格式如下：
+ 
+ #### 移动指令
+ 
+ | 指令 | 格式 | 说明 |
+ |------|------|------|
+-| 移动 | `move <x> <y>` 或 `m <x> <y>` | 添加移动到指定坐标点的任务 |
+-| 接近 | `move <目标> [距离]` | 向指定目标（敌人标号A/B/C或坐标）移动至指定距离，留空则默认移动至最近处 |
+-| 后退 | `move -r <目标> [距离]` | 远离目标，后退指定距离，留空则默认后退100米 |
+-| 掩体移动 | `move -c <掩体ID>` | 移动到指定掩体并进入掩体状态（暂不实装） |
++| 移动 | `move <x> <y>` 或 `m <x> <y>` | 移动到指定坐标点 |
++| 接近 | `approach <目标>` | 向指定目标（敌人标号A/B/C或坐标）移动至最佳射程 |
++| 后退 | `retreat [距离]` | 远离最近敌人，后退指定距离（默认100米） |
++| 冲刺 | `sprint <x> <y>` 或 `sp <x> <y>` | 以冲刺速度移动到目标坐标 |
++| 掩体移动 | `cover <掩体ID>` | 移动到指定掩体并进入掩体状态 |
+ 
+ #### 攻击指令
+ 
+ | 指令 | 格式 | 说明 |
+ |------|------|------|
+-| 瞄准 | `aim <武器槽位> <目标>` 或 `a <武器槽位> <目标>` | 使用指定武器槽位的武器目视瞄准指定目标 |
+-| 开火 | `fire <武器槽位>` 或 `f` | 使用指定武器槽位的武器开火，如果没有指定槽位则所有可开火武器开火。如果未设置目标则提示不执行动作。 |
+-| 攻击 | `attack <武器槽位> <目标>` | 使用指定武器槽位的武器执行攻击目标，适用于部分不需要瞄准的武器，如刀剑等。 |
++| 攻击 | `attack <目标>` 或 `a <目标>` | 使用当前主武器攻击指定目标 |
++| 切换武器 | `weapon <武器槽位>` 或 `w <槽位>` | 切换到指定武器槽位（主武器/副武器/电子战） |
++| 开火 | `fire <武器名> <目标>` | 使用指定武器攻击目标 |
++| 瞄准 | `aim <目标>` | 花费一个短动作用于精确瞄准，下一发攻击命中率+20% |
++| 弱点瞄准 | `aim_weak <目标> <部位>` | 瞄准目标特定部位，弱点命中概率+15% |
+ 
+-
+-#### 防御指令（暂不实现）
++#### 防御指令
+ 
+ | 指令 | 格式 | 说明 |
+ |------|------|------|
++| 护盾 | `shield [on/off]` | 开启或关闭护盾 |
++| 进入掩体 | `take_cover` 或 `tc` | 如果当前位置有掩体，进入掩体状态 |
++| 修复装甲 | `repair_armor` | 启动装甲修复器（战斗中可用，但占用行动） |
++| 修复结构 | `repair_structure` | 启动结构修复器（战斗中速度极慢） |
+ 
+-#### 电子战指令（暂不实现）
++#### 电子战指令
+ 
+ | 指令 | 格式 | 说明 |
+ |------|------|------|
+@@ -345,15 +355,14 @@ unit_state: {
+ | 入侵 | `hack <目标>` | 尝试入侵目标系统 |
+ | 无人机 | `drone <指令> [目标]` | 控制无人机执行侦察/攻击/干扰 |
+ 
+-#### 队友指令（暂不实现）
++#### 队友指令
+ 
+ | 指令 | 格式 | 说明 |
+ |------|------|------|
+ | 队友跟随 | `team follow` | 所有队友切换为跟随模式 |
+-| 队友集火 | `team attack <目标>` | 指定队友攻击目标 |
++| 队友攻击 | `team attack <目标>` | 指定队友攻击目标 |
+ | 队友防守 | `team hold` | 所有队友原地防守 |
+ | 队友自由 | `team free` | 所有队友自主决策 |
+-| 队友移动 | `move-t <目标>` | 指定队友移动到指定坐标点 |
+ 
+ #### 信息指令（不消耗行动）
+ 
+@@ -363,70 +372,24 @@ unit_state: {
+ | 敌人信息 | `scan <目标>` | 扫描目标，显示其结构值、装甲值、可见装备 |
+ | 时间轴 | `timeline` 或 `tl` | 显示接下来5个行动的单位及其预计行动时间 |
+ 
+-## 3 时间轴系统
+-
+-### 3.1 事件格式
+-
+-- 一个时间轴由一系列的事件组成。格式形如:
+-    ```
+-    [`时间戳`]`单位ID`. `单位名称`,[`坐标`],`事件描述`
+-    [`时间戳`]`单位ID`. `单位名称`,[`坐标`],`事件描述`
+-    [`时间戳`]`单位ID`. `单位名称`,[`坐标`],`事件描述`
+-    ...
+-    ```
+-- 时间戳格式为：`时：分：秒：毫秒`，例如：`11:20:55:552`。
+-- 单位ID格式为：`字母+数字`，例如：`A1`、`B2`、`C3`等。
+-- 事件分为历史事件，未来事件，未知事件。未知事件包括：
+-    - 部分动作是隐秘的，不显示在时间轴上，例如陷阱敌人。
+-    - 当当前时间点未知的行动，例如未执行的开火动作，引发的敌人其他变化（如狂暴状态）。
+-- 事件描述格式为：`事件类型: 事件描述`，例如：`预计: 攻击A1`。
+-
+-### 3.2 交互方式
+-
+-- 时间轴页面默认指向当前时间点，玩家可以滚动查看历史事件，当前时间点高亮显示。
+-- 玩家可以设置当前任务动作，任务将会作为未来事件显示在时间轴上。
+-- 玩家可以取消当前任务动作，任务将会从时间轴上移除。
+-- 发出执行命令后时间轴开始推进，未来事件如果没有被打断，则会被执行，执行后变为历史事件并记录执行结果。
+-- 如果事件被中断，中断事件会作为历史事件记录在时间轴上。
+-
+-### 3.3 先手
++### 战斗信息UI展示
+ 
+-- 先手的判定在进入地图后决定，一般而言，切换场景后如果没有遭遇战斗，则玩家获得先手。
+-- 如果在战斗中遭遇战斗，则进入先手判定环节。为了判定先手，引入“警惕值”概念：
+-    - 玩家默认警惕值为100，玩家可以通过装备、技能提高警惕值。
+-    - 敌人警惕值取决于其种类、状态、距离等因素。
+-    - 警惕值最高的成为先手。
+-    - 如果警惕值相同，则做一个硬币判定先手。
+-- 先手判定完成后，玩家和敌人会根据先手判定结果，分别获得下一个行动权。但行动不代表能够打出第一枪，这还取决于瞄准速度等。
++#### 战场简图（文本雷达）
+ 
+-### 3.4 其他交互
+-
+-- 场景中玩家可以与非战斗单位进行交互，例如与队友、NPC、交互地点等。
+-- 与非战斗单位的交互一样产生时间消耗，这些数值在相应的板块中设置，如采矿、探索、制造等等。
+-- 时间的消耗会产生其他变化，例如：
+-    - 日月更替，季节变化。
+-    - 制造任务进度推进。
+-    - 人物服役年龄的增长。
+-    - 其他与时间有关的内容。
+-
+-## 4 UI显示
+-
+-### 4.1 战斗信息UI展示
+-
+-#### 战场简图（Canvas绘制）
+-
+-在MUD文字界面中，战场以文本加雷达图片形式呈现：
++在MUD文字界面中，战场以文本雷达形式呈现：
+ 
+ ```
+ [战场雷达 - 织女-7 荒原区域]
+-（在这里绘制示意图）
+-
+-环境: 碎石地形(-20%轮式速度) | 电磁干扰区(东北角)
++    北
++    ↑
++西 ← ● you(500,500) → 东
++    ↓
++    南
+ 
+ 敌人:
+-  [A1] 突击虫  (623,412)  距离174m  状态:警戒
+-  [A2] 工虫  (580,380)  距离136m  状态:待机
+-  [B1] 大型工虫    (710,390)  距离243m  状态:待机
++  [A] 突击虫  (623,412)  距离174m  状态:警戒
++  [B] 工兵虫  (580,380)  距离136m  状态:待机
++  [C] 母虫    (710,390)  距离243m  状态:待机
+ 
+ 队友:
+   [T1] 先锋-7 (480,520)  装甲:85%  状态:跟随
+@@ -435,12 +398,7 @@ unit_state: {
+   [M1] 岩石堆 (450,480)  耐久:完好
+   [M2] 废墟   (550,450)  耐久:破损
+ 
+-未知信号：
+-  [D] 未知信号  (710,390)  状态:未知
+-
+-其他单位：
+-  [E] 地质学家·曹A  (710,390)  状态:友好
+-
++环境: 碎石地形(-20%轮式速度) | 电磁干扰区(东北角)
+ ```
+ 
+ #### 状态面板
+@@ -449,6 +407,7 @@ unit_state: {
+ [载具状态]
+ 结构值: 342/500  ████████░░░░░░░
+ 装甲值: 120/200  ██████░░░░░░░░░
++护盾值: 0/150    ░░░░░░░░░░░░░░░ [关闭]
+ 
+ [资源]
+ 能量: 45/200     ██░░░░░░░░░░░░░
+@@ -468,23 +427,37 @@ unit_state: {
+ 
+ ```
+ [行动时间轴]
+-当前时间: 11:20:55:552 (时：分：秒：毫秒)
++当前时间: 12.4s
+ 
+ 下一个行动:
+-  → 你 [等待指令]
++  → 你 (12.4s)  [等待指令]
+ 
+ 后续行动:
+-  [ 2s   ]1. 突击虫[A]   [预计:接近]
+-  [ 2.1s ]2. 你          [预计:武器就绪]
+-  [ 3.5s ]3. 工兵虫[B]   [预计:接近]
+-  [ 4.8s ]4. 先锋-7[T1]  [预计:武器就绪]
+-  [ 10.2s ]5. 母虫[C]    [预计:释放信息素]    
++  1. 突击虫[A] (12.7s)  [预计:接近]
++  2. 你 (13.1s)         [武器就绪]
++  3. 工兵虫[B] (13.5s)  [预计:接近]
++  4. 先锋-7[T1] (13.8s) [预计:跟随移动]
++  5. 母虫[C] (15.2s)    [预计:释放信息素]
+ ```
+ 
+-## 5 最小可用数据
+-// todo 完善最小可用数据
+-### 基础载具
++## 能力成长模式
++
++### 人物技能等级成长
++
++人物技能分为社会、知识、导航、操作、工艺五个维度。战斗相关的技能主要集中在**知识**（武器装备）和**操作**（工程学、装备使用）维度。
++
++- 玩家在游戏中的不同类型行动会分别获得相应的经验，提升相应级别后获得技能点，可以用技能点解锁技能。
++- 不同的技能主要为机制解锁或提供关键加成（如解锁某种武器的使用权限、降低装备启动时间、提升命中率等）。
++- 一个系列的技能点满后，技能点可以用来制作教材，供其他玩家或队友学习。
++
++技能经验提升采用斐波那契数列：每级所需经验为前两级之和（1, 1, 2, 3, 5, 8, 13, 21, 34, 55）。
++
++### 经济成长
+ 
+-### 敌人模板
++战斗过程中的运动、开火等操作获得人物技能经验。经验获取规则：
+ 
+-### 地图模板
++- 移动：每移动100米获得操作经验。
++- 开火：每次命中获得知识经验，暴击时额外加成。
++- 使用电子战：成功干扰或入侵获得知识经验。
++- 击杀敌人：根据敌人类型和等级获得大量经验，并可能掉落战利品。
++- 队友击杀：玩家获得少量经验（队友经验独立计算）。
+diff --git "a/\350\256\276\350\256\241\346\226\207\346\241\243/\350\243\205\345\244\207\347\263\273\347\273\237\350\256\276\350\256\241\344\271\246.md" "b/\350\256\276\350\256\241\346\226\207\346\241\243/\350\243\205\345\244\207\347\263\273\347\273\237\350\256\276\350\256\241\344\271\246.md"
+index 309d3c7..feb2792 100644
+--- "a/\350\256\276\350\256\241\346\226\207\346\241\243/\350\243\205\345\244\207\347\263\273\347\273\237\350\256\276\350\256\241\344\271\246.md"
++++ "b/\350\256\276\350\256\241\346\226\207\346\241\243/\350\243\205\345\244\207\347\263\273\347\273\237\350\256\276\350\256\241\344\271\246.md"
+@@ -21,23 +21,6 @@
+ - 资源点数（能量、离子、燃料、弹药）由载具上的容器和生成器提供，是武器开火和装备运转的消耗品。
+ - 同一装备存在数值浮动和品质差异，词缀系统为装备提供额外的随机属性。
+ 
+-## 能力成长模式（暂不实现）
+-
+-### 人物技能等级成长
+-
+-人物技能分为社会、知识、导航、操作、工艺五个维度。战斗相关的技能主要集中在**知识**（武器装备）和**操作**（工程学、装备使用）维度。
+-技能经验提升采用斐波那契数列：每级所需经验为前两级之和（1, 1, 2, 3, 5, 8, 13, 21, 34, 55）。
+-
+-- 玩家在游戏中的不同类型行动会分别获得相应的经验，提升相应级别后获得技能点，可以用技能点解锁技能。
+-- 不同的技能主要为机制解锁或提供关键加成（如解锁某种武器的使用权限、降低装备启动时间、提升命中率等）。
+-- 一个系列的技能点满后，技能点可以用来制作教材，供其他玩家或队友学习。
+-- 战斗过程中的运动、开火等操作获得人物技能经验。经验获取规则：
+-    - 移动：每移动100米获得操作经验。
+-    - 开火：每次命中获得知识经验，暴击时额外加成。
+-    - 使用电子战：成功干扰或入侵获得知识经验。
+-    - 击杀敌人：根据敌人类型和等级获得大量经验，并可能掉落战利品。
+-    - 队友击杀：玩家获得少量经验（队友经验独立计算）。
+-
+ ### 经济成长
+ 
+ 游戏中存在不同档次、强度的装备、机体、载具。获取装备的途径主要包括：
