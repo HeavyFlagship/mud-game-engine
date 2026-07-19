@@ -35,14 +35,14 @@ const BattleUI = {
       actions = [
         { label: '-move 移动到', cmd: `move ${target.id}`, disabled: false },
         { label: '-call 通信', cmd: `call ${target.id}`, disabled: dist > 100 },
-        { label: 'aim 查看', cmd: `aim ${target.id}`, disabled: false }
+        { label: 'look 查看', cmd: `look ${target.id}`, disabled: false }
       ];
     } else if (target.type === 'enemy') {
       const dist = target.dist;
       const inRange = Player.equipment.primary && dist <= Player.equipment.primary.range;
       actions = [
         { label: 'fire 开火', cmd: `fire ${target.id}`, disabled: !inRange || target.dead },
-        { label: 'aim 瞄准', cmd: `aim ${target.id}`, disabled: target.dead },
+        { label: 'look 查看', cmd: `look ${target.id}`, disabled: target.dead },
         { label: 'move 靠近', cmd: `move ${target.id}`, disabled: target.dead }
       ];
     }

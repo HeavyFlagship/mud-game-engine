@@ -98,8 +98,6 @@ const CommandSystem = {
         this.cmdBattleMove(parsed.args); break;
       case 'fire': case 'shoot': case 'attack': case '攻击':
         this.cmdBattleFire(parsed.args); break;
-      case 'aim': case '瞄准':
-        this.cmdBattleAim(parsed.args); break;
       case 'call': case 'talk': case '对话': case '通信':
         this.cmdBattleCall(parsed.args); break;
       case 'retreat': case 'flee': case '撤退':
@@ -114,14 +112,14 @@ const CommandSystem = {
         Game.useItem(parsed.args.join(' '));
         break;
       case 'look': case '查看':
-        this.cmdBattleLook(); break;
+        this.cmdBattleLook(parsed.args); break;
       case 'help': case '帮助':
         this.runQuery(parsed, '战斗指令帮助', () => this.showBattleHelp()); break;
       case 'wait': case '等待':
         Battle.setPlayerTask({ type: 'wait' });
         break;
       default:
-        Msg.warning('场景中可用指令：move/fire/aim/call/status/use/look/retreat/help/wait');
+        Msg.warning('场景中可用指令：move/fire/call/status/use/look/retreat/help/wait');
     }
   },
  
@@ -296,35 +294,55 @@ const CommandSystem = {
     Battle.playerAttack(targetId, slot);
   },
  
-  cmdBattleAim(args) {
+  cmdBattleLook(args) {
     if (!Battle.active || !Battle.battlefield) return;
-    if (args.length < 1) {
-      Msg.info('用法：aim <目标编号>');
-      return;
-    }
-    const targetId = args[0].toUpperCase();
-    const enemy = Battle.battlefield.enemies.find(e => e.instanceId === targetId);
-    if (!enemy) {
+    const bf = Battle.battlefield;
+
+    // 带参数：查看指定单位（敌人或NPC）
+    if (args && args.length >= 1) {
+      const targetId = args[0].toUpperCase();
+      const enemy = bf.enemies.find(e => e.instanceId === targetId);
+      const npcList = bf.npcs || [];
+      const npcUnit = npcList.find(n => n.instanceId === targetId);
+
+      if (enemy) {
+        const dist = Battle.getDistance(Player.position, enemy.position);
+        const weapon = Player.equipment.primary;
+        let info = `观察目标：${enemy.name}[${enemy.instanceId}]\n`;
+        info += `距离：${dist.toFixed(0)}m\n`;
+        info += `结构：${enemy.hp}/${enemy.maxHp}  装甲：${enemy.armor}/${enemy.maxArmor}\n`;
+        info += `状态：${this.getStateName(enemy.state)}\n`;
+        if (weapon) {
+          const hitRate = Battle.calculateHitRate(Player, enemy, weapon, dist);
+          info += `使用 ${weapon.name} 预计命中率：${(hitRate*100).toFixed(1)}%\n`;
+          info += `射程：${weapon.range}m ${dist > weapon.range ? '(超出射程)' : '(射程内)'}`;
+        }
+        Msg.info(info);
+        return;
+      }
+
+      if (npcUnit) {
+        const npcDef = NPCDB[npcUnit.npcId];
+        if (!npcDef) {
+          Msg.error(`未找到目标 ${targetId}`);
+          return;
+        }
+        const dist = Battle.getDistance(Player.position, npcUnit.position);
+        let info = `观察目标：${npcDef.name}[${npcUnit.instanceId}]\n`;
+        info += `头衔：${npcDef.title || '未知'}\n`;
+        info += `距离：${dist.toFixed(0)}m\n`;
+        info += `通信范围：${dist <= 100 ? '📞 可通信' : '📏 超出范围'}\n`;
+        if (npcDef.shopItems) info += '服务：🛒 商店\n';
+        if (npcDef.dialog) info += '（可使用 call 指令发起对话）';
+        Msg.info(info);
+        return;
+      }
+
       Msg.error(`未找到目标 ${targetId}`);
       return;
     }
-    const dist = Battle.getDistance(Player.position, enemy.position);
-    const weapon = Player.equipment.primary;
-    let info = `瞄准目标：${enemy.name}[${enemy.instanceId}]\n`;
-    info += `距离：${dist.toFixed(0)}m\n`;
-    info += `HP：${enemy.hp}/${enemy.maxHp}  装甲：${enemy.armor}/${enemy.maxArmor}\n`;
-    info += `状态：${this.getStateName(enemy.state)}\n`;
-    if (weapon) {
-      const hitRate = Battle.calculateHitRate(Player, enemy, weapon, dist);
-      info += `使用 ${weapon.name} 预计命中率：${(hitRate*100).toFixed(1)}%\n`;
-      info += `射程：${weapon.range}m ${dist > weapon.range ? '(超出射程)' : '(射程内)'}`;
-    }
-    Msg.info(info);
-  },
- 
-  cmdBattleLook() {
-    if (!Battle.active || !Battle.battlefield) return;
-    const bf = Battle.battlefield;
+
+    // 无参数：查看战场全貌
     let info = `战场：${MapSystem.getRoom(Battle.roomId)?.name || '未知区域'}\n`;
     info += `地形：${MapSystem.getTerrainName(bf.terrain)}\n`;
     info += `你的位置：(${Math.round(Player.position[0])}, ${Math.round(Player.position[1])})\n`;
@@ -377,11 +395,10 @@ const CommandSystem = {
   move <方向> <距离> - 向方向移动 (n/s/e/w/ne/nw/se/sw)
   move <目标编号>   - 移动到敌人/NPC附近
   fire <目标> [槽] - 攻击目标 (目标如A1，槽:primary/secondary)
-  aim <目标>       - 瞄准并查看目标信息
   call <目标>      - 与 NPC 通信（需距离 ≤ 100m）
   use <物品>       - 使用物品
   status / bag     - 查看状态/背包
-  look             - 查看战场
+  look [目标]      - 查看战场或指定目标（如 look N1）
   timeline         - 查看时间轴
   wait             - 等待一回合
   retreat          - 撤退

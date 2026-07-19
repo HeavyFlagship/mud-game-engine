@@ -233,7 +233,7 @@ const Battle = {
     } else {
       this.paused = true;
       const hint = this.combatActive
-        ? '> 战斗中（输入 move/fire/aim/use/status/retreat 等）'
+        ? '> 战斗中（输入 move/fire/look/use/status/retreat 等）'
         : '> 场景中（输入 move/call/fire/status/look 等）';
       Msg.prompt(hint);
     }
