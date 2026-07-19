@@ -339,7 +339,6 @@ const Battle = {
       dmg = result.total;
       Msg.damage(`💥 ${weapon.name} 命中 ${enemy.name}[${enemy.instanceId}]！` +
         `装甲-${result.armor} 结构-${result.hp} (${dmg}总伤害)`);
-      BattleUI.addHistory(`你攻击 ${enemy.name}[${enemy.instanceId}] 命中 ${dmg}伤害`, '#4f4');
       Player.stats.totalDmg += dmg;
 
       if (enemy.hp <= 0) {
@@ -347,7 +346,6 @@ const Battle = {
       }
     } else {
       Msg.miss(`❌ ${weapon.name} 未命中 ${enemy.name}[${enemy.instanceId}] (命中率 ${(hitRate * 100).toFixed(0)}%)`);
-      BattleUI.addHistory(`你攻击 ${enemy.name}[${enemy.instanceId}] 未命中`, '#fa2');
     }
 
     BattleUI.update();
@@ -479,14 +477,12 @@ const Battle = {
       const result = Player.takeDamage(baseDmg, enemy.damageType);
       Msg.damageEnemy(`💀 ${enemy.name}[${enemy.instanceId}] 攻击命中！` +
         `装甲-${result.armor} 结构-${result.hp} (${result.total}总伤害)`);
-      BattleUI.addHistory(`${enemy.name}[${enemy.instanceId}] 攻击你 命中 ${result.total}伤害`, '#f66');
 
       if (Player.isDead()) {
         this.onPlayerDeath();
       }
     } else {
       Msg.missEnemy(`➖ ${enemy.name}[${enemy.instanceId}] 攻击未命中 (命中率 ${(hitRate * 100).toFixed(0)}%)`);
-      BattleUI.addHistory(`${enemy.name}[${enemy.instanceId}] 攻击你 未命中`, '#f88');
     }
 
     this.scheduleEvent({ type: 'attack_complete', actor: enemy.instanceId }, enemy.attackCooldown);
