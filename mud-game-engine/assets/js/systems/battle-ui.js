@@ -3,10 +3,88 @@ const BattleUI = {
   timelineEl: null,
   historyEvents: [],
   currentActions: [],
+  contextMenuTarget: null,
 
   init() {
     this.updateRadar();
     setInterval(() => this.updateRadar(), 500);
+    this._initContextMenu();
+  },
+
+  _initContextMenu() {
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('unit-context-menu');
+      if (!menu) return;
+      if (!menu.contains(e.target) && !e.target.closest('.unit-card') && !e.target.closest('.enemy-card')) {
+        this.hideContextMenu();
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this.hideContextMenu();
+    });
+  },
+
+  showUnitMenu(target, x, y) {
+    const menu = document.getElementById('unit-context-menu');
+    if (!menu) return;
+    this.contextMenuTarget = target;
+
+    let actions = [];
+    if (target.type === 'npc') {
+      const dist = target.dist;
+      actions = [
+        { label: '-move 移动到', cmd: `move ${target.id}`, disabled: false },
+        { label: '-call 通信', cmd: `call ${target.id}`, disabled: dist > 100 },
+        { label: 'aim 查看', cmd: `aim ${target.id}`, disabled: false }
+      ];
+    } else if (target.type === 'enemy') {
+      const dist = target.dist;
+      const inRange = Player.equipment.primary && dist <= Player.equipment.primary.range;
+      actions = [
+        { label: 'fire 开火', cmd: `fire ${target.id}`, disabled: !inRange || target.dead },
+        { label: 'aim 瞄准', cmd: `aim ${target.id}`, disabled: target.dead },
+        { label: 'move 靠近', cmd: `move ${target.id}`, disabled: target.dead }
+      ];
+    }
+
+    let html = `<div class="unit-context-menu-header">${target.name}</div>`;
+    for (const act of actions) {
+      const cls = act.disabled ? 'unit-context-menu-item disabled' : 'unit-context-menu-item';
+      html += `<div class="${cls}" data-cmd="${act.cmd}">${act.label}</div>`;
+    }
+    menu.innerHTML = html;
+
+    menu.classList.add('active');
+    const menuRect = menu.getBoundingClientRect();
+    let posX = x, posY = y;
+    if (posX + menuRect.width > window.innerWidth) posX = window.innerWidth - menuRect.width - 4;
+    if (posY + menuRect.height > window.innerHeight) posY = window.innerHeight - menuRect.height - 4;
+    menu.style.left = posX + 'px';
+    menu.style.top = posY + 'px';
+
+    const items = menu.querySelectorAll('.unit-context-menu-item:not(.disabled)');
+    items.forEach(item => {
+      item.addEventListener('click', () => {
+        const cmd = item.getAttribute('data-cmd');
+        this.fillInput(cmd);
+        this.hideContextMenu();
+      });
+    });
+  },
+
+  hideContextMenu() {
+    const menu = document.getElementById('unit-context-menu');
+    if (menu) menu.classList.remove('active');
+    this.contextMenuTarget = null;
+  },
+
+  fillInput(cmd) {
+    const input = document.getElementById('input');
+    if (!input) return;
+    input.value = cmd;
+    input.focus();
+    const len = cmd.length;
+    try { input.setSelectionRange(len, len); } catch (e) {}
   },
 
   updateRadar() {
@@ -181,7 +259,10 @@ const BattleUI = {
       const shopIcon = npcDef.shopItems ? '🛒' : '';
       const broadcastTag = broadcast ? '📡' : '';
       const nameText = `${npcUnit.instanceId} ${npcDef.name} ${broadcastTag}${shopIcon}`;
-      html += `<div class="unit-card">
+      const target = {
+        type: 'npc', id: npcUnit.instanceId, name: nameText, dist
+      };
+      html += `<div class="unit-card" onclick='BattleUI.showUnitMenu(${JSON.stringify(target)}, event.clientX, event.clientY)'>
         <span class="name" style="color:#8cf;" title="${nameText}">${nameText}</span>
         <span class="dist" style="color:var(--muted);font-size:var(--font-enemy-header);">${dist.toFixed(0)}m ${inCallRange ? '📞' : '📏'}</span>
         <span class="sub" style="color:var(--muted-bright);">${npcDef.title || ''}</span>
@@ -260,7 +341,11 @@ const BattleUI = {
       const inRange = Player.equipment.primary && dist <= Player.equipment.primary.range;
       const nameText = `${enemy.instanceId} ${enemy.name}`;
       const distText = `${dist.toFixed(0)}m ${inRange ? '🎯' : '📏'}`;
-      html += `<div class="enemy-card" style="background:${dead ? '#222' : '#1a1a1a'};opacity:${dead ? 0.5 : 1};">
+      const target = {
+        type: 'enemy', id: enemy.instanceId, name: nameText, dist, dead
+      };
+      const targetJson = JSON.stringify(target).replace(/'/g, "&#39;");
+      html += `<div class="enemy-card" style="background:${dead ? '#222' : '#1a1a1a'};opacity:${dead ? 0.5 : 1};" onclick='BattleUI.showUnitMenu(${targetJson}, event.clientX, event.clientY)'>
         <span class="name" style="color:${dead ? '#666' : '#f66'};" title="${nameText}">${nameText}</span>
         <span class="dist" style="color:var(--muted);font-size:var(--font-enemy-header);">${distText}</span>
         <span class="sub" style="color:var(--muted-bright);">结构: ${enemy.hp}/${enemy.maxHp}

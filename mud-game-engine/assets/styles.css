@@ -140,6 +140,64 @@ body {
   font-size: var(--font-enemy-stat);
 }
 
+/* 单位卡片可点击 */
+.unit-card, .enemy-card {
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  border: 1px solid transparent;
+}
+.unit-card:hover, .enemy-card:hover {
+  border-color: var(--accent);
+  background: #1f2a3a !important;
+}
+
+/* 单位上下文菜单 */
+.unit-context-menu {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  min-width: 140px;
+  background: var(--bg3);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.6), 0 0 8px var(--glow);
+  padding: 4px 0;
+  overflow: hidden;
+}
+.unit-context-menu.active { display: block; }
+.unit-context-menu-header {
+  padding: 4px 10px;
+  color: var(--accent);
+  font-size: var(--font-hint);
+  font-weight: 700;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.unit-context-menu-item {
+  padding: 5px 10px;
+  color: var(--ink);
+  font-size: var(--font-btn-battle);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.unit-context-menu-item:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+.unit-context-menu-item.disabled {
+  color: var(--rule);
+  cursor: not-allowed;
+  font-style: italic;
+}
+.unit-context-menu-item.disabled:hover {
+  background: transparent;
+  color: var(--rule);
+}
+
 /* ===== TIMELINE PANEL ===== */
 .timeline-panel {
   width: 240px;

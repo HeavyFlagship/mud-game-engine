@@ -37,17 +37,6 @@
     <div class="sidebar-section">
       <div class="sidebar-title">📍 当前位置</div>
       <div id="location-info" style="font-size:var(--font-stat);color:var(--muted)"></div>
-      <div class="direction-pad" aria-label="方向快捷指令">
-        <button class="dir-btn dir-north" onclick="exec('north')" title="north 北">北</button>
-        <button class="dir-btn dir-west" onclick="exec('west')" title="west 西">西</button>
-        <button class="dir-btn dir-look" onclick="exec('look')" title="look 查看">看</button>
-        <button class="dir-btn dir-east" onclick="exec('east')" title="east 东">东</button>
-        <button class="dir-btn dir-south" onclick="exec('south')" title="south 南">南</button>
-      </div>
-      <div class="vertical-cmds">
-        <button class="vertical-btn" onclick="exec('up')" title="up 上">上</button>
-        <button class="vertical-btn" onclick="exec('down')" title="down 下">下</button>
-      </div>
     </div>
   </div>
 
@@ -73,6 +62,8 @@
     </div>
     <div id="timeline-content" class="timeline-content"></div>
   </div>
+
+  <div class="unit-context-menu" id="unit-context-menu" role="menu"></div>
  
   <div class="game-area">
     <div class="output" id="output"></div>
