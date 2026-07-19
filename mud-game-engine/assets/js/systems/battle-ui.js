@@ -279,9 +279,21 @@ const BattleUI = {
     this.update();
   },
 
-  addHistory(text, color = '#aaa') {
-    const time = Battle.battlefield ? Battle.battlefield.time.toFixed(0) : '?';
-    this.historyEvents.unshift({ time, text, color });
+  formatGameTime(seconds, format = 'mm:ss') {
+    const totalSec = Math.floor(Number(seconds) || 0);
+    const h = Math.floor(totalSec / 3600) % 24;
+    const m = Math.floor(totalSec / 60) % 60;
+    const s = totalSec % 60;
+    const pad = n => String(n).padStart(2, '0');
+    if (format === 'mm:ss') return `${pad(m)}:${pad(s)}`;
+    return `${pad(h)}:${pad(m)}:${pad(s)}`;
+  },
+
+  addHistory(text, color = '#aaa', actionType = null) {
+    const time = Battle.battlefield ? Battle.battlefield.time : 0;
+    const formattedTime = this.formatGameTime(time, 'mm:ss');
+    const displayText = actionType ? `${text}行动：${actionType}` : text;
+    this.historyEvents.unshift({ time: formattedTime, text: displayText, color });
     if (this.historyEvents.length > 30) {
       this.historyEvents.pop();
     }
@@ -426,7 +438,7 @@ const BattleUI = {
     html += '<div class="timeline-section timeline-history">';
     html += '<div class="timeline-divider">— 历史记录 —</div>';
     for (const h of this.historyEvents.slice(0, 8)) {
-      html += `<div class="timeline-item history" style="color:${h.color};opacity:0.7;">${h.time}秒 ${h.text}</div>`;
+      html += `<div class="timeline-item history" style="color:${h.color};opacity:0.7;">${h.time} ${h.text}</div>`;
     }
     if (this.historyEvents.length === 0) {
       html += '<div class="timeline-item history" style="color:#555;opacity:0.5;">（无）</div>';

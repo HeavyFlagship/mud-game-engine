@@ -41,6 +41,7 @@ const EnemyAI = {
     if (enemy.hp <= 0) return;
  
     const distToPlayer = this.getDistance(enemy.position, Player.position);
+    const enemyLabel = `${enemy.name}[${enemy.instanceId}]`;
  
     if (enemy.state === 'pursue' || enemy.state === 'alert') {
       if (distToPlayer <= enemy.attackRange && enemy.attackTimer <= 0) {
@@ -48,6 +49,7 @@ const EnemyAI = {
       } else if (distToPlayer > enemy.attackRange * 0.5) {
         this.moveTowardPlayer(enemy, battlefield);
       } else {
+        BattleUI.addHistory(enemyLabel, '#aaa', '待机');
         Battle.scheduleNextEnemyTurn(enemy);
       }
     } else if (enemy.state === 'search') {
@@ -56,14 +58,17 @@ const EnemyAI = {
         if (searchDist > 20) {
           this.moveToward(enemy, enemy.searchPos, battlefield);
         } else {
+          BattleUI.addHistory(enemyLabel, '#aa8', '搜索');
           Battle.scheduleNextEnemyTurn(enemy);
         }
       } else {
+        BattleUI.addHistory(enemyLabel, '#aaa', '待机');
         Battle.scheduleNextEnemyTurn(enemy);
       }
     } else if (enemy.patrolPattern === 'patrol' && enemy.patrolPath) {
       this.doPatrolMove(enemy, battlefield);
     } else {
+      BattleUI.addHistory(enemyLabel, '#aaa', '待机');
       Battle.scheduleNextEnemyTurn(enemy);
     }
   },
@@ -99,7 +104,9 @@ const EnemyAI = {
   },
  
   doPatrolMove(enemy, battlefield) {
+    const enemyLabel = `${enemy.name}[${enemy.instanceId}]`;
     if (!enemy.patrolPath || enemy.patrolPath.length === 0) {
+      BattleUI.addHistory(enemyLabel, '#aaa', '待机');
       Battle.scheduleNextEnemyTurn(enemy);
       return;
     }
@@ -107,6 +114,7 @@ const EnemyAI = {
     const dist = this.getDistance(enemy.position, target);
     if (dist < 20) {
       enemy.patrolIndex = (enemy.patrolIndex + 1) % enemy.patrolPath.length;
+      BattleUI.addHistory(enemyLabel, '#8a8', '巡逻');
       Battle.scheduleNextEnemyTurn(enemy);
     } else {
       this.moveToward(enemy, target, battlefield);

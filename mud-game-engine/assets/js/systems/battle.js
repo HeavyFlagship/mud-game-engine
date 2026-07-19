@@ -260,10 +260,12 @@ const Battle = {
     if (task.type === 'move') {
       this.startPlayerMove(task.target);
     } else if (task.type === 'call') {
+      BattleUI.addHistory('你', '#8cf', '通信');
       BattleUI.addCurrentAction('通信中...', '#8cf');
       this.scheduleEvent({ type: 'npc_call', actor: 'player', npcId: task.npcId }, 5);
       this.scheduleNext();
     } else if (task.type === 'wait') {
+      BattleUI.addHistory('你', '#888', '等待');
       this.playerTask = null;
       this.scheduleNextPlayerTurn();
     }
@@ -280,6 +282,7 @@ const Battle = {
     Player.position = clamped;
     Player.facing = Math.atan2(dy, dx);
 
+    BattleUI.addHistory('你', '#8f8', '移动');
     this.scheduleEvent({ type: 'move_complete', actor: 'player' }, time);
     this.currentActor = 'player';
     BattleUI.addCurrentAction('移动中...', '#8f8');
@@ -325,7 +328,9 @@ const Battle = {
     }
 
     this.enterCombat(`开火攻击 ${enemy.name}[${enemy.instanceId}]`);
+    BattleUI.addHistory('你', '#fa4', '攻击');
 
+    const ts = BattleUI.formatGameTime(this.battlefield.time, 'hh:mm:ss');
     const hitRate = this.calculateHitRate(Player, enemy, weapon, dist);
     const hit = Math.random() < hitRate;
 
@@ -337,7 +342,7 @@ const Battle = {
       const baseDmg = Utils.rand(weapon.damage - weapon.damageVariance, weapon.damage + weapon.damageVariance);
       const result = this.dealDamage(enemy, baseDmg, weapon.damageType);
       dmg = result.total;
-      Msg.damage(`💥 ${weapon.name} 命中 ${enemy.name}[${enemy.instanceId}]！` +
+      Msg.damage(`[${ts}] 💥 ${weapon.name} 命中 ${enemy.name}[${enemy.instanceId}]！` +
         `装甲-${result.armor} 结构-${result.hp} (${dmg}总伤害)`);
       Player.stats.totalDmg += dmg;
 
@@ -345,7 +350,7 @@ const Battle = {
         this.onEnemyKilled(enemy);
       }
     } else {
-      Msg.miss(`❌ ${weapon.name} 未命中 ${enemy.name}[${enemy.instanceId}] (命中率 ${(hitRate * 100).toFixed(0)}%)`);
+      Msg.miss(`[${ts}] ❌ ${weapon.name} 未命中 ${enemy.name}[${enemy.instanceId}] (命中率 ${(hitRate * 100).toFixed(0)}%)`);
     }
 
     BattleUI.update();
@@ -448,6 +453,7 @@ const Battle = {
     enemy.position = this.clampToBattlefield(targetPos);
     enemy.facing = Math.atan2(dy, dx);
 
+    BattleUI.addHistory(`${enemy.name}[${enemy.instanceId}]`, '#8f8', '移动');
     BattleUI.addCurrentAction(`${enemy.name}[${enemy.instanceId}]移动中...`, '#8f8');
     this.scheduleEvent({ type: 'move_complete', actor: enemy.instanceId }, time);
   },
@@ -465,7 +471,9 @@ const Battle = {
     if (dist > enemy.attackRange) return;
 
     this.enterCombat(`${enemy.name}[${enemy.instanceId}] 发起攻击`);
+    BattleUI.addHistory(`${enemy.name}[${enemy.instanceId}]`, '#f66', '攻击');
 
+    const ts = BattleUI.formatGameTime(this.battlefield.time, 'hh:mm:ss');
     const hitRate = this.calculateEnemyHitRate(enemy, dist);
     const hit = Math.random() < hitRate;
 
@@ -475,14 +483,14 @@ const Battle = {
     if (hit) {
       const baseDmg = Utils.rand(Math.floor(enemy.damage * 0.8), Math.floor(enemy.damage * 1.2));
       const result = Player.takeDamage(baseDmg, enemy.damageType);
-      Msg.damageEnemy(`💀 ${enemy.name}[${enemy.instanceId}] 攻击命中！` +
+      Msg.damageEnemy(`[${ts}] 💀 ${enemy.name}[${enemy.instanceId}] 攻击命中！` +
         `装甲-${result.armor} 结构-${result.hp} (${result.total}总伤害)`);
 
       if (Player.isDead()) {
         this.onPlayerDeath();
       }
     } else {
-      Msg.missEnemy(`➖ ${enemy.name}[${enemy.instanceId}] 攻击未命中 (命中率 ${(hitRate * 100).toFixed(0)}%)`);
+      Msg.missEnemy(`[${ts}] ➖ ${enemy.name}[${enemy.instanceId}] 攻击未命中 (命中率 ${(hitRate * 100).toFixed(0)}%)`);
     }
 
     this.scheduleEvent({ type: 'attack_complete', actor: enemy.instanceId }, enemy.attackCooldown);
