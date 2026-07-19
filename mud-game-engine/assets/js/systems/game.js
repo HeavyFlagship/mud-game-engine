@@ -100,9 +100,15 @@ const Game = {
       const bf = MapSystem.initBattlefield(room.id);
       const alive = bf.enemies.filter(e => e.hp > 0).length;
       if (alive > 0) {
-        Msg.warn(`⚠ 探测到 ${alive} 个敌对单位信号。`);
+        Msg.warn(`⚠ 探测到 ${alive} 个敌对单位信号（开火或被攻击后进入战斗状态）。`);
       } else {
         Msg.info('区域内已无敌对信号。');
+      }
+      if (bf.terrain !== undefined) {
+        Msg.info(`🗺 地形：${MapSystem.getTerrainName(bf.terrain)}`);
+      }
+      if (bf.npcs && bf.npcs.length > 0) {
+        Msg.info(`📡 检测到 ${bf.npcs.length} 个友好信号，使用 <span class="help-cmd">call</span> 通信（需先接近）。`);
       }
     }
  

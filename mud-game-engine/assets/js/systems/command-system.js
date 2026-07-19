@@ -17,6 +17,7 @@ const CommandSystem = {
     sc:'score', st:'stats',
     mv:'move', go:'move',
     fi:'fire', shoot:'fire', atk:'fire',
+    ent:'enter', 进入:'enter',
     tm:'timeline', tl_b:'timeline',
     re:'retreat', rt:'retreat'
   },
@@ -96,6 +97,8 @@ const CommandSystem = {
     switch (parsed.cmd) {
       case 'move': case 'go':
         this.cmdBattleMove(parsed.args); break;
+      case 'enter': case '进入':
+        this.cmdBattleEnter(parsed.args); break;
       case 'fire': case 'shoot': case 'attack': case '攻击':
         this.cmdBattleFire(parsed.args); break;
       case 'call': case 'talk': case '对话': case '通信':
@@ -181,14 +184,14 @@ const CommandSystem = {
       Msg.info('用法：');
       Msg.info('  move <x> <y>  - 移动到指定坐标');
       Msg.info('  move <方向> <距离> - 向指定方向移动距离(米)');
+      Msg.info('  move <方向>  - 主方向(n/s/e/w)：移动到该方向边界并切换场景');
       Msg.info('  move <敌人编号>  - 移动到敌人附近');
       Msg.info('  move <NPC编号>   - 移动到NPC附近');
       Msg.info('方向：n/s/e/w/ne/nw/se/sw');
-      Msg.info('坐标超出战场边界且该方向有出口时，非战斗状态可前往相邻场景');
       return;
     }
 
-    let targetX, targetY;
+    let targetX, targetY, autoExit = null;
     const first = args[0];
 
     if (/^\d+$/.test(first) && args.length >= 2 && /^\d+$/.test(args[1])) {
@@ -196,7 +199,6 @@ const CommandSystem = {
       targetY = parseInt(args[1]);
     } else if (/^[nsew]$/.test(first.toLowerCase()) || /^(ne|nw|se|sw)$/.test(first.toLowerCase())) {
       const dir = first.toLowerCase();
-      const dist = args.length >= 2 ? parseInt(args[1]) : 50;
       const dirMap = {
         n:[0,-1], s:[0,1], e:[1,0], w:[-1,0],
         ne:[0.707,-0.707], nw:[-0.707,-0.707], se:[0.707,0.707], sw:[-0.707,0.707]
@@ -206,8 +208,32 @@ const CommandSystem = {
         Msg.error('方向无效。使用 n/s/e/w/ne/nw/se/sw');
         return;
       }
-      targetX = Player.position[0] + d[0] * dist;
-      targetY = Player.position[1] + d[1] * dist;
+      if (args.length >= 2) {
+        // 指定距离：按指定距离移动
+        const dist = parseInt(args[1]);
+        if (isNaN(dist) || dist <= 0) {
+          Msg.error('距离必须是正整数。');
+          return;
+        }
+        targetX = Player.position[0] + d[0] * dist;
+        targetY = Player.position[1] + d[1] * dist;
+      } else if (/^[nsew]$/.test(dir)) {
+        // 主方向无距离：移动到该方向边界点（距边界5m），到达后自动切换场景
+        const [bw, bh] = Battle.battlefield.size;
+        const margin = 5;
+        switch (dir) {
+          case 'n': targetX = Player.position[0]; targetY = margin; autoExit = 'north'; break;
+          case 's': targetX = Player.position[0]; targetY = bh - margin; autoExit = 'south'; break;
+          case 'e': targetX = bw - margin; targetY = Player.position[1]; autoExit = 'east'; break;
+          case 'w': targetX = margin; targetY = Player.position[1]; autoExit = 'west'; break;
+        }
+        Msg.info(`向${MapSystem.getDirectionName(autoExit)}边界移动，到达后自动切换场景...`);
+      } else {
+        // 对角线无距离：默认移动 50m
+        const dist = 50;
+        targetX = Player.position[0] + d[0] * dist;
+        targetY = Player.position[1] + d[1] * dist;
+      }
     } else {
       const targetId = first.toUpperCase();
       const enemy = Battle.battlefield.enemies.find(e => e.instanceId === targetId);
@@ -236,13 +262,14 @@ const CommandSystem = {
         targetY = Player.position[1] + dy * ratio;
         Msg.info(`向 ${npc.name}[${npc.instanceId}] 移动...`);
       } else {
-        Msg.error(`未找到目标 ${first}。用法：move <x> <y> 或 move <方向> <距离> 或 move <目标编号>`);
+        Msg.error(`未找到目标 ${first}。用法：move <x> <y> 或 move <方向> [距离] 或 move <目标编号>`);
         return;
       }
     }
 
+    // 仅当目标超出边界（非 autoExit 模式）才尝试立即切换场景
     const [bw, bh] = Battle.battlefield.size;
-    if (targetX < 0 || targetX > bw || targetY < 0 || targetY > bh) {
+    if (!autoExit && (targetX < 0 || targetX > bw || targetY < 0 || targetY > bh)) {
       if (Battle.combatActive) {
         Msg.warn('战斗中无法离开当前场景！');
         return;
@@ -257,9 +284,7 @@ const CommandSystem = {
         Msg.warning('这个方向没有出口。');
         return;
       }
-      Battle.end();
-      BattleUI.remove();
-      Game.move(exitDir);
+      Msg.warn('提示：使用 enter <方向> 或 move <方向>（无距离）可正式切换场景。');
       return;
     }
 
@@ -267,13 +292,13 @@ const CommandSystem = {
     if (isMoving) {
       // 移动中再次下达 move：中断当前移动，以新目标重新开始
       Battle.interruptPlayerMove();
-      Battle.setPlayerTask({ type: 'move', target: [targetX, targetY] });
+      Battle.setPlayerTask({ type: 'move', target: [targetX, targetY], autoExit });
     } else {
       // 检查是否有就绪武器
       const hasReadyWeapon = ['primary', 'secondary'].some(s => (Player.weaponCooldowns[s] || 0) <= 0 && Player.equipment[s]);
       if (hasReadyWeapon && !Battle.playerFireHint) {
         // 有就绪武器且未提示过：记录意图，提示玩家可选移动开火或仅移动跳过开火
-        Battle.playerFireHint = { pendingMove: [targetX, targetY] };
+        Battle.playerFireHint = { pendingMove: [targetX, targetY], autoExit };
         const readyNames = ['primary', 'secondary']
           .filter(s => (Player.weaponCooldowns[s] || 0) <= 0 && Player.equipment[s])
           .map(s => Player.equipment[s].name);
@@ -282,8 +307,49 @@ const CommandSystem = {
       }
       // 已提示过或无就绪武器：清除提示，执行移动
       Battle.playerFireHint = null;
-      Battle.setPlayerTask({ type: 'move', target: [targetX, targetY] });
+      Battle.setPlayerTask({ type: 'move', target: [targetX, targetY], autoExit });
     }
+  },
+
+  cmdBattleEnter(args) {
+    if (!Battle.active || !Battle.battlefield) return;
+    if (args.length < 1) {
+      Msg.info('用法：enter <方向>');
+      Msg.info('  专用于切换相邻场景，需位于当前场景该方向边界 10m 内');
+      Msg.info('  方向：n/s/e/w 或 north/south/east/west');
+      return;
+    }
+    const dirMap = { n:'north', s:'south', e:'east', w:'west' };
+    const dir = dirMap[args[0].toLowerCase()] || args[0].toLowerCase();
+    if (!['north','south','east','west'].includes(dir)) {
+      Msg.error('方向无效。使用 n/s/e/w 或 north/south/east/west');
+      return;
+    }
+    if (Battle.combatActive) {
+      Msg.warn('战斗中无法切换场景！');
+      return;
+    }
+    const room = MapSystem.getRoom(Player.room);
+    if (!room || !room.exits || !room.exits[dir]) {
+      Msg.warning('这个方向没有出口。');
+      return;
+    }
+    const [bw, bh] = Battle.battlefield.size;
+    const margin = 10;
+    const px = Player.position[0], py = Player.position[1];
+    let atBoundary = false, distToBoundary = 0;
+    if (dir === 'north') { atBoundary = py <= margin; distToBoundary = py; }
+    else if (dir === 'south') { atBoundary = py >= bh - margin; distToBoundary = bh - py; }
+    else if (dir === 'east') { atBoundary = px >= bw - margin; distToBoundary = bw - px; }
+    else if (dir === 'west') { atBoundary = px <= margin; distToBoundary = px; }
+    if (!atBoundary) {
+      Msg.warn(`距离${MapSystem.getDirectionName(dir)}边界还有 ${distToBoundary.toFixed(0)}m，需先移动到边界 ${margin}m 内（可用 move ${args[0]}）。`);
+      return;
+    }
+    Msg.info(`通过${MapSystem.getDirectionName(dir)}出口切换场景...`);
+    Battle.end();
+    BattleUI.remove();
+    Game.move(dir);
   },
 
   _getExitDirection(tx, ty, bw, bh) {
@@ -365,7 +431,9 @@ const CommandSystem = {
     }
 
     // 保存待执行的移动意图（来自 move 指令的开火提示）
-    const pendingMove = Battle.playerFireHint ? Battle.playerFireHint.pendingMove : null;
+    const hint = Battle.playerFireHint;
+    const pendingMove = hint ? hint.pendingMove : null;
+    const autoExit = hint ? hint.autoExit : null;
     Battle.playerFireHint = null;
 
     // 调度每个就绪武器的 player_fire 事件（前摇 0.3 秒，依次错开）
@@ -380,7 +448,7 @@ const CommandSystem = {
     if (pendingMove) {
       // 移动开火：fire 由 move 触发，开火与移动并行执行
       Msg.info(`移动开火：攻击 ${targetId} (${readySlots.map(s => Player.equipment[s].name).join('/')})，同时继续移动`);
-      Battle.setPlayerTask({ type: 'move', target: [...pendingMove] });
+      Battle.setPlayerTask({ type: 'move', target: [...pendingMove], autoExit });
     } else {
       // 普通开火：解除 paused 让时间轴推进
       Msg.info(`开火指令已下达：攻击 ${targetId} (${readySlots.map(s => Player.equipment[s].name).join('/')})`);
@@ -488,9 +556,11 @@ const CommandSystem = {
  
   showBattleHelp() {
     const help = `场景指令：
-  move <x> <y>     - 移动到指定坐标
-  move <方向> <距离> - 向方向移动 (n/s/e/w/ne/nw/se/sw)
+  move <x> <y>     - 移动到指定坐标（点击雷达图自动填充）
+  move <方向> <距离> - 向方向移动指定距离 (n/s/e/w/ne/nw/se/sw)
+  move <方向>      - 主方向(n/s/e/w)：移动到边界并切换场景
   move <目标编号>   - 移动到敌人/NPC附近
+  enter <方向>     - 切换相邻场景（需位于该方向边界 10m 内）
   fire <目标> [槽] - 攻击目标 (目标如A1，槽:primary/secondary/all，默认all所有就绪武器)
   call <目标>      - 与 NPC 通信（需距离 ≤ 100m）
   idle <秒数>      - 待机指定秒数（期间时间轴推进，被攻击立即行动）

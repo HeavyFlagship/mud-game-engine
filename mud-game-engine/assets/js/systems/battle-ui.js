@@ -9,6 +9,31 @@ const BattleUI = {
     this.updateRadar();
     setInterval(() => this.updateRadar(), 500);
     this._initContextMenu();
+    this._initRadarClick();
+  },
+
+  _initRadarClick() {
+    const canvas = document.getElementById('radar-canvas');
+    if (!canvas) return;
+    canvas.style.cursor = 'crosshair';
+    canvas.addEventListener('click', (e) => {
+      if (!Battle.active || !Battle.battlefield) return;
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
+      const w = canvas.width, h = canvas.height;
+      const cx = w / 2, cy = h / 2;
+      const scale = Math.min(w, h) / 1000;
+      let targetX = Math.round((x - cx) / scale + 500);
+      let targetY = Math.round((y - cy) / scale + 500);
+      const [bw, bh] = Battle.battlefield.size;
+      targetX = Math.max(0, Math.min(bw, targetX));
+      targetY = Math.max(0, Math.min(bh, targetY));
+      this.fillInput(`move ${targetX} ${targetY}`);
+    });
   },
 
   _initContextMenu() {

@@ -43,17 +43,7 @@ const Battle = {
     this.continuousActions = [];
     this.playerFireHint = null;
 
-    Msg.divider();
-    Msg.info(`📍 进入场景：${room.name}`);
-    Msg.info(`地形：${MapSystem.getTerrainName(this.battlefield.terrain)}`);
-    const aliveEnemies = this.battlefield.enemies.filter(e => e.hp > 0).length;
-    if (aliveEnemies > 0) {
-      Msg.warn(`⚠ 探测到 ${aliveEnemies} 个敌对单位信号（开火或被攻击后进入战斗状态）。`);
-    }
-    if (this.battlefield.npcs && this.battlefield.npcs.length > 0) {
-      Msg.info(`📡 检测到 ${this.battlefield.npcs.length} 个友好信号，使用 <span class="help-cmd">call</span> 通信（需先接近）。`);
-    }
-
+    // 场景信息由 Game.look() 统一显示，这里不再重复输出
     this.buildInitialTimeline();
     BattleUI.render();
     this.advanceTimeline();
@@ -463,8 +453,21 @@ const Battle = {
 
   onPlayerMoveComplete() {
     this.currentActor = null;
+    const autoExit = this.playerTask && this.playerTask.autoExit;
     if (this.playerTask && this.playerTask.type === 'move') {
       this.playerTask = null;
+    }
+    // 移动到达边界，自动切换场景
+    if (autoExit && !this.combatActive) {
+      const room = MapSystem.getRoom(Player.room);
+      if (room && room.exits && room.exits[autoExit]) {
+        Msg.info(`已到达${MapSystem.getDirectionName(autoExit)}边界，切换场景...`);
+        this.end();
+        BattleUI.remove();
+        Game.move(autoExit);
+        return;
+      }
+      Msg.warn(`已到达边界，但${MapSystem.getDirectionName(autoExit)}方向没有出口。`);
     }
     this.triggerPlayerDecision();
   },
