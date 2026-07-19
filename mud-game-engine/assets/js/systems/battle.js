@@ -188,10 +188,12 @@ const Battle = {
 
   processEvent(event) {
     if (event.type === 'player_turn') {
+      BattleUI.clearCurrentActions();
       this.currentActor = 'player';
       BattleUI.addCurrentAction('你的行动', '#0ff');
       this.onPlayerTurn();
     } else if (event.type === 'enemy_turn') {
+      BattleUI.clearCurrentActions();
       this.currentActor = event.actor;
       const enemy = this.battlefield.enemies.find(e => e.instanceId === event.actor);
       if (enemy) {
@@ -202,10 +204,12 @@ const Battle = {
       }
     } else if (event.type === 'move_complete') {
       if (event.actor === 'player') {
+        BattleUI.removeCurrentAction('移动中...');
         this.onPlayerMoveComplete();
       } else {
         const enemy = this.battlefield.enemies.find(e => e.instanceId === event.actor);
         if (enemy) {
+          BattleUI.removeCurrentAction(`${enemy.name}[${enemy.instanceId}]移动中...`);
           this.onEnemyMoveComplete(enemy);
         } else {
           this.scheduleNext();
@@ -220,6 +224,7 @@ const Battle = {
         this.scheduleNext();
       }
     } else if (event.type === 'npc_call') {
+      BattleUI.removeCurrentAction('通信中...');
       BattleUI.addCurrentAction('通信完成', '#8cf');
       this.onNPCCall(event.npcId);
     }

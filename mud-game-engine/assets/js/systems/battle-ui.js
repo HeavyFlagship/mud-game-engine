@@ -287,6 +287,27 @@ const BattleUI = {
     }
   },
 
+  clearCurrentActions() {
+    for (const act of this.currentActions) {
+      this.historyEvents.unshift(act);
+    }
+    this.currentActions = [];
+    if (this.historyEvents.length > 30) {
+      this.historyEvents.pop();
+    }
+  },
+
+  removeCurrentAction(text) {
+    const index = this.currentActions.findIndex(a => a.text === text);
+    if (index !== -1) {
+      const removed = this.currentActions.splice(index, 1)[0];
+      this.historyEvents.unshift(removed);
+      if (this.historyEvents.length > 30) {
+        this.historyEvents.pop();
+      }
+    }
+  },
+
   addCurrentAction(text, color = '#fff') {
     const time = Battle.battlefield ? Battle.battlefield.time.toFixed(0) : '?';
     this.currentActions.push({ time, text, color });
