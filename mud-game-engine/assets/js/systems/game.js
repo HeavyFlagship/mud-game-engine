@@ -41,6 +41,11 @@ const Game = {
     this.showIntro();
     this.look();
     this.updateUI();
+
+    const startRoom = MapSystem.getRoom(Player.room);
+    if (startRoom && startRoom.battlefield) {
+      Battle.start(Player.room, 'south');
+    }
   },
  
   showIntro() {

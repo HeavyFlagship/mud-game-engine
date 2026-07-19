@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>织女-7前哨 - 科幻战术MUD</title>
 <link rel="stylesheet" href="assets/ui-colors.css">
+<link rel="stylesheet" href="assets/ui-fonts.css">
 <link rel="stylesheet" href="assets/styles.css">
 </head>
 <body>
@@ -35,7 +36,7 @@
     </div>
     <div class="sidebar-section">
       <div class="sidebar-title">📍 当前位置</div>
-      <div id="location-info" style="font-size:0.85rem;color:var(--muted)"></div>
+      <div id="location-info" style="font-size:var(--font-stat);color:var(--muted)"></div>
       <div class="direction-pad" aria-label="方向快捷指令">
         <button class="dir-btn dir-north" onclick="exec('north')" title="north 北">北</button>
         <button class="dir-btn dir-west" onclick="exec('west')" title="west 西">西</button>
@@ -51,19 +52,22 @@
   </div>
 
   <div class="battle-sidebar" id="battle-sidebar">
-    <div class="sidebar-section">
+    <div class="sidebar-section radar-section">
       <div class="sidebar-title">📡 雷达</div>
       <canvas id="radar-canvas" width="180" height="180" style="width:100%;background:#051005;border:1px solid #2d5;border-radius:4px;display:block;"></canvas>
-      <div id="radar-legend" style="font-size:11px;color:#888;margin-top:4px;"></div>
+      <div id="radar-legend" style="font-size:var(--font-radar-legend);color:#888;margin-top:4px;"></div>
     </div>
-    <div class="sidebar-section" id="enemy-list-section" style="flex:1;overflow-y:auto;">
+    <div class="sidebar-section enemy-section" id="enemy-list-section">
       <div class="sidebar-title">⚔ 敌人列表</div>
-      <div id="enemy-list" style="font-size:0.8rem;"></div>
+      <div id="enemy-list" class="enemy-list"></div>
     </div>
-    <div class="sidebar-section" id="timeline-section" style="flex:1;overflow-y:auto;">
-      <div class="sidebar-title">⏱ 时间轴</div>
-      <div id="timeline-content" style="font-size:11px;"></div>
+  </div>
+
+  <div class="timeline-panel" id="timeline-panel">
+    <div class="timeline-header">
+      <span class="sidebar-title">⏱ 时间轴</span>
     </div>
+    <div id="timeline-content" class="timeline-content"></div>
   </div>
  
   <div class="game-area">
@@ -71,7 +75,7 @@
     <div class="battle-bar" id="battle-bar">
       <div class="battle-info">
         <span>⚔ 战斗中: <span class="battle-enemy" id="battle-enemy-name"></span></span>
-        <span id="battle-round" style="color:var(--muted);font-size:0.8rem"></span>
+        <span id="battle-round" style="color:var(--muted);font-size:var(--font-hint)"></span>
       </div>
       <div class="battle-actions">
         <button class="battle-btn attack" onclick="Battle.action('attack')">⚔ 普攻</button>

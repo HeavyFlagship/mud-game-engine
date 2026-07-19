@@ -112,7 +112,6 @@ const CommandSystem = {
         this.runQuery(parsed, '背包', () => Game.showBag(parsed.args.includes('-d'))); break;
       case 'use': case '使用':
         Game.useItem(parsed.args.join(' '));
-        if (Battle.paused && Battle.currentActor === 'player') Battle.resume();
         break;
       case 'look': case '查看':
         this.cmdBattleLook(); break;
@@ -259,7 +258,7 @@ const CommandSystem = {
       Msg.error('该目标已被击毁。');
       return;
     }
-    Battle.setPlayerTask({ type: 'attack', target: targetId, slot });
+    Battle.playerAttack(targetId, slot);
   },
  
   cmdBattleAim(args) {

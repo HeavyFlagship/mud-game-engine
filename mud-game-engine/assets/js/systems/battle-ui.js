@@ -115,6 +115,8 @@ const BattleUI = {
   render() {
     this.historyEvents = [];
     this.currentActions = [];
+    const tlPanel = document.getElementById('timeline-panel');
+    if (tlPanel) tlPanel.classList.add('active');
     this.update();
   },
 
@@ -166,25 +168,25 @@ const BattleUI = {
   updateEnemyList() {
     const enemyEl = document.getElementById('enemy-list');
     if (!enemyEl || !Battle.battlefield) return;
-    let html = `<div style="color:#888;font-size:11px;margin-bottom:4px;">存活 ${Battle.battlefield.enemies.filter(e => e.hp > 0).length}/${Battle.battlefield.enemies.length}</div>`;
+    let html = `<div style="color:var(--muted);font-size:var(--font-enemy-header);margin-bottom:6px;">存活 ${Battle.battlefield.enemies.filter(e => e.hp > 0).length}/${Battle.battlefield.enemies.length}</div>`;
     for (const enemy of Battle.battlefield.enemies) {
       const dist = Battle.getDistance(Player.position, enemy.position);
       const hpPct = (enemy.hp / enemy.maxHp * 100).toFixed(0);
       const arPct = enemy.maxArmor > 0 ? (enemy.armor / enemy.maxArmor * 100).toFixed(0) : 0;
       const dead = enemy.hp <= 0;
       const inRange = Player.equipment.primary && dist <= Player.equipment.primary.range;
-      html += `<div style="margin-bottom:4px;padding:4px;background:${dead ? '#222' : '#1a1a1a'};border-radius:3px;opacity:${dead ? 0.5 : 1};">
+      html += `<div style="margin-bottom:6px;padding:6px;background:${dead ? '#222' : '#1a1a1a'};border-radius:4px;opacity:${dead ? 0.5 : 1};">
         <div style="display:flex;justify-content:space-between;">
           <span style="color:${dead ? '#666' : '#f66'};font-weight:bold;">${enemy.instanceId} ${enemy.name}</span>
-          <span style="color:#888;font-size:11px;">${dist.toFixed(0)}m ${inRange ? '🎯' : '📏'}</span>
+          <span style="color:var(--muted);font-size:var(--font-enemy-header);">${dist.toFixed(0)}m ${inRange ? '🎯' : '📏'}</span>
         </div>
-        <div style="font-size:11px;color:#aaa;">结构: ${enemy.hp}/${enemy.maxHp}
-          <div style="display:inline-block;width:80px;height:6px;background:#333;border-radius:2px;vertical-align:middle;margin-left:4px;">
-          <div style="width:${hpPct}%;height:6px;background:${hpPct>50?'#4f4':hpPct>25?'#fa2':'#f44'};border-radius:2px;"></div></div>
+        <div style="font-size:var(--font-enemy-stat);color:var(--muted-bright);">结构: ${enemy.hp}/${enemy.maxHp}
+          <div style="display:inline-block;width:90px;height:7px;background:#333;border-radius:2px;vertical-align:middle;margin-left:4px;">
+          <div style="width:${hpPct}%;height:7px;background:${hpPct>50?'#4f4':hpPct>25?'#fa2':'#f44'};border-radius:2px;"></div></div>
         </div>
-        <div style="font-size:11px;color:#aaa;">装甲: ${enemy.armor}/${enemy.maxArmor}
-          <div style="display:inline-block;width:80px;height:6px;background:#333;border-radius:2px;vertical-align:middle;margin-left:4px;">
-          <div style="width:${arPct}%;height:6px;background:#88f;border-radius:2px;"></div></div>
+        <div style="font-size:var(--font-enemy-stat);color:var(--muted-bright);">装甲: ${enemy.armor}/${enemy.maxArmor}
+          <div style="display:inline-block;width:90px;height:7px;background:#333;border-radius:2px;vertical-align:middle;margin-left:4px;">
+          <div style="width:${arPct}%;height:7px;background:#88f;border-radius:2px;"></div></div>
         </div>
       </div>`;
     }
@@ -254,6 +256,8 @@ const BattleUI = {
   remove() {
     this.historyEvents = [];
     this.currentActions = [];
+    const tlPanel = document.getElementById('timeline-panel');
+    if (tlPanel) tlPanel.classList.remove('active');
     this.clearBattlePanels();
     this.updateRadar();
   }

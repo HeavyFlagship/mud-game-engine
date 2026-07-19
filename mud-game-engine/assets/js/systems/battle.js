@@ -213,15 +213,11 @@ const Battle = {
       }
     } else if (event.type === 'attack_complete') {
       this.currentActor = null;
-      if (event.actor === 'player') {
-        this.scheduleNextPlayerTurn();
+      const enemy = this.battlefield.enemies.find(e => e.instanceId === event.actor);
+      if (enemy) {
+        this.scheduleNextEnemyTurn(enemy);
       } else {
-        const enemy = this.battlefield.enemies.find(e => e.instanceId === event.actor);
-        if (enemy) {
-          this.scheduleNextEnemyTurn(enemy);
-        } else {
-          this.scheduleNext();
-        }
+        this.scheduleNext();
       }
     } else if (event.type === 'npc_call') {
       BattleUI.addCurrentAction('通信完成', '#8cf');
@@ -258,8 +254,6 @@ const Battle = {
     const task = this.playerTask;
     if (task.type === 'move') {
       this.startPlayerMove(task.target);
-    } else if (task.type === 'attack') {
-      this.playerAttack(task.target, task.slot);
     } else if (task.type === 'call') {
       BattleUI.addCurrentAction('通信中...', '#8cf');
       this.scheduleEvent({ type: 'npc_call', actor: 'player', npcId: task.npcId }, 5);
@@ -300,33 +294,28 @@ const Battle = {
     const enemy = this.battlefield.enemies.find(e => e.instanceId === targetId);
     if (!enemy || enemy.hp <= 0) {
       Msg.error('目标无效或已被击毁。');
-      this.paused = true;
       return;
     }
 
     const weapon = Player.equipment[slot];
     if (!weapon) {
       Msg.error('该武器槽为空。');
-      this.paused = true;
       return;
     }
 
     if (Player.weaponCooldowns[slot] > 0) {
       Msg.error(`${weapon.name} 冷却中，剩余 ${Player.weaponCooldowns[slot].toFixed(1)}秒`);
-      this.paused = true;
       return;
     }
 
     const dist = this.getDistance(Player.position, enemy.position);
     if (dist > weapon.range) {
       Msg.error(`目标超出射程（${dist.toFixed(0)}m / ${weapon.range}m）。`);
-      this.paused = true;
       return;
     }
 
     if (weapon.energyCost && !Player.useEnergy(weapon.energyCost)) {
       Msg.error('能量不足！');
-      this.paused = true;
       return;
     }
 
@@ -358,9 +347,7 @@ const Battle = {
       BattleUI.addCurrentAction(`${weapon.name}未命中`, '#fa2');
     }
 
-    this.playerTask = null;
-    this.scheduleEvent({ type: 'attack_complete', actor: 'player' }, weapon.cooldown);
-    this.scheduleNext();
+    BattleUI.update();
   },
 
   calculateHitRate(attacker, target, weapon, dist) {
