@@ -5,198 +5,315 @@
 // label: 迷你地图单字标注
 // x/y/z: 三维地图坐标，z=0 为地表，z<0 为地下
 // exits: 可通行出口，键为方向，值为目标房间 id
+// battlefield: 战场配置（1000m x 1000m 展开）
+//   - terrain: 地形类型
+//   - terrainPenalty: 地形速度惩罚 { biped: 0.9, wheel: 0.7 } 等
+//   - covers: 掩体列表
+//   - hazards: 环境危害列表
+//   - entryPoints: 各方向入口坐标 { north:[500,50], south:[500,950], east:[950,500], west:[50,500] }
+//   - enemies: 敌人生成点 [{ enemyId, pos:[x,y], pattern:'guard/patrol', path:[[x,y],...] }]
+//   - lootPoints: 战利品/资源点
 const MapDB = {
   rooms: {
-      // ===== 新手村 =====
-      village_square: {
-        id:'village_square', name:'村庄广场', label:'广', x:2, y:2,
-        desc:'阳光洒在青石板铺就的广场上，中央有一座古老的喷泉。四周是低矮的石屋，村民们来来往往。北方是村庄大厅，东面通往杂货铺，西面是铁匠铺。',
-        exits:{ north:'village_hall', east:'shop', west:'blacksmith', south:'village_south' },
-        npcs:['elder'],
-        enemies:[]
-      },
-      village_hall: {
-        id:'village_hall', name:'村庄大厅', label:'厅', x:2, y:1,
-        desc:'宽敞的大厅内，木质长桌排列整齐。墙上挂着历代村长的画像。一位老者坐在高台上，似乎在等待什么人。',
-        exits:{ south:'village_square' },
-        npcs:['elder'],
-        enemies:[]
-      },
-      shop: {
-        id:'shop', name:'杂货铺', label:'杂', x:3, y:2,
-        desc:'铺子里摆满了各种商品，从药水到日用品应有尽有。柜台后面的店主热情地招呼着每一位客人。',
-        exits:{ west:'village_square' },
-        npcs:['merchant'],
+      // ===== 前哨基地 =====
+      outpost_hub: {
+        id:'outpost_hub', name:'前哨基地·中央大厅', label:'基', x:2, y:2,
+        desc:'先遣队在织女-7建立的小型前哨基地。穹顶形的建筑内，维护设备嗡嗡运转，空气中飘着臭氧的气味。北面是指挥室，东面是装备库，西面是维修站。',
+        exits:{ north:'outpost_command', east:'outpost_arsenal', west:'outpost_repair', south:'outpost_gate' },
+        npcs:['commander'],
         enemies:[],
-        isShop:true
+        battlefield: {
+          terrain: 'metal_floor',
+          terrainPenalty: { biped: 1.0, wheel: 0.9 },
+          covers: [
+            { id:'c1', pos:[300,400], size:[80,60], height:2, durability:200 }
+          ],
+          hazards: [],
+          entryPoints: { north:[500,50], south:[500,950], east:[950,500], west:[50,500] },
+          enemies: [],
+          lootPoints: []
+        }
       },
-      blacksmith: {
-        id:'blacksmith', name:'铁匠铺', label:'铁', x:1, y:2,
-        desc:'炉火熊熊燃烧，铁锤敲击的声音此起彼伏。一位肌肉虬结的铁匠正在锻造武器。',
-        exits:{ east:'village_square' },
-        npcs:['smith'],
+      outpost_command: {
+        id:'outpost_command', name:'指挥室', label:'指', x:2, y:1,
+        desc:'基地的指挥中心，墙上挂满了星球地图和监测数据。指挥官的全息投影终端位于正中央。',
+        exits:{ south:'outpost_hub' },
+        npcs:['commander'],
         enemies:[],
-        isShop:true
+        battlefield: {
+          terrain: 'metal_floor',
+          terrainPenalty: { biped: 1.0, wheel: 0.9 },
+          covers: [],
+          hazards: [],
+          entryPoints: { north:[500,50], south:[500,950], east:[950,500], west:[50,500] },
+          enemies: [],
+          lootPoints: []
+        }
       },
-      village_south: {
-        id:'village_south', name:'村庄南门', label:'门', x:2, y:3,
-        desc:'村庄的南门，门外是一条通往幽暗森林的小路。守卫警惕地注视着远方。',
-        exits:{ north:'village_square', south:'forest_entrance' },
-        npcs:[],
-        enemies:[]
+      outpost_arsenal: {
+        id:'outpost_arsenal', name:'装备库', label:'库', x:3, y:2,
+        desc:'武器和装备的存储区。成排的机架上停放着各型号的载具，墙上挂满了模块化武器。军械士正在调试一门脉冲激光炮。',
+        exits:{ west:'outpost_hub' },
+        npcs:['quartermaster'],
+        enemies:[],
+        isShop:true,
+        battlefield: {
+          terrain: 'metal_floor',
+          terrainPenalty: { biped: 1.0, wheel: 0.9 },
+          covers: [],
+          hazards: [],
+          entryPoints: { north:[500,50], south:[500,950], east:[950,500], west:[50,500] },
+          enemies: [],
+          lootPoints: []
+        }
       },
-
-      // ===== 幽暗森林 =====
-      forest_entrance: {
-        id:'forest_entrance', name:'森林入口', label:'林', x:2, y:4,
-        desc:'高大的古树遮天蔽日，阳光几乎无法穿透茂密的树冠。空气中弥漫着泥土和落叶的气息。一条蜿蜒的小路延伸向北方和东方。',
-        exits:{ north:'village_south', east:'forest_path', south:'forest_deep' },
-        npcs:[],
-        enemies:[['slime',0.6],['bat',0.4]]
+      outpost_repair: {
+        id:'outpost_repair', name:'维修站', label:'修', x:1, y:2,
+        desc:'装备维修和改装车间。机械臂和焊接设备整齐排列，空气中弥漫着金属热加工的气味。维修师正在检查一台受损的侦察机体。',
+        exits:{ east:'outpost_hub' },
+        npcs:['engineer'],
+        enemies:[],
+        isShop:true,
+        battlefield: {
+          terrain: 'metal_floor',
+          terrainPenalty: { biped: 1.0, wheel: 0.9 },
+          covers: [],
+          hazards: [],
+          entryPoints: { north:[500,50], south:[500,950], east:[950,500], west:[50,500] },
+          enemies: [],
+          lootPoints: []
+        }
       },
-      forest_path: {
-        id:'forest_path', name:'林间小径', label:'径', x:3, y:4,
-        desc:'狭窄的小径两旁，灌木丛中不时传来窸窣声。地上有兽类的脚印。你注意到一截枯木旁似乎有什么东西在闪光。',
-        exits:{ west:'forest_entrance', east:'forest_clearing', south:'wolf_den' },
+      outpost_gate: {
+        id:'outpost_gate', name:'基地南门', label:'门', x:2, y:3,
+        desc:'基地的气闸门，厚重的合金门外就是赤褐色的荒原。门口的守卫机体正在例行巡逻。门外是一条通往南部荒原的小路。',
+        exits:{ north:'outpost_hub', south:'wasteland_north' },
         npcs:[],
-        enemies:[['goblin',0.5],['bat',0.4]],
-        items:['hp_small']
-      },
-      forest_clearing: {
-        id:'forest_clearing', name:'林间空地', label:'空', x:4, y:4,
-        desc:'一片开阔的空地，中间有一堆篝火的余烬。看来有旅人在此扎过营。空地边缘有一个向下延伸的漆黑洞口，似乎通往地底矿洞。',
-        exits:{ west:'forest_path', down:'cave_entrance' },
-        npcs:[],
-        enemies:[['goblin',0.6],['wolf',0.4]]
-      },
-      forest_deep: {
-        id:'forest_deep', name:'幽暗深处', label:'幽', x:2, y:5,
-        desc:'森林的最深处，光线几乎完全消失了。不时有诡异的眼睛在黑暗中闪烁。空气中飘来腐烂的气味。',
-        exits:{ north:'forest_entrance', south:'graveyard_entrance' },
-        npcs:[],
-        enemies:[['wolf',0.5],['skeleton',0.5]]
-      },
-      wolf_den: {
-        id:'wolf_den', name:'狼穴', label:'狼', x:3, y:5,
-        desc:'一个散落着骨头的洞穴，恶臭扑鼻。这里显然是某种野兽的巢穴。洞穴深处传来低沉的咆哮声。',
-        exits:{ north:'forest_path' },
-        npcs:[],
-        enemies:[['wolf',0.8]],
-        items:['leather_armor']
-      },
-
-      // ===== 矿洞 =====
-      cave_entrance: {
-        id:'cave_entrance', name:'矿洞入口', label:'洞', x:4, y:3, z:-1,
-        desc:'你站在地底矿洞的入口处，头顶的洞口透下一缕微光。深处传来滴水的回声，洞壁上插着几支快要燃尽的火把，说明最近有人来过。',
-        exits:{ up:'forest_clearing', north:'cave_tunnel' },
-        npcs:[],
-        enemies:[['bat',0.5],['skeleton',0.3]]
-      },
-      cave_tunnel: {
-        id:'cave_tunnel', name:'矿洞隧道', label:'矿', x:4, y:2, z:-1,
-        desc:'狭窄的隧道向深处延伸，两侧的岩壁上闪烁着矿石的光芒。脚下的铁轨已经锈蚀不堪。',
-        exits:{ south:'cave_entrance', north:'cave_chamber', west:'cave_side' },
-        npcs:[],
-        enemies:[['skeleton',0.5],['goblin',0.4]],
-        items:['iron_sword']
-      },
-      cave_side: {
-        id:'cave_side', name:'矿洞侧室', label:'储', x:3, y:2, z:-1,
-        desc:'一间被遗弃的储藏室，角落里堆放着生锈的矿镐和破旧的木箱。一个木箱似乎还能打开。',
-        exits:{ east:'cave_tunnel' },
-        npcs:[],
-        enemies:[['goblin',0.3]],
-        items:['hp_medium','old_key']
-      },
-      cave_chamber: {
-        id:'cave_chamber', name:'矿石大厅', label:'厅', x:4, y:1, z:-1,
-        desc:'一个巨大的天然洞窟，洞顶镶嵌着发光的矿石，照亮了整个空间。中央有一座石台，上面放着一把光芒四射的宝剑。但守护石台的石头傀儡似乎不太欢迎来客。',
-        exits:{ south:'cave_tunnel' },
-        npcs:[],
-        enemies:[['stone_golem',0.9]],
-        items:['steel_blade']
+        enemies:[],
+        battlefield: {
+          terrain: 'metal_floor',
+          terrainPenalty: { biped: 1.0, wheel: 0.9 },
+          covers: [],
+          hazards: [],
+          entryPoints: { north:[500,50], south:[500,950], east:[950,500], west:[50,500] },
+          enemies: [],
+          lootPoints: []
+        }
       },
 
-      // ===== 墓地 =====
-      graveyard_entrance: {
-        id:'graveyard_entrance', name:'墓地入口', label:'墓', x:2, y:6,
-        desc:'破败的铁门半掩着，门上的铭牌已经锈蚀得无法辨认。墓碑歪歪斜斜地排列着，空气中弥漫着阴冷的气息。',
-        exits:{ north:'forest_deep', south:'graveyard_path' },
+      // ===== 荒原区域 =====
+      wasteland_north: {
+        id:'wasteland_north', name:'荒原北部', label:'原', x:2, y:4,
+        desc:'赤褐色的荒原一望无际，地表覆盖着风化的岩屑和沙尘。远处的地平线上隐约可见矿脉的轮廓。空气干燥，带着硫化物的刺鼻气味。',
+        exits:{ north:'outpost_gate', south:'wasteland_south', east:'wasteland_east' },
         npcs:[],
-        enemies:[['skeleton',0.6]]
+        enemies:[],
+        battlefield: {
+          terrain: 'rocky',
+          terrainPenalty: { biped: 0.9, wheel: 0.7 },
+          covers: [
+            { id:'r1', pos:[300,300], size:[100,80], height:3, durability:400, label:'岩石堆' },
+            { id:'r2', pos:[700,600], size:[120,90], height:4, durability:500, label:'巨型岩' }
+          ],
+          hazards: [],
+          entryPoints: { north:[500,50], south:[500,950], east:[950,500], west:[50,500] },
+          enemies: [
+            { enemyId:'worker_bug', pos:[650,400], pattern:'guard' },
+            { enemyId:'worker_bug', pos:[400,700], pattern:'patrol', path:[[400,700],[600,700],[600,550],[400,550]] }
+          ],
+          lootPoints: [
+            { pos:[200,300], itemId:'chitin_fragment', count:2 }
+          ]
+        }
       },
-      graveyard_path: {
-        id:'graveyard_path', name:'墓地小径', label:'径', x:2, y:7,
-        desc:'碎石铺成的小路两旁是年代久远的坟墓。夜风吹过，枯树枝发出怪异的声响。你隐约看到前方有一座较大的建筑。',
-        exits:{ north:'graveyard_entrance', south:'crypt_entrance', east:'graveyard_tomb' },
+      wasteland_east: {
+        id:'wasteland_east', name:'荒原东部', label:'东', x:3, y:4,
+        desc:'荒原东部，地表散布着发光的结晶矿脉，空气中有微弱的电磁干扰。越往东走，矿脉越密集，虫子的活动迹象也越多。',
+        exits:{ west:'wasteland_north', south:'crystal_valley' },
         npcs:[],
-        enemies:[['skeleton',0.5],['dark_mage',0.3]]
+        enemies:[],
+        battlefield: {
+          terrain: 'crystal',
+          terrainPenalty: { biped: 0.9, wheel: 0.6 },
+          covers: [
+            { id:'c1', pos:[200,500], size:[80,100], height:5, durability:600, label:'结晶柱' }
+          ],
+          hazards: [
+            { type:'em_interference', pos:[700,400], radius:120, effect:'reduce_vision', value:0.5, label:'电磁干扰区' }
+          ],
+          entryPoints: { north:[500,50], south:[500,950], east:[950,500], west:[50,500] },
+          enemies: [
+            { enemyId:'worker_bug', pos:[500,300], pattern:'guard' },
+            { enemyId:'assault_bug', pos:[750,600], pattern:'patrol', path:[[750,600],[850,400],[700,300]] },
+            { enemyId:'worker_bug', pos:[300,750], pattern:'guard' }
+          ],
+          lootPoints: []
+        }
       },
-      graveyard_tomb: {
-        id:'graveyard_tomb', name:'古墓', label:'古', x:3, y:7,
-        desc:'一座古老的陵墓，门上的封印已经松动。墓室内部阴暗潮湿，墙壁上刻满了古老的咒文。角落里有一个骷髅正缓缓站起。',
-        exits:{ west:'graveyard_path' },
+      wasteland_south: {
+        id:'wasteland_south', name:'荒原南部', label:'南', x:2, y:5,
+        desc:'荒原南部，地表逐渐向下倾斜，通向一条深邃的峡谷。峡谷入口处有虫群活动的痕迹，地面布满了黏液和爬行轨迹。',
+        exits:{ north:'wasteland_north', south:'canyon_entrance' },
         npcs:[],
-        enemies:[['skeleton',0.4],['dark_mage',0.4]],
-        items:['ring_hp','mp_medium']
+        enemies:[],
+        battlefield: {
+          terrain: 'sandy',
+          terrainPenalty: { biped: 0.85, wheel: 0.6 },
+          covers: [
+            { id:'d1', pos:[600,400], size:[90,70], height:2, durability:300, label:'沙丘' }
+          ],
+          hazards: [],
+          entryPoints: { north:[500,50], south:[500,950], east:[950,500], west:[50,500] },
+          enemies: [
+            { enemyId:'assault_bug', pos:[450,600], pattern:'guard' },
+            { enemyId:'worker_bug', pos:[700,300], pattern:'guard' },
+            { enemyId:'worker_bug', pos:[300,500], pattern:'guard' }
+          ],
+          lootPoints: []
+        }
       },
-      crypt_entrance: {
-        id:'crypt_entrance', name:'地下墓穴入口', label:'穴', x:2, y:8,
-        desc:'通往地下墓穴的石阶被青苔覆盖。从下面传来若有若无的低语声。空气中弥漫着令人不安的魔法气息。',
-        exits:{ north:'graveyard_path', south:'crypt_hall' },
+      crystal_valley: {
+        id:'crystal_valley', name:'结晶峡谷', label:'谷', x:3, y:5,
+        desc:'一片被发光结晶矿脉覆盖的峡谷。辉锗矿的光芒在暗处闪烁，如同星河倒悬。这里是虫子的主要栖息地，空气中弥漫着危险的气息。',
+        exits:{ north:'wasteland_east' },
         npcs:[],
-        enemies:[['dark_mage',0.5]]
+        enemies:[],
+        isBossRoom:true,
+        battlefield: {
+          terrain: 'crystal',
+          terrainPenalty: { biped: 0.85, wheel: 0.5 },
+          covers: [
+            { id:'cr1', pos:[250,300], size:[100,120], height:6, durability:800, label:'巨晶柱' },
+            { id:'cr2', pos:[700,650], size:[110,100], height:5, durability:700, label:'结晶岩' }
+          ],
+          hazards: [
+            { type:'em_interference', pos:[500,500], radius:200, effect:'reduce_vision', value:0.4, label:'强电磁区' }
+          ],
+          entryPoints: { north:[500,50], south:[500,950], east:[950,500], west:[50,500] },
+          enemies: [
+            { enemyId:'assault_bug', pos:[400,500], pattern:'guard' },
+            { enemyId:'assault_bug', pos:[600,500], pattern:'guard' },
+            { enemyId:'worker_bug', pos:[300,700], pattern:'guard' },
+            { enemyId:'worker_bug', pos:[700,700], pattern:'guard' }
+          ],
+          lootPoints: []
+        }
       },
-      crypt_hall: {
-        id:'crypt_hall', name:'墓穴大厅', label:'王', x:2, y:9,
-        desc:'宏大的地下大厅，巨大的石柱支撑着穹顶。大厅中央，一具身着华服的不死生物端坐在骷髅王座上——那是传说中统治此地的巫妖。',
-        exits:{ north:'crypt_entrance' },
+      canyon_entrance: {
+        id:'canyon_entrance', name:'峡谷入口', label:'峡', x:2, y:6,
+        desc:'向下通往地下矿洞的峡谷入口。两侧岩壁陡峭，底部有一个巨大的洞穴，里面似乎有虫群的嗡鸣声。',
+        exits:{ north:'wasteland_south', down:'mine_entrance' },
         npcs:[],
-        enemies:[['lich',1.0]],
-        items:['flame_sword','mystic_robe','crystal'],
-        isBossRoom:true
+        enemies:[],
+        battlefield: {
+          terrain: 'rocky',
+          terrainPenalty: { biped: 0.9, wheel: 0.65 },
+          covers: [
+            { id:'w1', pos:[300,600], size:[80,150], height:8, durability:1000, label:'峡谷岩壁' }
+          ],
+          hazards: [],
+          entryPoints: { north:[500,50], south:[500,950], east:[950,500], west:[50,500] },
+          enemies: [
+            { enemyId:'assault_bug', pos:[500,700], pattern:'guard' }
+          ],
+          lootPoints: []
+        }
       },
 
-      // ===== 龙之山脉 =====
-      mountain_base: {
-        id:'mountain_base', name:'山脉脚下', label:'山', x:0, y:2,
-        desc:'巍峨的山脉耸立在前方，山体被冰雪覆盖。狂风呼啸，空气中弥漫着硫磺的味道。一条险峻的山路蜿蜒向上。',
-        exits:{ east:'blacksmith', north:'mountain_trail' },
+      // ===== 地下矿洞 =====
+      mine_entrance: {
+        id:'mine_entrance', name:'矿洞入口', label:'洞', x:2, y:7, z:-1,
+        desc:'地下矿洞的入口处，洞顶滴落着含矿的水珠。岩壁上镶嵌着稀疏的辉锗矿结晶，散发着微弱的蓝光。通道深处传来虫群的爬动声。',
+        exits:{ up:'canyon_entrance', south:'mine_tunnel' },
         npcs:[],
-        enemies:[['orc',0.4]]
+        enemies:[],
+        battlefield: {
+          terrain: 'cave',
+          terrainPenalty: { biped: 0.9, wheel: 0.7 },
+          covers: [
+            { id:'p1', pos:[300,400], size:[100,80], height:3, durability:500, label:'矿柱' }
+          ],
+          hazards: [],
+          entryPoints: { north:[500,50], south:[500,950], east:[950,500], west:[50,500] },
+          enemies: [
+            { enemyId:'worker_bug', pos:[600,500], pattern:'guard' }
+          ],
+          lootPoints: []
+        }
       },
-      mountain_trail: {
-        id:'mountain_trail', name:'山路', label:'路', x:0, y:1,
-        desc:'陡峭的山路，一侧是悬崖峭壁，另一侧是岩壁。碎石不时从上方滚落。你看到远处山顶有一座巨大的洞穴。',
-        exits:{ south:'mountain_base', north:'mountain_camp' },
+      mine_tunnel: {
+        id:'mine_tunnel', name:'矿洞隧道', label:'隧', x:2, y:8, z:-1,
+        desc:'狭长的地下隧道，两侧是开凿的痕迹。辉锗矿结晶越来越密集，几乎照亮了整个通道。',
+        exits:{ north:'mine_entrance', south:'mine_chamber', east:'mine_side' },
         npcs:[],
-        enemies:[['orc',0.5],['wyvern',0.3]]
+        enemies:[],
+        battlefield: {
+          terrain: 'cave',
+          terrainPenalty: { biped: 0.85, wheel: 0.6 },
+          covers: [
+            { id:'p2', pos:[700,300], size:[90,70], height:3, durability:450, label:'矿石堆' }
+          ],
+          hazards: [],
+          entryPoints: { north:[500,50], south:[500,950], east:[950,500], west:[50,500] },
+          enemies: [
+            { enemyId:'worker_bug', pos:[400,600], pattern:'guard' },
+            { enemyId:'assault_bug', pos:[700,500], pattern:'guard' }
+          ],
+          lootPoints: []
+        }
       },
-      mountain_camp: {
-        id:'mountain_camp', name:'废弃营地', label:'营', x:0, y:0,
-        desc:'一个被遗弃的冒险者营地，散落着破败的帐篷和熄灭的篝火。从残留的物资来看，这里曾经是一支讨伐巨龙的队伍。',
-        exits:{ south:'mountain_trail', north:'dragon_lair' },
+      mine_side: {
+        id:'mine_side', name:'矿洞侧室', label:'侧', x:3, y:8, z:-1,
+        desc:'一个小型的矿洞侧室，似乎是先遣队早期的采矿点。角落里散落着废弃的采矿设备和包装箱。',
+        exits:{ west:'mine_tunnel' },
         npcs:[],
-        enemies:[['orc',0.4],['vampire',0.3]],
-        items:['hp_large','plate_armor','amulet_crit']
+        enemies:[],
+        items:['repair_kit_small'],
+        battlefield: {
+          terrain: 'cave',
+          terrainPenalty: { biped: 0.9, wheel: 0.7 },
+          covers: [
+            { id:'b1', pos:[600,500], size:[100,80], height:2, durability:300, label:'设备箱' }
+          ],
+          hazards: [],
+          entryPoints: { north:[500,50], south:[500,950], east:[950,500], west:[50,500] },
+          enemies: [
+            { enemyId:'worker_bug', pos:[400,400], pattern:'guard' }
+          ],
+          lootPoints: []
+        }
       },
-      dragon_lair: {
-        id:'dragon_lair', name:'龙巢', label:'龙', x:0, y:-1,
-        desc:'巨大的洞穴中堆满了金币和财宝。灼热的气息扑面而来，洞窟深处传来震耳欲聋的呼吸声。一头远古巨龙正蜷伏在宝藏之上，金色的竖瞳死死盯着你。',
-        exits:{ south:'mountain_camp' },
+      mine_chamber: {
+        id:'mine_chamber', name:'矿石大厅', label:'厅', x:2, y:9, z:-1,
+        desc:'巨大的地下洞窟，洞顶镶嵌着大量的辉锗矿结晶，将整个大厅照得幽蓝通明。大厅中央有一座由虫胶和矿石构筑的巢穴，里面似乎有什么东西在蠕动。',
+        exits:{ north:'mine_tunnel' },
         npcs:[],
-        enemies:[['dragon',1.0]],
-        items:['dragon_slay'],
-        isBossRoom:true
+        enemies:[],
+        isBossRoom:true,
+        battlefield: {
+          terrain: 'cave',
+          terrainPenalty: { biped: 0.85, wheel: 0.55 },
+          covers: [
+            { id:'cp1', pos:[250,400], size:[120,100], height:4, durability:700, label:'巨矿石' },
+            { id:'cp2', pos:[750,400], size:[120,100], height:4, durability:700, label:'巨矿石' }
+          ],
+          hazards: [
+            { type:'acid_pool', pos:[500,700], radius:80, effect:'corrosion', dps:5, label:'酸液池' }
+          ],
+          entryPoints: { north:[500,50], south:[500,950], east:[950,500], west:[50,500] },
+          enemies: [
+            { enemyId:'assault_bug', pos:[350,600], pattern:'guard' },
+            { enemyId:'assault_bug', pos:[650,600], pattern:'guard' },
+            { enemyId:'worker_bug', pos:[500,800], pattern:'guard' }
+          ],
+          lootPoints: []
+        }
       }
     },
 
   areas: [
-    { name:'🟢 新手村', rooms:['village_square','village_hall','shop','blacksmith','village_south'] },
-    { name:'🌲 幽暗森林', rooms:['forest_entrance','forest_path','forest_clearing','forest_deep','wolf_den'] },
-    { name:'⛏ 矿洞', rooms:['cave_entrance','cave_tunnel','cave_side','cave_chamber'] },
-    { name:'⚰ 墓地', rooms:['graveyard_entrance','graveyard_path','graveyard_tomb','crypt_entrance','crypt_hall'] },
-    { name:'🏔 龙之山脉', rooms:['mountain_base','mountain_trail','mountain_camp','dragon_lair'] },
+    { name:'🛰 前哨基地', rooms:['outpost_hub','outpost_command','outpost_arsenal','outpost_repair','outpost_gate'] },
+    { name:'🏜 荒原区域', rooms:['wasteland_north','wasteland_east','wasteland_south','crystal_valley','canyon_entrance'] },
+    { name:'⛏ 地下矿洞', rooms:['mine_entrance','mine_tunnel','mine_side','mine_chamber'] },
   ]
 };

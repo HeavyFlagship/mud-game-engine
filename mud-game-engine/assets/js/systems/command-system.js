@@ -14,7 +14,11 @@ const CommandSystem = {
     tl:'talk', sp:'talk',
     p:'pick', g:'get',
     d:'drop',
-    sc:'score', st:'stats'
+    sc:'score', st:'stats',
+    mv:'move', go:'move',
+    fi:'fire', shoot:'fire', atk:'fire',
+    tm:'timeline', tl_b:'timeline',
+    re:'retreat', rt:'retreat'
   },
 
   parse(input) {
@@ -41,68 +45,47 @@ const CommandSystem = {
     }
 
     switch (parsed.cmd) {
-      // 移动
       case 'north': case 'south': case 'east': case 'west':
       case 'up': case 'down': case '上': case '下':
         Game.move(parsed.cmd); break;
-      // 查看
       case 'look': case '查看':
         Game.look(); break;
-      // 背包
       case 'bag': case '背包':
         this.runQuery(parsed, '背包', () => Game.showBag(parsed.args.includes('-d'))); break;
-      // 状态
       case 'status': case '状态':
-        this.runQuery(parsed, '角色状态', () => Game.showStatus()); break;
-      // 装备
+        this.runQuery(parsed, '机体状态', () => Game.showStatus()); break;
       case 'equip': case '装备':
         Game.equip(parsed.args.join(' ')); break;
-      // 卸下
       case 'unequip': case '卸下':
         Game.unequip(parsed.args.join(' ')); break;
-      // 使用
       case 'use': case '使用': case 'drink': case '喝':
         Game.useItem(parsed.args.join(' ')); break;
-      // 技能
       case 'skills': case '技能':
         this.runQuery(parsed, '技能列表', () => Game.showSkills()); break;
-      // 攻击
       case 'kill': case '攻击': case 'fight':
         Game.fight(parsed.args.join(' ')); break;
-      // 拾取
       case 'pick': case 'get': case '拾取':
         Game.pickItem(parsed.args.join(' ')); break;
-      // 丢弃
       case 'drop': case '丢弃':
         Game.dropItem(parsed.args.join(' ')); break;
-      // 谈话
       case 'talk': case '对话':
         Game.talk(parsed.args.join(' ')); break;
-      // 商店
       case 'shop': case '商店': case 'buy': case '购买':
         Game.shop(parsed.args[0] || 'list'); break;
-      // 出售
       case 'sell': case '出售':
         Game.sell(parsed.args.join(' ')); break;
-      // 统计
       case 'score': case 'stats': case '统计':
-        this.runQuery(parsed, '冒险统计', () => Game.showStats()); break;
-      // 帮助
+        this.runQuery(parsed, '任务统计', () => Game.showStats()); break;
       case 'help': case '帮助':
         this.runQuery(parsed, '指令帮助', () => Game.showHelp(parsed.args[0])); break;
-      // 地图
       case 'map': case '地图':
-        this.runQuery(parsed, '世界地图', () => Game.showMap()); break;
-      // 存档
+        this.runQuery(parsed, '区域地图', () => Game.showMap()); break;
       case 'save': case '存档':
         Game.save(); break;
-      // 读档
       case 'load': case '读档':
         Game.load(); break;
-      // 清屏
       case 'clear': case '清屏':
         Msg.clear(); break;
-      // 技能使用(非战斗中回复用)
       case 'cast': case '施法':
         Game.castOutside(parsed.args.join(' ')); break;
       default:
@@ -113,33 +96,186 @@ const CommandSystem = {
 
   handleBattleCmd(parsed) {
     switch (parsed.cmd) {
-      case 'attack': case '攻击': case 'a':
-        Battle.action('attack'); break;
-      case 'fire': case '射击': case 'f':
-        if (parsed.args[0]) {
-          Battle.setPlayerTask({ type: 'attack', target: parsed.args[0].toUpperCase() });
-        } else {
-          Battle.action('attack');
-        }
+      case 'move': case 'go':
+        this.cmdBattleMove(parsed.args); break;
+      case 'fire': case 'shoot': case 'attack': case '攻击':
+        this.cmdBattleFire(parsed.args); break;
+      case 'aim': case '瞄准':
+        this.cmdBattleAim(parsed.args); break;
+      case 'retreat': case 'flee': case '撤退':
+        Battle.retreat(); break;
+      case 'timeline':
+        this.cmdTimeline(); break;
+      case 'status': case '状态':
+        this.runQuery(parsed, '机体状态', () => Game.showStatus()); break;
+      case 'bag': case '背包':
+        this.runQuery(parsed, '背包', () => Game.showBag(parsed.args.includes('-d'))); break;
+      case 'use': case '使用':
+        Game.useItem(parsed.args.join(' '));
+        if (Battle.paused && Battle.currentActor === 'player') Battle.resume();
         break;
-      case 'skill': case '技能': case 's':
-        Battle.action('skill', parsed.args.join(' ')); break;
-      case 'potion': case '药水': case 'p':
-        Battle.action('potion', parsed.args.join(' ')); break;
-      case 'flee': case '逃跑': case 'run':
-        Battle.action('flee'); break;
-      case 'look': case 'status': case 'bag': case 'skills': case 'help': case 'map': case 'stats': case 'score':
-        // 允许查看
-        if (parsed.cmd === 'look') Game.look();
-        else if (parsed.cmd === 'status') this.runQuery(parsed, '角色状态', () => Game.showStatus());
-        else if (parsed.cmd === 'bag') this.runQuery(parsed, '背包', () => Game.showBag(parsed.args.includes('-d')));
-        else if (parsed.cmd === 'skills') this.runQuery(parsed, '技能列表', () => Game.showSkills());
-        else if (parsed.cmd === 'help') this.runQuery(parsed, '指令帮助', () => Game.showHelp(parsed.args[0]));
-        else if (parsed.cmd === 'map') this.runQuery(parsed, '世界地图', () => Game.showMap());
-        else if (parsed.cmd === 'stats' || parsed.cmd === 'score') this.runQuery(parsed, '冒险统计', () => Game.showStats());
+      case 'look': case '查看':
+        this.cmdBattleLook(); break;
+      case 'help': case '帮助':
+        this.runQuery(parsed, '战斗指令帮助', () => this.showBattleHelp()); break;
+      case 'wait': case '等待':
+        Battle.setPlayerTask({ type: 'wait' });
+        Battle.paused = false;
         break;
       default:
-        Msg.warning('战斗中只能使用: 攻击/技能/药水/逃跑');
+        Msg.warning('战斗中可用指令：move/fire/aim/status/use/look/retreat/help/wait');
     }
+  },
+
+  cmdBattleMove(args) {
+    if (!Battle.active || !Battle.battlefield) return;
+    if (args.length < 2) {
+      Msg.info('用法：move <x> <y>  或  move <方向> <距离>');
+      Msg.info('方向：n/s/e/w/ne/nw/se/sw');
+      return;
+    }
+    let targetX, targetY;
+    if (/^\d+$/.test(args[0]) && /^\d+$/.test(args[1])) {
+      targetX = parseInt(args[0]);
+      targetY = parseInt(args[1]);
+    } else {
+      const dir = args[0];
+      const dist = parseInt(args[1]) || 50;
+      const dirMap = {
+        n:[0,-1], s:[0,1], e:[1,0], w:[-1,0],
+        ne:[0.7,-0.7], nw:[-0.7,-0.7], se:[0.7,0.7], sw:[-0.7,0.7]
+      };
+      const d = dirMap[dir];
+      if (!d) {
+        Msg.error('方向无效。使用 n/s/e/w/ne/nw/se/sw');
+        return;
+      }
+      targetX = Player.position[0] + d[0] * dist;
+      targetY = Player.position[1] + d[1] * dist;
+    }
+    Battle.setPlayerTask({ type: 'move', target: [targetX, targetY] });
+  },
+
+  cmdBattleFire(args) {
+    if (!Battle.active || !Battle.battlefield) return;
+    if (args.length < 1) {
+      const enemies = Battle.battlefield.enemies.filter(e => e.hp > 0);
+      if (enemies.length === 0) {
+        Msg.info('附近没有敌人。');
+        return;
+      }
+      let info = '可用目标：\n';
+      for (const e of enemies) {
+        const dist = Battle.getDistance(Player.position, e.position);
+        const inRange = Player.equipment.primary && dist <= Player.equipment.primary.range;
+        info += `  ${e.instanceId} - ${e.name} (距离${dist.toFixed(0)}m) ${inRange ? '[射程内]' : '[超射程]'}\n`;
+      }
+      info += '用法：fire <目标编号> [武器槽]  武器槽: primary/secondary (默认primary)';
+      Msg.info(info);
+      return;
+    }
+    const targetId = args[0].toUpperCase();
+    const slot = args[1] || 'primary';
+    const enemy = Battle.battlefield.enemies.find(e => e.instanceId === targetId);
+    if (!enemy) {
+      Msg.error(`未找到目标 ${targetId}`);
+      return;
+    }
+    if (enemy.hp <= 0) {
+      Msg.error('该目标已被击毁。');
+      return;
+    }
+    Battle.setPlayerTask({ type: 'attack', target: targetId, slot });
+  },
+
+  cmdBattleAim(args) {
+    if (!Battle.active || !Battle.battlefield) return;
+    if (args.length < 1) {
+      Msg.info('用法：aim <目标编号>');
+      return;
+    }
+    const targetId = args[0].toUpperCase();
+    const enemy = Battle.battlefield.enemies.find(e => e.instanceId === targetId);
+    if (!enemy) {
+      Msg.error(`未找到目标 ${targetId}`);
+      return;
+    }
+    const dist = Battle.getDistance(Player.position, enemy.position);
+    const weapon = Player.equipment.primary;
+    let info = `瞄准目标：${enemy.name}[${enemy.instanceId}]\n`;
+    info += `距离：${dist.toFixed(0)}m\n`;
+    info += `HP：${enemy.hp}/${enemy.maxHp}  装甲：${enemy.armor}/${enemy.maxArmor}\n`;
+    info += `状态：${this.getStateName(enemy.state)}\n`;
+    if (weapon) {
+      const hitRate = Battle.calculateHitRate(Player, enemy, weapon, dist);
+      info += `使用 ${weapon.name} 预计命中率：${(hitRate*100).toFixed(1)}%\n`;
+      info += `射程：${weapon.range}m ${dist > weapon.range ? '(超出射程)' : '(射程内)'}`;
+    }
+    Msg.info(info);
+  },
+
+  cmdBattleLook() {
+    if (!Battle.active || !Battle.battlefield) return;
+    const bf = Battle.battlefield;
+    let info = `战场：${MapSystem.getRoom(Battle.roomId)?.name || '未知区域'}\n`;
+    info += `地形：${MapSystem.getTerrainName(bf.terrain)}\n`;
+    info += `你的位置：(${Math.round(Player.position[0])}, ${Math.round(Player.position[1])})\n`;
+    info += `敌人 (${bf.enemies.filter(e=>e.hp>0).length}/${bf.enemies.length})：\n`;
+    for (const e of bf.enemies) {
+      if (e.hp <= 0) continue;
+      const dist = Battle.getDistance(Player.position, e.position);
+      if (dist <= Player.visionRadius) {
+        const state = this.getStateName(e.state);
+        info += `  ${e.instanceId} ${e.name} - ${dist.toFixed(0)}m - HP${e.hp}/${e.maxHp} - ${state}\n`;
+      }
+    }
+    if (bf.covers && bf.covers.length > 0) {
+      info += `掩体：${bf.covers.length}处\n`;
+    }
+    if (bf.hazards && bf.hazards.length > 0) {
+      info += `环境危险：${bf.hazards.length}处`;
+    }
+    Msg.info(info);
+  },
+
+  getStateName(state) {
+    const names = {
+      idle:'待机', alert:'警戒', pursue:'追击',
+      attack:'攻击', search:'搜索', cover:'掩护',
+      retreat:'撤退', berserk:'狂暴'
+    };
+    return names[state] || state;
+  },
+
+  cmdTimeline() {
+    if (!Battle.active || !Battle.eventQueue) return;
+    const sorted = [...Battle.eventQueue].sort((a,b) => a.time - b.time).slice(0, 10);
+    let info = '时间轴（接下来10个事件）：\n';
+    for (const evt of sorted) {
+      const offset = (evt.time - Battle.battlefield.time).toFixed(0);
+      let label = '';
+      if (evt.type === 'player_turn') label = '你的行动';
+      else if (evt.type === 'enemy_turn') label = `${evt.actor}行动`;
+      else if (evt.type === 'move_complete') label = `${evt.actor}移动完成`;
+      else if (evt.type === 'attack_complete') label = `${evt.actor}攻击完成`;
+      info += `  +${offset}t - ${label}\n`;
+    }
+    Msg.info(info);
+  },
+
+  showBattleHelp() {
+    const help = `战斗指令：
+  move <x> <y>     - 移动到指定坐标
+  move <方向> <距离> - 向方向移动 (n/s/e/w/ne/nw/se/sw)
+  fire <目标> [槽] - 攻击目标 (目标如A1，槽:primary/secondary)
+  aim <目标>       - 瞄准并查看目标信息
+  use <物品>       - 使用物品
+  status / bag     - 查看状态/背包
+  look             - 查看战场
+  timeline         - 查看时间轴
+  wait             - 等待一回合
+  retreat          - 撤退
+  help             - 查看帮助`;
+    Msg.info(help);
   }
 };
