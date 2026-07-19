@@ -33,6 +33,11 @@ const ItemDB = {
     crystal:    { id:'crystal',    name:'魔法水晶',   type:'quest', desc:'散发微光的蓝色水晶，蕴含着强大的魔力。' },
     dragon_fang: { id:'dragon_fang', name:'龙牙',      type:'quest', desc:'从巨龙口中拔出的锋利獠牙。' },
     letter:     { id:'letter',     name:'神秘信件',   type:'quest', desc:'一封没有署名的信件，字迹模糊。' },
+    // ===== 战利品材料 =====
+    chitin_fragment: { id:'chitin_fragment', name:'虫壳碎片', type:'material', desc:'虫族外壳的碎片，坚硬且富有韧性，可加工为防护材料。', price:5 },
+    acid_gland:      { id:'acid_gland',      name:'酸液腺体', type:'material', desc:'虫族酸液腺体，内含高浓度腐蚀性液体，小心处理。', price:12 },
+    circuit_board:   { id:'circuit_board',   name:'电路板',   type:'material', desc:'无人机的控制电路板，上面布满精密元件。', price:15 },
+    power_cell:      { id:'power_cell',      name:'能量电池', type:'material', desc:'高能量密度的电池，可为电子设备供电。', price:20 },
   },
   get(id) {
     for (const cat of Object.values(this)) {
