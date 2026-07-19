@@ -11,6 +11,7 @@ const Battle = {
   paused: false,
   playerAiming: null,
   playerTask: null,
+  playerIdleEnd: null,
   isProcessing: false,
 
   start(roomId, entryDir = 'south') {
@@ -35,6 +36,7 @@ const Battle = {
     this.eventQueue = [];
     this.playerAiming = null;
     this.playerTask = null;
+    this.playerIdleEnd = null;
     this.isProcessing = false;
 
     Msg.divider();
@@ -64,6 +66,7 @@ const Battle = {
     this.currentActor = null;
     this.playerAiming = null;
     this.playerTask = null;
+    this.playerIdleEnd = null;
     this.paused = false;
     this.isProcessing = false;
   },
@@ -73,6 +76,45 @@ const Battle = {
     this.combatActive = true;
     Msg.warn(`⚔ 进入战斗状态！${reason}`);
     BattleUI.addHistory(`进入战斗状态 ${reason}`, '#f55');
+    // 战斗中断：如果玩家在 idle 待机，立即取消并触发玩家决策点
+    if (this.playerIdleEnd) {
+      Msg.info('⚡ 战斗中断待机，立即进入行动阶段。');
+      this.triggerPlayerDecision();
+    }
+  },
+
+  cancelPlayerIdle() {
+    if (this.playerIdleEnd) {
+      this.eventQueue = this.eventQueue.filter(e => e.type !== 'player_idle_end');
+      this.playerIdleEnd = null;
+      return true;
+    }
+    return false;
+  },
+
+  playerIdle(seconds) {
+    this.cancelPlayerIdle();
+    // 取消未触发的 player_turn 事件（避免重复）
+    this.eventQueue = this.eventQueue.filter(e => !(e.type === 'player_turn' && e.actor === 'player'));
+    this.scheduleEvent({ type: 'player_idle_end', actor: 'player' }, seconds);
+    this.playerIdleEnd = this.battlefield.time + seconds;
+    BattleUI.addHistory('你', '#888', `待机${seconds}秒`);
+    // 如果当前 paused（玩家决策点），解除让时间轴推进
+    if (this.paused) {
+      this.paused = false;
+    }
+    this.scheduleNext();
+  },
+
+  triggerPlayerDecision() {
+    // 取消玩家相关事件，立即触发玩家决策点
+    this.eventQueue = this.eventQueue.filter(e => e.type !== 'player_turn' && e.type !== 'player_idle_end');
+    this.playerIdleEnd = null;
+    this.scheduleEvent({ type: 'player_turn', actor: 'player' }, 0);
+    if (this.paused) {
+      this.paused = false;
+    }
+    this.scheduleNext();
   },
 
   exitCombat() {
@@ -227,6 +269,13 @@ const Battle = {
       BattleUI.removeCurrentAction('通信中...');
       BattleUI.addCurrentAction('通信完成', '#8cf');
       this.onNPCCall(event.npcId);
+    } else if (event.type === 'player_idle_end') {
+      // 待机结束，进入玩家决策点
+      this.playerIdleEnd = null;
+      this.currentActor = 'player';
+      BattleUI.clearCurrentActions();
+      BattleUI.addCurrentAction('你的行动', '#0ff');
+      this.onPlayerTurn();
     }
   },
 
@@ -302,29 +351,29 @@ const Battle = {
     const enemy = this.battlefield.enemies.find(e => e.instanceId === targetId);
     if (!enemy || enemy.hp <= 0) {
       Msg.error('目标无效或已被击毁。');
-      return;
+      return false;
     }
 
     const weapon = Player.equipment[slot];
     if (!weapon) {
       Msg.error('该武器槽为空。');
-      return;
+      return false;
     }
 
     if (Player.weaponCooldowns[slot] > 0) {
       Msg.error(`${weapon.name} 冷却中，剩余 ${Player.weaponCooldowns[slot].toFixed(1)}秒`);
-      return;
+      return false;
     }
 
     const dist = this.getDistance(Player.position, enemy.position);
     if (dist > weapon.range) {
       Msg.error(`目标超出射程（${dist.toFixed(0)}m / ${weapon.range}m）。`);
-      return;
+      return false;
     }
 
     if (weapon.energyCost && !Player.useEnergy(weapon.energyCost)) {
       Msg.error('能量不足！');
-      return;
+      return false;
     }
 
     this.enterCombat(`开火攻击 ${enemy.name}[${enemy.instanceId}]`);
@@ -354,6 +403,7 @@ const Battle = {
     }
 
     BattleUI.update();
+    return true;
   },
 
   calculateHitRate(attacker, target, weapon, dist) {
@@ -592,10 +642,22 @@ const Battle = {
   },
 
   setPlayerTask(task) {
+    // 设置新任务时取消 idle 待机
+    const wasIdling = this.cancelPlayerIdle();
+    const wasMoving = this.playerTask && this.playerTask.type === 'move';
     this.playerTask = task;
     if (this.paused && this.currentActor === 'player') {
+      // 玩家决策点设置任务：解除 paused 执行
       this.paused = false;
       this.executePlayerTask();
+    } else if (wasIdling) {
+      // idle 中被新任务打断，立即推进时间轴
+      this.scheduleNext();
+    } else if (wasMoving && task.type === 'move') {
+      // 移动中重新设置移动目标：取消旧 move_complete，启动新移动
+      this.eventQueue = this.eventQueue.filter(e => !(e.type === 'move_complete' && e.actor === 'player'));
+      BattleUI.removeCurrentAction('移动中...');
+      this.startPlayerMove(task.target);
     }
   },
 

@@ -118,9 +118,26 @@ const CommandSystem = {
       case 'wait': case '等待':
         Battle.setPlayerTask({ type: 'wait' });
         break;
+      case 'idle': case '待机':
+        this.cmdBattleIdle(parsed.args); break;
       default:
-        Msg.warning('场景中可用指令：move/fire/call/status/use/look/retreat/help/wait');
+        Msg.warning('场景中可用指令：move/fire/call/idle/status/use/look/retreat/help/wait');
     }
+  },
+
+  cmdBattleIdle(args) {
+    if (!Battle.active || !Battle.battlefield) return;
+    let seconds = parseInt(args[0]);
+    if (!seconds || seconds < 1) {
+      Msg.info('用法：idle <秒数>  - 待机指定秒数，期间时间轴继续推进');
+      Msg.info('示例：idle 10  - 等待10秒后再次决策；期间被攻击将立即进入行动阶段');
+      return;
+    }
+    if (seconds > 300) {
+      Msg.warning('待机时间过长，已限制为300秒。');
+      seconds = 300;
+    }
+    Battle.playerIdle(seconds);
   },
  
   cmdBattleCall(args) {
@@ -291,7 +308,21 @@ const CommandSystem = {
       Msg.error('该目标已被击毁。');
       return;
     }
-    Battle.playerAttack(targetId, slot);
+    const fired = Battle.playerAttack(targetId, slot);
+    // 开火成功后：消耗一个决策点，推进时间轴
+    if (fired) {
+      if (Battle.paused && Battle.currentActor === 'player') {
+        // 玩家决策点开火：解除 paused，让敌人有机会行动
+        Battle.paused = false;
+        // 取消未触发的 player_turn，调度新的（玩家行动消耗时间）
+        Battle.eventQueue = Battle.eventQueue.filter(e => !(e.type === 'player_turn' && e.actor === 'player'));
+        Battle.scheduleNextPlayerTurn();
+      } else if (Battle.playerIdleEnd) {
+        // idle 中开火：取消 idle，让时间轴继续推进
+        Battle.cancelPlayerIdle();
+      }
+      // 移动中开火：不影响移动，无需额外处理
+    }
   },
  
   cmdBattleLook(args) {
@@ -396,6 +427,7 @@ const CommandSystem = {
   move <目标编号>   - 移动到敌人/NPC附近
   fire <目标> [槽] - 攻击目标 (目标如A1，槽:primary/secondary)
   call <目标>      - 与 NPC 通信（需距离 ≤ 100m）
+  idle <秒数>      - 待机指定秒数（期间时间轴推进，被攻击立即行动）
   use <物品>       - 使用物品
   status / bag     - 查看状态/背包
   look [目标]      - 查看战场或指定目标（如 look N1）
