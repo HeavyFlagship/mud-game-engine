@@ -388,7 +388,10 @@ const BattleUI = {
 
     let html = '';
 
-    const upcoming = [...Battle.eventQueue].sort((a, b) => a.time - b.time).slice(0, 5);
+    const upcoming = [...Battle.eventQueue]
+      .filter(evt => evt.type === 'player_turn' || evt.type === 'enemy_turn')
+      .sort((a, b) => a.time - b.time)
+      .slice(0, 5);
     html += '<div class="timeline-section timeline-upcoming">';
     html += '<div class="timeline-divider">— 即将到来 —</div>';
     for (const evt of upcoming) {
@@ -402,15 +405,6 @@ const BattleUI = {
         const enemy = Battle.battlefield.enemies.find(e => e.instanceId === evt.actor);
         label = enemy ? `${enemy.name}[${evt.actor}]行动` : `敌人[${evt.actor}]行动`;
         color = '#f66';
-      } else if (evt.type === 'move_complete') {
-        label = evt.actor === 'player' ? '移动完成' : `${evt.actor}移动完成`;
-        color = '#8f8';
-      } else if (evt.type === 'attack_complete') {
-        label = evt.actor === 'player' ? '攻击完成' : `${evt.actor}攻击完成`;
-        color = '#fa4';
-      } else if (evt.type === 'npc_call') {
-        label = '通信完成';
-        color = '#8cf';
       }
       html += `<div class="timeline-item upcoming" style="color:${color};">+${timeOffset}秒 ${label}</div>`;
     }
