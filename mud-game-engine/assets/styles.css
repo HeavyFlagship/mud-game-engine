@@ -99,6 +99,40 @@ body {
   border-bottom: none;
 }
 .radar-section { padding-bottom: 0.5rem; }
+.radar-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.radar-dir-btn {
+  position: absolute;
+  background: rgba(0, 20, 8, 0.85);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: all 0.2s;
+  padding: 0;
+}
+.radar-dir-btn:hover {
+  background: var(--accent);
+  color: var(--bg);
+  box-shadow: 0 0 10px var(--glow);
+}
+.radar-dir-n { top: 4px; left: 50%; transform: translateX(-50%); }
+.radar-dir-s { bottom: 4px; left: 50%; transform: translateX(-50%); }
+.radar-dir-w { left: 4px; top: 50%; transform: translateY(-50%); }
+.radar-dir-e { right: 4px; top: 50%; transform: translateY(-50%); }
 .unit-section {
   border-bottom: 1px solid var(--rule);
   padding-bottom: 0.5rem;
@@ -140,15 +174,61 @@ body {
   font-size: var(--font-enemy-stat);
 }
 
-/* 单位卡片可点击 */
-.unit-card, .enemy-card {
-  cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
-  border: 1px solid transparent;
+.unit-card-header {
+  display: contents;
 }
-.unit-card:hover, .enemy-card:hover {
+
+.unit-card-sub {
+  grid-column: 1 / -1;
+  font-size: var(--font-enemy-stat);
+  color: var(--muted-bright);
+}
+
+.unit-quick-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.quick-action-btn {
+  flex: 1;
+  background: var(--bg2);
+  border: 1px solid var(--rule);
+  color: var(--muted);
+  padding: 3px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+.quick-action-btn:hover:not(:disabled) {
   border-color: var(--accent);
-  background: #1f2a3a !important;
+  color: var(--accent);
+  background: var(--bg3);
+}
+.quick-action-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.quick-action-btn.fire:not(:disabled) {
+  color: var(--accent2);
+  border-color: rgba(255, 107, 107, 0.4);
+}
+.quick-action-btn.fire:hover:not(:disabled) {
+  background: rgba(255, 107, 107, 0.1);
+  color: var(--accent2);
+  box-shadow: 0 0 6px rgba(255, 107, 107, 0.3);
+}
+.quick-action-btn.call:not(:disabled) {
+  color: var(--accent4);
+  border-color: rgba(107, 197, 255, 0.4);
+}
+.quick-action-btn.call:hover:not(:disabled) {
+  background: rgba(107, 197, 255, 0.1);
+  color: var(--accent4);
 }
 
 /* 单位上下文菜单 */
@@ -302,11 +382,11 @@ body {
 
 .minimap {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  grid-template-rows: repeat(5, 1fr);
-  gap: 2px;
+  grid-template-columns: repeat(10, 1fr);
+  grid-template-rows: repeat(10, 1fr);
+  gap: 1px;
   aspect-ratio: 1;
-  max-width: 200px;
+  max-width: 240px;
   margin: 0 auto;
 }
 .map-level-info {
@@ -325,14 +405,20 @@ body {
   justify-content: center;
   font-size: var(--font-map);
   color: var(--rule);
-  min-height: 18px;
+  min-height: 10px;
   font-weight: 700;
   line-height: 1;
 }
 .map-cell.room {
   background: var(--fog);
   color: var(--muted);
-  opacity: 0.48;
+  opacity: 0.3;
+}
+.map-cell.room.has-exit {
+  background: #1a2a3a;
+  border-color: rgba(0, 255, 136, 0.25);
+  color: rgba(0, 255, 136, 0.7);
+  opacity: 0.85;
 }
 .map-cell.current {
   background: var(--accent);

@@ -112,6 +112,11 @@ const BattleUI = {
     try { input.setSelectionRange(len, len); } catch (e) {}
   },
 
+  quickDirMove(dir) {
+    if (!Battle.active || !Battle.battlefield) return;
+    CommandSystem.execute(`move ${dir}`);
+  },
+
   updateRadar() {
     const canvas = document.getElementById('radar-canvas');
     if (!canvas) return;
@@ -284,16 +289,26 @@ const BattleUI = {
       const shopIcon = npcDef.shopItems ? '🛒' : '';
       const broadcastTag = broadcast ? '📡' : '';
       const nameText = `${npcUnit.instanceId} ${npcDef.name} ${broadcastTag}${shopIcon}`;
-      const target = {
-        type: 'npc', id: npcUnit.instanceId, name: nameText, dist
-      };
-      html += `<div class="unit-card" onclick='BattleUI.showUnitMenu(${JSON.stringify(target)}, event.clientX, event.clientY)'>
-        <span class="name" style="color:#8cf;" title="${nameText}">${nameText}</span>
-        <span class="dist" style="color:var(--muted);font-size:var(--font-enemy-header);">${dist.toFixed(0)}m ${inCallRange ? '📞' : '📏'}</span>
-        <span class="sub" style="color:var(--muted-bright);">${npcDef.title || ''}</span>
+      const id = npcUnit.instanceId;
+      const callDisabled = inCallRange ? '' : ' disabled';
+      html += `<div class="unit-card">
+        <div class="unit-card-header">
+          <span class="name" style="color:#8cf;" title="${nameText}">${nameText}</span>
+          <span class="dist" style="color:var(--muted);font-size:var(--font-enemy-header);">${dist.toFixed(0)}m ${inCallRange ? '📞' : '📏'}</span>
+        </div>
+        <div class="unit-card-sub" style="color:var(--muted-bright);">${npcDef.title || ''}</div>
+        <div class="unit-quick-actions">
+          <button class="quick-action-btn" onclick="BattleUI.execCmd('move ${id}')" title="移动到附近">move</button>
+          <button class="quick-action-btn call${callDisabled}" onclick="BattleUI.execCmd('call ${id}')"${callDisabled ? ' disabled' : ''} title="通信">call</button>
+          <button class="quick-action-btn" onclick="BattleUI.execCmd('look ${id}')" title="查看">look</button>
+        </div>
       </div>`;
     }
     unitEl.innerHTML = html || '<div style="color:var(--muted);font-style:italic;font-size:var(--font-hint);">视野内无单位</div>';
+  },
+
+  execCmd(cmd) {
+    CommandSystem.execute(cmd);
   },
 
   render() {
@@ -389,13 +404,14 @@ const BattleUI = {
       const inRange = Player.equipment.primary && dist <= Player.equipment.primary.range;
       const nameText = `${enemy.instanceId} ${enemy.name}`;
       const distText = `${dist.toFixed(0)}m ${inRange ? '🎯' : '📏'}`;
-      const target = {
-        type: 'enemy', id: enemy.instanceId, name: nameText, dist, dead
-      };
-      const targetJson = JSON.stringify(target).replace(/'/g, "&#39;");
-      html += `<div class="enemy-card" style="background:${dead ? '#222' : '#1a1a1a'};opacity:${dead ? 0.5 : 1};" onclick='BattleUI.showUnitMenu(${targetJson}, event.clientX, event.clientY)'>
-        <span class="name" style="color:${dead ? '#666' : '#f66'};" title="${nameText}">${nameText}</span>
-        <span class="dist" style="color:var(--muted);font-size:var(--font-enemy-header);">${distText}</span>
+      const id = enemy.instanceId;
+      const fireDisabled = !inRange || dead ? ' disabled' : '';
+      const disabledStyle = dead ? 'background:#222;opacity:0.5;' : '';
+      html += `<div class="enemy-card" style="${disabledStyle}">
+        <div class="unit-card-header">
+          <span class="name" style="color:${dead ? '#666' : '#f66'};" title="${nameText}">${nameText}</span>
+          <span class="dist" style="color:var(--muted);font-size:var(--font-enemy-header);">${distText}</span>
+        </div>
         <span class="sub" style="color:var(--muted-bright);">结构: ${enemy.hp}/${enemy.maxHp}
           <div style="display:inline-block;width:90px;height:7px;background:#333;border-radius:2px;vertical-align:middle;margin-left:4px;">
           <div style="width:${hpPct}%;height:7px;background:${hpPct>50?'#4f4':hpPct>25?'#fa2':'#f44'};border-radius:2px;"></div></div>
@@ -404,6 +420,11 @@ const BattleUI = {
           <div style="display:inline-block;width:90px;height:7px;background:#333;border-radius:2px;vertical-align:middle;margin-left:4px;">
           <div style="width:${arPct}%;height:7px;background:#88f;border-radius:2px;"></div></div>
         </span>
+        <div class="unit-quick-actions">
+          <button class="quick-action-btn fire${fireDisabled}" onclick="BattleUI.execCmd('fire ${id}')"${fireDisabled ? ' disabled' : ''} title="开火">fire</button>
+          <button class="quick-action-btn" onclick="BattleUI.execCmd('move ${id}')"${dead ? ' disabled' : ''} title="靠近">move</button>
+          <button class="quick-action-btn" onclick="BattleUI.execCmd('look ${id}')" title="查看">look</button>
+        </div>
       </div>`;
     }
     enemyEl.innerHTML = html;

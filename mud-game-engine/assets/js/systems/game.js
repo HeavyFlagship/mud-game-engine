@@ -751,8 +751,8 @@ const Game = {
       }
     }
  
-    const offsetX = currentRoom.x - 2;
-    const offsetY = currentRoom.y - 2;
+    const offsetX = currentRoom.x - 5;
+    const offsetY = currentRoom.y - 5;
     const dirInfo = {
       north: { dx:0, dy:-1, border:'border-top-color' },
       south: { dx:0, dy:1, border:'border-bottom-color' },
@@ -771,8 +771,8 @@ const Game = {
     };
  
     let html = '';
-    for (let dy = 0; dy < 5; dy++) {
-      for (let dx = 0; dx < 5; dx++) {
+    for (let dy = 0; dy < 10; dy++) {
+      for (let dx = 0; dx < 10; dx++) {
         const rx = offsetX + dx;
         const ry = offsetY + dy;
         const room = roomAt(rx, ry);
@@ -780,12 +780,14 @@ const Game = {
           const style = getCellStyle(room);
           const label = MapSystem.getRoomLabel(room);
           const verticalClass = (room.exits.up || room.exits.down) ? ' vertical' : '';
+          const hasExit = Object.keys(room.exits || {}).length > 0;
+          const exitClass = hasExit ? ' has-exit' : '';
           if (room.id === Player.room) {
             html += `<div class="map-cell current${verticalClass}" style="${style}" title="${room.name}｜${MapSystem.getLevelName(room.z || 0)}">@</div>`;
           } else if (Player.visitedRooms.has(room.id)) {
             html += `<div class="map-cell visited${verticalClass}" style="${style}" title="${room.name}｜${MapSystem.getLevelName(room.z || 0)}">${label}</div>`;
           } else {
-            html += `<div class="map-cell room${verticalClass}" style="${style}" title="${room.name}｜${MapSystem.getLevelName(room.z || 0)}"></div>`;
+            html += `<div class="map-cell room${verticalClass}${exitClass}" style="${style}" title="${room.name}｜${MapSystem.getLevelName(room.z || 0)}">${hasExit ? label : ''}</div>`;
           }
         } else {
           html += `<div class="map-cell"></div>`;
