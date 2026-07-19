@@ -1,356 +1,532 @@
-// ========== 战斗系统 ==========
-// TODO: 未来大修战斗、任务与属性系统：
-// 1. 统一角色属性模型（力量/敏捷/体质/精神/速度/抗性等）；
-// 2. 重构战斗流程为可扩展的行动队列、状态效果、技能效果管线；
-// 3. 接入任务系统，让击杀、收集、对话、探索等目标可追踪并触发奖励。
+// ========== 战斗系统（时间轴模式） ==========
 const Battle = {
   active: false,
-  enemy: null,       // 当前战斗的敌人实例
-  enemyMaxHp: 0,
-  round: 0,
-  onEnd: null,
+  roomId: null,
+  battlefield: null,
+  eventQueue: [],
+  currentActor: null,
+  tickRate: 100,
+  tickInterval: null,
+  timeScale: 1,
+  paused: false,
+  playerAiming: null,
+  playerTask: null,
 
-  start(enemyId) {
-    const template = EnemyDB[enemyId];
-    if (!template) return;
+  start(roomId, entryDir = 'south') {
+    const room = MapSystem.getRoom(roomId);
+    if (!room || !room.battlefield) {
+      Msg.error('此区域无法展开战斗。');
+      return false;
+    }
+
+    this.roomId = roomId;
+    MapSystem.resetBattlefield(roomId);
+    this.battlefield = MapSystem.initBattlefield(roomId, entryDir);
+
+    if (this.battlefield.entryPos) {
+      Player.position = [...this.battlefield.entryPos];
+    }
+
     this.active = true;
-    this.enemy = { ...template, currentHp: template.hp };
-    this.enemyMaxHp = template.hp;
-    this.round = 0;
-    document.getElementById('battle-bar').classList.add('active');
-    document.getElementById('battle-enemy-name').textContent = template.name;
+    this.paused = false;
+    this.eventQueue = [];
+    this.playerAiming = null;
+    this.playerTask = null;
+
     Msg.divider();
-    Msg.add(`⚔ 遭遇 <span class="enemy-name">${template.name}</span> (Lv.${template.level})！`, 'combat-title');
-    Msg.info(`${template.name} 出现了！准备战斗！`);
-    this.updateBattleUI();
-    this.renderBattleMenus();
-  },
+    Msg.warn(`⚔ 进入战斗：${room.name}`);
+    Msg.info(`地形：${MapSystem.getTerrainName(this.battlefield.terrain)}`);
+    Msg.info(`敌人数量：${this.battlefield.enemies.length}`);
 
-  toggleSkillMenu() {
-    if (!this.active) return;
-    this.renderBattleMenus();
-    this.toggleMenu('battle-skill-menu');
-  },
-
-  togglePotionMenu() {
-    if (!this.active) return;
-    this.renderBattleMenus();
-    this.toggleMenu('battle-potion-menu');
-  },
-
-  toggleMenu(id) {
-    const target = document.getElementById(id);
-    if (!target) return;
-    const shouldOpen = !target.classList.contains('active');
-    this.hideMenus();
-    if (shouldOpen) target.classList.add('active');
-  },
-
-  hideMenus() {
-    ['battle-skill-menu', 'battle-potion-menu'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.classList.remove('active');
-    });
-  },
-
-  renderBattleMenus() {
-    const skillMenu = document.getElementById('battle-skill-menu');
-    const potionMenu = document.getElementById('battle-potion-menu');
-
-    if (skillMenu) {
-      const skillButtons = Player.skills.map(sid => {
-        const skill = SkillDB[sid];
-        if (!skill) return '';
-        const disabled = Player.mp < skill.mpCost ? ' disabled' : '';
-        const title = `${skill.desc} 消耗${skill.mpCost}MP`;
-        return `<button class="battle-choice skill" onclick="Battle.action('skill','${skill.id}')" title="${title}"${disabled}>${skill.name} · ${skill.mpCost}MP</button>`;
-      }).join('');
-      skillMenu.innerHTML = skillButtons || '<span class="battle-menu-empty">尚未习得技能</span>';
-    }
-
-    if (potionMenu) {
-      const potionButtons = Player.inventory
-        .filter(entry => {
-          const item = ItemDB.get(entry.id);
-          return item && item.type === 'potion';
-        })
-        .map(entry => {
-          const item = ItemDB.get(entry.id);
-          return `<button class="battle-choice potion" onclick="Battle.action('potion','${item.id}')" title="${item.desc}">${item.name} ×${entry.count}</button>`;
-        }).join('');
-      potionMenu.innerHTML = potionButtons || '<span class="battle-menu-empty">没有可用药水</span>';
-    }
-  },
-
-  action(type, param) {
-    if (!this.active) return;
-    if (param) this.hideMenus();
-    let playerActed = false;
-    switch (type) {
-      case 'attack': playerActed = this.playerAttack(); break;
-      case 'skill': playerActed = this.playerSkill(param); break;
-      case 'potion': playerActed = this.playerPotion(param); break;
-      case 'flee':
-        this.round++;
-        document.getElementById('battle-round').textContent = `第 ${this.round} 回合`;
-        this.playerFlee();
-        Game.updateUI();
-        return;
-    }
-
-    if (!playerActed) {
-      this.updateBattleUI();
-      this.renderBattleMenus();
-      Game.updateUI();
-      return;
-    }
-
-    this.round++;
-    document.getElementById('battle-round').textContent = `第 ${this.round} 回合`;
-
-    if (this.enemy.currentHp <= 0) { this.victory(); return; }
-    if (Player.isDead()) { this.defeat(); return; }
-    Game.updateUI();
-
-    // 敌人行动
-    setTimeout(() => {
-      this.enemyAction();
-      Game.updateUI();
-      if (Player.isDead()) { this.defeat(); return; }
-      // 处理持续效果
-      this.processEffects();
-      this.updateBattleUI();
-      this.renderBattleMenus();
-      Game.updateUI();
-    }, 300);
-  },
-
-  playerAttack() {
-    let dmg = Player.atk;
-    let isCrit = Utils.chance(Player.critRate);
-    if (isCrit) dmg = Math.floor(dmg * 1.8);
-    // 暗影匕首双倍
-    const weapon = Player.equipment.weapon;
-    if (weapon && weapon.special === 'double_strike' && Utils.chance(25)) {
-      dmg *= 2;
-      Msg.warning(`🗡 暗影匕首触发了双倍伤害！`);
-    }
-    dmg = Math.max(1, dmg - Math.floor(this.enemy.def * 0.5));
-    dmg = Utils.rand(Math.floor(dmg * 0.9), Math.floor(dmg * 1.1));
-    this.enemy.currentHp -= dmg;
-    Player.stats.totalDmg += dmg;
-    const critText = isCrit ? ' <span class="damage">暴击！</span>' : '';
-    Msg.info(`⚔ 你对 ${this.enemy.name} 造成了 <span class="damage">${dmg}</span> 点伤害！${critText}`);
+    this.buildInitialTimeline();
+    this.startTickLoop();
+    BattleUI.render();
     return true;
-  },
-
-  playerSkill(skillId) {
-    if (!skillId) {
-      // 列出可用技能
-      Msg.info('可用技能：');
-      Player.skills.forEach(sid => {
-        const s = SkillDB[sid];
-        if (s) Msg.info(`  <span class="help-cmd">${s.name}</span> - ${s.desc} (消耗${s.mpCost}MP)`);
-      });
-      Msg.info('使用方法: 技能 技能名');
-      return false;
-    }
-    // 模糊匹配
-    let skill = null;
-    for (const [id, s] of Object.entries(SkillDB)) {
-      if (s.name === skillId || id === skillId) { skill = s; break; }
-    }
-    if (!skill || !Player.skills.includes(skill.id)) {
-      Msg.danger('未知技能或尚未习得。');
-      return false;
-    }
-    if (Player.mp < skill.mpCost) {
-      Msg.danger('法力不足！');
-      return false;
-    }
-    Player.mp -= skill.mpCost;
-
-    if (skill.type === 'attack') {
-      const hits = skill.hits || 1;
-      let totalDmg = 0;
-      for (let i = 0; i < hits; i++) {
-        let dmg = Math.floor(Player.atk * skill.mult);
-        dmg = Math.max(1, dmg - Math.floor(this.enemy.def * 0.3));
-        dmg = Utils.rand(Math.floor(dmg * 0.9), Math.floor(dmg * 1.1));
-        this.enemy.currentHp -= dmg;
-        totalDmg += dmg;
-        if (hits > 1) Msg.info(`  第${i+1}击: <span class="damage">${dmg}</span> 点伤害`);
-      }
-      Player.stats.totalDmg += totalDmg;
-      if (hits > 1) Msg.magic(`✨ ${skill.name} 共造成 <span class="damage">${totalDmg}</span> 点伤害！`);
-      else Msg.magic(`✨ ${skill.name}！对 ${this.enemy.name} 造成 <span class="damage">${totalDmg}</span> 点伤害！`);
-      if (skill.effect === 'poison' && Utils.chance(60)) {
-        Player.statusEffects.push({ type:'poison', damage: Math.floor(Player.atk * 0.3), duration:3 });
-        Msg.warning('🐍 敌人中毒了！');
-      }
-    } else if (skill.type === 'magic') {
-      let dmg = Math.floor((Player.atk + Player.level * 3) * skill.mult);
-      dmg = Math.max(1, dmg - Math.floor(this.enemy.def * 0.2));
-      dmg = Utils.rand(Math.floor(dmg * 0.9), Math.floor(dmg * 1.1));
-      this.enemy.currentHp -= dmg;
-      Player.stats.totalDmg += dmg;
-      const elemText = skill.element === 'fire' ? '🔥' : skill.element === 'ice' ? '❄' : '⚡';
-      Msg.magic(`${elemText} ${skill.name}！对 ${this.enemy.name} 造成 <span class="damage">${dmg}</span> 点${skill.element === 'fire' ? '火焰' : skill.element === 'ice' ? '冰霜' : '雷电'}伤害！`);
-      if (skill.effect === 'stun' && Utils.chance(30)) {
-        this.enemy.stunned = true;
-        Msg.warning('💫 敌人被眩晕了！');
-      }
-    } else if (skill.type === 'heal') {
-      const amount = Player.heal(Math.floor((Player.maxHp * 0.1) + Player.level * skill.mult * 5));
-      Msg.magic(`💚 ${skill.name}！恢复了 <span class="heal">${amount}</span> 点生命值！`);
-    } else if (skill.type === 'buff') {
-      Player.buffs.push({ type: skill.effect, duration: skill.duration });
-      if (skill.effect === 'berserk') Msg.warning(`🔥 ${skill.name}！攻击力提升50%，持续${skill.duration}回合！`);
-      if (skill.effect === 'shield') Msg.info(`🛡 ${skill.name}！防御力提升30%，持续${skill.duration}回合！`);
-    }
-    return true;
-  },
-
-  playerPotion(potionId) {
-    const potions = Player.inventory.filter(i => {
-      const item = ItemDB.get(i.id);
-      return item && item.type === 'potion';
-    });
-    if (potions.length === 0) {
-      Msg.danger('没有药水了！');
-      return false;
-    }
-    let target = null;
-    if (potionId) {
-      target = potions.find(p => {
-        const item = ItemDB.get(p.id);
-        return item && (item.id === potionId || item.name === potionId);
-      });
-      if (!target) {
-        Msg.danger('没有找到指定药水。');
-        return false;
-      }
-    } else {
-      // 命令行未指定药水时，保留原有自动选择逻辑。
-      target = potions.find(p => { const it = ItemDB.get(p.id); return it.heal && Player.hp < Player.maxHp; });
-      if (!target) target = potions.find(p => { const it = ItemDB.get(p.id); return it.mana && Player.mp < Player.maxMp; });
-      if (!target) target = potions[0];
-    }
-
-    const item = ItemDB.get(target.id);
-    Player.removeItem(target.id);
-    if (item.heal) {
-      const amount = Player.heal(item.heal);
-      Msg.success(`🧪 使用了 ${item.name}，恢复 <span class="heal">${amount}</span> 点生命！`);
-    }
-    if (item.mana) {
-      const amount = Player.restoreMp(item.mana);
-      Msg.success(`🧪 使用了 ${item.name}，恢复 <span class="magic">${amount}</span> 点法力！`);
-    }
-    return true;
-  },
-
-  playerFlee() {
-    const chance = 40 + (Player.level - this.enemy.level) * 10;
-    if (Utils.chance(chance)) {
-      Msg.info('🏃 你成功逃离了战斗！');
-      this.end();
-    } else {
-      Msg.warning('逃跑失败！');
-      this.enemyAction();
-      Game.updateUI();
-      if (Player.isDead()) this.defeat();
-    }
-  },
-
-  enemyAction() {
-    if (this.enemy.stunned) {
-      Msg.info(`${this.enemy.name} 处于眩晕状态，无法行动！`);
-      this.enemy.stunned = false;
-      return;
-    }
-    let dmg = Utils.rand(Math.floor(this.enemy.atk * 0.8), this.enemy.atk);
-    // 吸血鬼
-    if (this.enemy.canDrain) {
-      const drain = Math.floor(dmg * 0.3);
-      this.enemy.currentHp = Math.min(this.enemyMaxHp, this.enemy.currentHp + drain);
-    }
-    // 暗黑法师魔法攻击
-    if (this.enemy.canMagic && Utils.chance(40)) {
-      dmg = Math.floor(dmg * 1.5);
-      Msg.danger(`🔮 ${this.enemy.name} 释放了暗黑魔法！`);
-    }
-    const actual = Player.takeDamage(dmg);
-    if (this.enemy.canDrain) Msg.danger(`🧛 ${this.enemy.name} 攻击了你，造成 <span class="damage">${actual}</span> 点伤害并恢复了生命！`);
-    else Msg.danger(`👊 ${this.enemy.name} 攻击了你，造成 <span class="damage">${actual}</span> 点伤害！`);
-  },
-
-  processEffects() {
-    // 玩家buff倒计时
-    Player.buffs = Player.buffs.filter(b => {
-      b.duration--;
-      return b.duration > 0;
-    });
-    // 玩家中毒
-    Player.statusEffects = Player.statusEffects.filter(e => {
-      if (e.type === 'poison') {
-        // 这是给敌人的效果，在敌人回合处理
-      }
-      e.duration--;
-      return e.duration > 0;
-    });
-    // 敌人中毒伤害
-    if (this.enemy.currentHp > 0) {
-      // 简化：检查有没有对敌人的毒
-      // (毒效果实际需要更复杂的系统，这里简化处理)
-    }
-  },
-
-  victory() {
-    const e = this.enemy;
-    Msg.divider();
-    Msg.success(`🎉 你击败了 <span class="enemy-name">${e.name}</span>！`);
-    Player.gainExp(e.exp);
-    Player.gold += e.gold;
-    Msg.loot(`💰 获得 ${e.exp} 经验、${e.gold} 金币`);
-    Player.stats.monstersKilled++;
-    Player.killCount[e.id] = (Player.killCount[e.id] || 0) + 1;
-
-    // 掉落物品
-    if (e.drops) {
-      e.drops.forEach(([itemId, chance]) => {
-        if (Utils.chance(chance * 100)) {
-          const item = ItemDB.get(itemId);
-          if (item) {
-            Player.addItem(itemId);
-            Msg.loot(`🎁 获得: <span class="item-tag ${item.type}">${item.name}</span>`);
-          }
-        }
-      });
-    }
-    this.end();
-  },
-
-  defeat() {
-    Msg.divider();
-    Msg.danger(`💀 你被 <span class="enemy-name">${this.enemy.name}</span> 击败了……`);
-    Msg.warning('你在昏迷中被传送回了村庄。');
-    Player.respawn();
-    this.end();
-    Game.look();
-    Game.updateUI();
   },
 
   end() {
     this.active = false;
-    this.enemy = null;
-    this.hideMenus();
-    document.getElementById('battle-bar').classList.remove('active');
-    Game.updateUI();
+    this.stopTickLoop();
+    this.battlefield = null;
+    this.roomId = null;
+    this.eventQueue = [];
+    this.currentActor = null;
+    this.playerAiming = null;
+    this.playerTask = null;
   },
 
-  updateBattleUI() {
-    if (!this.enemy) return;
-    // 不做额外UI，信息通过消息流展示
+  startTickLoop() {
+    if (this.tickInterval) clearInterval(this.tickInterval);
+    this.tickInterval = setInterval(() => {
+      if (!this.paused) {
+        this.tick();
+      }
+    }, this.tickRate);
+  },
+
+  stopTickLoop() {
+    if (this.tickInterval) {
+      clearInterval(this.tickInterval);
+      this.tickInterval = null;
+    }
+  },
+
+  tick() {
+    if (!this.active || !this.battlefield) return;
+
+    this.battlefield.time += this.timeScale;
+
+    this.updateCooldowns();
+    this.updateStatusEffects();
+    this.regenEnergy();
+    this.updateAI();
+
+    this.checkWinLoss();
+
+    if (this.timeScale > 0 && this.eventQueue.length > 0) {
+      this.eventQueue.sort((a, b) => a.time - b.time);
+      const next = this.eventQueue[0];
+      if (next.time <= this.battlefield.time) {
+        this.processEvent(next);
+        this.eventQueue.shift();
+      }
+    }
+
+    BattleUI.update();
+  },
+
+  updateCooldowns() {
+    for (const slot of ['primary', 'secondary']) {
+      if (Player.weaponCooldowns[slot] > 0) {
+        Player.weaponCooldowns[slot] = Math.max(0, Player.weaponCooldowns[slot] - this.timeScale);
+      }
+    }
+    for (const enemy of this.battlefield.enemies) {
+      if (enemy.attackTimer > 0) {
+        enemy.attackTimer = Math.max(0, enemy.attackTimer - this.timeScale);
+      }
+    }
+  },
+
+  updateStatusEffects() {
+    const effects = [...Player.statusEffects];
+    for (const eff of effects) {
+      eff.duration -= this.timeScale;
+      if (eff.duration <= 0) {
+        Player.statusEffects = Player.statusEffects.filter(e => e !== eff);
+      }
+    }
+    for (const enemy of this.battlefield.enemies) {
+      const eEffects = [...enemy.statusEffects];
+      for (const eff of eEffects) {
+        eff.duration -= this.timeScale;
+        if (eff.duration <= 0) {
+          enemy.statusEffects = enemy.statusEffects.filter(e => e !== eff);
+        }
+      }
+    }
+  },
+
+  regenEnergy() {
+    if (Player.energy < Player.maxEnergy) {
+      Player.energy = Math.min(Player.maxEnergy, Player.energy + (Player.energyRegen * this.timeScale / 10));
+    }
+  },
+
+  updateAI() {
+    for (const enemy of this.battlefield.enemies) {
+      EnemyAI.update(enemy, this.battlefield);
+    }
+  },
+
+  buildInitialTimeline() {
+    this.eventQueue = [];
+    this.scheduleEvent({ type: 'player_turn', actor: 'player' }, this.calculateInitiative(Player.speed));
+    for (const enemy of this.battlefield.enemies) {
+      this.scheduleEvent({ type: 'enemy_turn', actor: enemy.instanceId, enemyId: enemy.templateId },
+        this.calculateInitiative(enemy.speed));
+    }
+  },
+
+  calculateInitiative(speed) {
+    const base = 100 / speed;
+    return base + Utils.rand(0, 10);
+  },
+
+  scheduleEvent(event, delay) {
+    event.time = this.battlefield.time + delay;
+    this.eventQueue.push(event);
+  },
+
+  processEvent(event) {
+    if (event.type === 'player_turn') {
+      this.currentActor = 'player';
+      this.onPlayerTurn();
+    } else if (event.type === 'enemy_turn') {
+      this.currentActor = event.actor;
+      const enemy = this.battlefield.enemies.find(e => e.instanceId === event.actor);
+      if (enemy) {
+        this.onEnemyTurn(enemy);
+      }
+    } else if (event.type === 'move_complete') {
+      if (event.actor === 'player') {
+        this.onPlayerMoveComplete();
+      } else {
+        const enemy = this.battlefield.enemies.find(e => e.instanceId === event.actor);
+        if (enemy) {
+          this.onEnemyMoveComplete(enemy);
+        }
+      }
+    } else if (event.type === 'attack_complete') {
+      this.currentActor = null;
+      if (event.actor === 'player') {
+        this.scheduleNextPlayerTurn();
+      } else {
+        const enemy = this.battlefield.enemies.find(e => e.instanceId === event.actor);
+        if (enemy) {
+          this.scheduleNextEnemyTurn(enemy);
+        }
+      }
+    }
+  },
+
+  onPlayerTurn() {
+    if (Player.isDead()) return;
+
+    if (this.playerTask) {
+      this.executePlayerTask();
+    } else {
+      this.paused = true;
+      Msg.prompt('> 等待指令（输入 move/fire/aim/use/status/retreat 等）');
+    }
+  },
+
+  onEnemyTurn(enemy) {
+    if (enemy.hp <= 0) return;
+    EnemyAI.takeTurn(enemy, this.battlefield);
+  },
+
+  executePlayerTask() {
+    if (!this.playerTask) return;
+
+    const task = this.playerTask;
+    if (task.type === 'move') {
+      this.startPlayerMove(task.target);
+    } else if (task.type === 'attack') {
+      this.playerAttack(task.target, task.slot);
+    }
+  },
+
+  startPlayerMove(targetPos) {
+    const dx = targetPos[0] - Player.position[0];
+    const dy = targetPos[1] - Player.position[1];
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const speed = Player.currentSpeed;
+    const time = dist / speed * 10;
+
+    const clamped = this.clampToBattlefield(targetPos);
+    Player.position = clamped;
+    Player.facing = Math.atan2(dy, dx);
+
+    this.scheduleEvent({ type: 'move_complete', actor: 'player' }, time);
+    this.currentActor = 'player';
+    Msg.info(`机体向 (${Math.round(clamped[0])}, ${Math.round(clamped[1])}) 移动中...`);
+  },
+
+  onPlayerMoveComplete() {
+    this.currentActor = null;
+    if (this.playerTask && this.playerTask.type === 'move') {
+      this.playerTask = null;
+    }
+    this.scheduleNextPlayerTurn();
+  },
+
+  playerAttack(targetId, slot = 'primary') {
+    const enemy = this.battlefield.enemies.find(e => e.instanceId === targetId);
+    if (!enemy || enemy.hp <= 0) {
+      Msg.error('目标无效或已被击毁。');
+      this.paused = true;
+      return;
+    }
+
+    const weapon = Player.equipment[slot];
+    if (!weapon) {
+      Msg.error('该武器槽为空。');
+      this.paused = true;
+      return;
+    }
+
+    if (Player.weaponCooldowns[slot] > 0) {
+      Msg.error(`${weapon.name} 冷却中，剩余 ${Player.weaponCooldowns[slot].toFixed(1)}`);
+      this.paused = true;
+      return;
+    }
+
+    const dist = this.getDistance(Player.position, enemy.position);
+    if (dist > weapon.range) {
+      Msg.error(`目标超出射程（${dist.toFixed(0)}m / ${weapon.range}m）。`);
+      this.paused = true;
+      return;
+    }
+
+    if (weapon.energyCost && !Player.useEnergy(weapon.energyCost)) {
+      Msg.error('能量不足！');
+      this.paused = true;
+      return;
+    }
+
+    const hitRate = this.calculateHitRate(Player, enemy, weapon, dist);
+    const hit = Math.random() < hitRate;
+
+    Player.weaponCooldowns[slot] = weapon.cooldown;
+    Player.facing = Math.atan2(enemy.position[1] - Player.position[1], enemy.position[0] - Player.position[0]);
+
+    let dmg = 0;
+    if (hit) {
+      const baseDmg = Utils.rand(weapon.damage - weapon.damageVariance, weapon.damage + weapon.damageVariance);
+      const result = this.dealDamage(enemy, baseDmg, weapon.damageType);
+      dmg = result.total;
+      Msg.damage(`💥 ${weapon.name} 命中 ${enemy.name}[${enemy.instanceId}]！` +
+        `装甲-${result.armor} 结构-${result.hp} (${dmg}总伤害)`);
+      Player.stats.totalDmg += dmg;
+
+      if (enemy.hp <= 0) {
+        this.onEnemyKilled(enemy);
+      }
+    } else {
+      Msg.miss(`❌ ${weapon.name} 未命中 ${enemy.name}[${enemy.instanceId}] (命中率 ${(hitRate*100).toFixed(0)}%)`);
+    }
+
+    this.playerTask = null;
+    this.scheduleEvent({ type: 'attack_complete', actor: 'player' }, weapon.cooldown);
+  },
+
+  calculateHitRate(attacker, target, weapon, dist) {
+    let hitRate = weapon.baseAccuracy;
+
+    if (target.speed > 5) {
+      hitRate *= Math.max(0.5, 1 - (target.speed - 5) * 0.03);
+    }
+
+    if (dist > weapon.optimalRange) {
+      const overRange = dist - weapon.optimalRange;
+      hitRate *= Math.max(0.1, 1 - overRange * 0.001);
+    } else if (dist < weapon.optimalRange * 0.3) {
+      hitRate = Math.min(0.99, hitRate * 1.2);
+    }
+
+    if (this.isInCover(target.position)) {
+      hitRate *= 0.6;
+    }
+
+    if (weapon.spread && weapon.spread > 0) {
+      hitRate *= Math.max(0.7, 1 - weapon.spread * 0.1);
+    }
+
+    return Math.max(0.01, Math.min(0.99, hitRate));
+  },
+
+  isInCover(pos) {
+    if (!this.battlefield || !this.battlefield.covers) return false;
+    for (const cover of this.battlefield.covers) {
+      const dist = this.getDistance(pos, cover.pos);
+      if (dist < (cover.radius || 30)) return true;
+    }
+    return false;
+  },
+
+  dealDamage(target, dmg, damageType = 'kinetic') {
+    if (target.instanceId) {
+      let remaining = dmg;
+      let armorDmg = 0;
+      let hpDmg = 0;
+      if (damageType === 'kinetic') {
+        armorDmg = Math.min(target.armor, remaining);
+        target.armor -= armorDmg;
+        remaining -= armorDmg;
+        hpDmg = remaining;
+      } else if (damageType === 'thermal') {
+        armorDmg = Math.min(target.armor, Math.floor(remaining * 0.6));
+        target.armor -= armorDmg;
+        remaining = Math.max(0, remaining - armorDmg);
+        hpDmg = remaining;
+      } else if (damageType === 'shock') {
+        armorDmg = Math.min(target.armor, Math.floor(remaining * 0.8));
+        target.armor -= armorDmg;
+        remaining = Math.max(0, remaining - armorDmg);
+        hpDmg = remaining;
+      } else if (damageType === 'corrosion') {
+        hpDmg = remaining;
+        if (Math.random() < 0.3) {
+          target.statusEffects.push({ type: 'corrosion', value: 5, duration: 50 });
+        }
+      } else {
+        hpDmg = remaining;
+      }
+      target.hp = Math.max(0, target.hp - hpDmg);
+      return { total: dmg, armor: armorDmg, hp: hpDmg };
+    } else {
+      return Player.takeDamage(dmg, damageType);
+    }
+  },
+
+  onEnemyKilled(enemy) {
+    Msg.success(`🎯 击毁 ${enemy.name}[${enemy.instanceId}]！`);
+    Player.stats.monstersKilled++;
+    Player.killCount[enemy.templateId] = (Player.killCount[enemy.templateId] || 0) + 1;
+    Player.gainExp(enemy.exp);
+    if (enemy.loot) {
+      for (const l of enemy.loot) {
+        if (Math.random() < l.chance) {
+          const count = Utils.rand(l.min || 1, l.max || 1);
+          Player.addItem(l.item, count);
+          const item = ItemDB[l.item];
+          Msg.loot(`获得战利品：${item ? item.name : l.item} x${count}`);
+        }
+      }
+    }
+  },
+
+  startEnemyMove(enemy, targetPos) {
+    const dx = targetPos[0] - enemy.position[0];
+    const dy = targetPos[1] - enemy.position[1];
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const time = dist / enemy.speed * 10;
+
+    enemy.position = this.clampToBattlefield(targetPos);
+    enemy.facing = Math.atan2(dy, dx);
+
+    this.scheduleEvent({ type: 'move_complete', actor: enemy.instanceId }, time);
+  },
+
+  onEnemyMoveComplete(enemy) {
+    if (enemy.hp <= 0) return;
+    this.scheduleNextEnemyTurn(enemy);
+  },
+
+  enemyAttack(enemy, targetPos) {
+    const dist = this.getDistance(enemy.position, Player.position);
+    if (dist > enemy.attackRange) return;
+
+    const hitRate = this.calculateEnemyHitRate(enemy, dist);
+    const hit = Math.random() < hitRate;
+
+    enemy.attackTimer = enemy.attackCooldown;
+    enemy.facing = Math.atan2(Player.position[1] - enemy.position[1], Player.position[0] - enemy.position[0]);
+
+    if (hit) {
+      const baseDmg = Utils.rand(Math.floor(enemy.damage * 0.8), Math.floor(enemy.damage * 1.2));
+      const result = Player.takeDamage(baseDmg, enemy.damageType);
+      Msg.damageEnemy(`💀 ${enemy.name}[${enemy.instanceId}] 攻击命中！` +
+        `装甲-${result.armor} 结构-${result.hp} (${result.total}总伤害)`);
+
+      if (Player.isDead()) {
+        this.onPlayerDeath();
+      }
+    } else {
+      Msg.missEnemy(`➖ ${enemy.name}[${enemy.instanceId}] 攻击未命中 (命中率 ${(hitRate*100).toFixed(0)}%)`);
+    }
+
+    this.scheduleEvent({ type: 'attack_complete', actor: enemy.instanceId }, enemy.attackCooldown);
+  },
+
+  calculateEnemyHitRate(enemy, dist) {
+    let hitRate = 0.6;
+    if (enemy.attackRange && dist > enemy.attackRange * 0.5) {
+      hitRate *= Math.max(0.3, 1 - (dist - enemy.attackRange * 0.5) / (enemy.attackRange * 0.5) * 0.5);
+    }
+    if (this.isInCover(Player.position)) {
+      hitRate *= 0.5;
+    }
+    if (Player.speed > 8) {
+      hitRate *= Math.max(0.6, 1 - (Player.speed - 8) * 0.05);
+    }
+    return Math.max(0.05, Math.min(0.95, hitRate));
+  },
+
+  onPlayerDeath() {
+    Msg.error('💀 机体被击毁！信号丢失...');
+    this.paused = true;
+    setTimeout(() => {
+      this.end();
+      Player.respawn();
+      Game.showRoom();
+    }, 1500);
+  },
+
+  scheduleNextPlayerTurn() {
+    this.scheduleEvent({ type: 'player_turn', actor: 'player' }, this.calculateInitiative(Player.currentSpeed));
+  },
+
+  scheduleNextEnemyTurn(enemy) {
+    this.scheduleEvent({ type: 'enemy_turn', actor: enemy.instanceId, enemyId: enemy.templateId },
+      this.calculateInitiative(enemy.speed));
+  },
+
+  checkWinLoss() {
+    if (!this.battlefield) return;
+    const aliveEnemies = this.battlefield.enemies.filter(e => e.hp > 0);
+    if (aliveEnemies.length === 0) {
+      this.onBattleWin();
+    }
+  },
+
+  onBattleWin() {
+    Msg.divider();
+    Msg.success('🏆 区域清空！所有敌人已被消灭。');
+    this.paused = true;
+    setTimeout(() => {
+      this.end();
+      Msg.info('你可以继续探索或返回基地。');
+      BattleUI.remove();
+      Game.showRoom();
+    }, 1000);
+  },
+
+  retreat() {
+    if (!this.active) return false;
+    Msg.warn('撤退中...');
+    this.paused = true;
+    setTimeout(() => {
+      this.end();
+      const room = MapSystem.getRoom(Player.room);
+      const dirs = Object.keys(room.exits || {});
+      if (dirs.length > 0) {
+        const firstDir = dirs[0];
+        const prevRoom = room.exits[firstDir];
+        Player.room = prevRoom;
+        Player.position = [500, 500];
+      }
+      BattleUI.remove();
+      Game.showRoom();
+    }, 800);
+    return true;
+  },
+
+  getDistance(p1, p2) {
+    const dx = p1[0] - p2[0];
+    const dy = p1[1] - p2[1];
+    return Math.sqrt(dx * dx + dy * dy);
+  },
+
+  clampToBattlefield(pos) {
+    if (!this.battlefield) return pos;
+    const [w, h] = this.battlefield.size;
+    return [
+      Math.max(10, Math.min(w - 10, pos[0])),
+      Math.max(10, Math.min(h - 10, pos[1]))
+    ];
+  },
+
+  setPlayerTask(task) {
+    this.playerTask = task;
+    if (this.paused && this.currentActor === 'player') {
+      this.paused = false;
+      this.executePlayerTask();
+    }
+  },
+
+  resume() {
+    this.paused = false;
   }
 };

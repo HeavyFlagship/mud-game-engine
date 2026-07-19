@@ -80,6 +80,15 @@ body {
   flex-shrink: 0;
   overflow-y: auto;
 }
+.battle-sidebar {
+  width: 240px;
+  background: var(--bg2);
+  border-right: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
 .sidebar-section {
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--rule);
