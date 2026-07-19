@@ -120,7 +120,6 @@ const CommandSystem = {
         this.runQuery(parsed, '战斗指令帮助', () => this.showBattleHelp()); break;
       case 'wait': case '等待':
         Battle.setPlayerTask({ type: 'wait' });
-        Battle.paused = false;
         break;
       default:
         Msg.warning('场景中可用指令：move/fire/aim/call/status/use/look/retreat/help/wait');
@@ -333,7 +332,7 @@ const CommandSystem = {
       else if (evt.type === 'enemy_turn') label = `${evt.actor}行动`;
       else if (evt.type === 'move_complete') label = `${evt.actor}移动完成`;
       else if (evt.type === 'attack_complete') label = `${evt.actor}攻击完成`;
-      info += `  +${offset}t - ${label}\n`;
+      info += `  +${offset}秒 - ${label}\n`;
     }
     Msg.info(info);
   },

@@ -192,7 +192,7 @@ const Game = {
       const w = Player.equipment[slot];
       const slotName = slot === 'primary' ? '主武器' : '副武器';
       if (w) {
-        Msg.info(`  ${slotName}: ${w.name} [伤害${w.damage} 射程${w.range}m 冷却${w.cooldown}t]`);
+        Msg.info(`  ${slotName}: ${w.name} [伤害${w.damage} 射程${w.range}m 冷却${w.cooldown}秒]`);
       } else {
         Msg.info(`  ${slotName}: （空）`);
       }
@@ -200,7 +200,7 @@ const Game = {
     if (Player.statusEffects.length > 0) {
       const effStr = Player.statusEffects.map(e => {
         const names = { slow:'减速', poison:'中毒', burn:'灼烧', shock:'电击', corrosion:'腐蚀', stun:'眩晕' };
-        return `${names[e.type] || e.type}(${e.duration.toFixed(0)}t)`;
+        return `${names[e.type] || e.type}(${e.duration.toFixed(0)}秒)`;
       }).join(' ');
       Msg.info(`状态效果: ${effStr}`);
     }

@@ -1,11 +1,11 @@
 // ========== 敌人 AI 系统 ==========
 const EnemyAI = {
-  update(enemy, battlefield) {
+  update(enemy, battlefield, delta = 1) {
     if (enemy.hp <= 0) return;
- 
+
     const distToPlayer = this.getDistance(enemy.position, Player.position);
     const canSeePlayer = distToPlayer <= enemy.visionRadius;
- 
+
     if (enemy.state === 'idle') {
       if (canSeePlayer) {
         enemy.state = 'alert';
@@ -14,7 +14,7 @@ const EnemyAI = {
         this.doPatrol(enemy, battlefield);
       }
     } else if (enemy.state === 'alert') {
-      enemy.alertTimer = (enemy.alertTimer || 0) - 1;
+      enemy.alertTimer = (enemy.alertTimer || 0) - delta;
       if (canSeePlayer) {
         enemy.state = 'pursue';
         enemy.alertTimer = 0;
@@ -28,7 +28,7 @@ const EnemyAI = {
         enemy.searchPos = [...Player.position];
       }
     } else if (enemy.state === 'search') {
-      enemy.searchTimer = (enemy.searchTimer || 0) - 1;
+      enemy.searchTimer = (enemy.searchTimer || 0) - delta;
       if (canSeePlayer) {
         enemy.state = 'pursue';
       } else if (enemy.searchTimer <= 0) {

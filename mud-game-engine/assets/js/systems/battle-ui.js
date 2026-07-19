@@ -2,12 +2,13 @@ const BattleUI = {
   container: null,
   timelineEl: null,
   historyEvents: [],
- 
+  currentActions: [],
+
   init() {
     this.updateRadar();
     setInterval(() => this.updateRadar(), 500);
   },
- 
+
   updateRadar() {
     const canvas = document.getElementById('radar-canvas');
     if (!canvas) return;
@@ -15,9 +16,9 @@ const BattleUI = {
     const w = canvas.width, h = canvas.height;
     const cx = w / 2, cy = h / 2;
     const scale = Math.min(w, h) / 1000;
- 
+
     ctx.clearRect(0, 0, w, h);
- 
+
     ctx.strokeStyle = '#1a4a1a';
     ctx.lineWidth = 0.5;
     ctx.beginPath();
@@ -33,13 +34,13 @@ const BattleUI = {
     ctx.moveTo(cx, 0); ctx.lineTo(cx, h);
     ctx.moveTo(0, cy); ctx.lineTo(w, cy);
     ctx.stroke();
- 
+
     let playerX = 500, playerY = 500;
     if (Battle.active && Battle.battlefield) {
       playerX = Player.position[0];
       playerY = Player.position[1];
     }
- 
+
     const px = cx + (playerX - 500) * scale;
     const py = cy + (playerY - 500) * scale;
     ctx.fillStyle = '#0ff';
@@ -51,7 +52,7 @@ const BattleUI = {
     ctx.beginPath();
     ctx.arc(px, py, 9, 0, Math.PI * 2);
     ctx.stroke();
- 
+
     if (Battle.active && Battle.battlefield) {
       for (const enemy of Battle.battlefield.enemies) {
         if (enemy.hp <= 0) continue;
@@ -59,7 +60,7 @@ const BattleUI = {
         if (dist > Player.visionRadius * 1.5) continue;
         const ex = cx + (enemy.position[0] - 500) * scale;
         const ey = cy + (enemy.position[1] - 500) * scale;
- 
+
         if (dist <= enemy.attackRange) {
           ctx.fillStyle = '#f44';
         } else if (enemy.state === 'pursue' || enemy.state === 'alert') {
@@ -67,11 +68,11 @@ const BattleUI = {
         } else {
           ctx.fillStyle = '#fd0';
         }
- 
+
         ctx.beginPath();
         ctx.arc(ex, ey, 4, 0, Math.PI * 2);
         ctx.fill();
- 
+
         ctx.fillStyle = '#fff';
         ctx.font = '9px monospace';
         ctx.textAlign = 'center';
@@ -97,7 +98,7 @@ const BattleUI = {
         }
       }
     }
- 
+
     const legendEl = document.getElementById('radar-legend');
     if (legendEl) {
       if (Battle.active) {
@@ -110,9 +111,10 @@ const BattleUI = {
       }
     }
   },
- 
+
   render() {
     this.historyEvents = [];
+    this.currentActions = [];
     this.update();
   },
 
@@ -122,6 +124,19 @@ const BattleUI = {
     if (this.historyEvents.length > 30) {
       this.historyEvents.pop();
     }
+  },
+
+  addCurrentAction(text, color = '#fff') {
+    const time = Battle.battlefield ? Battle.battlefield.time.toFixed(0) : '?';
+    this.currentActions.push({ time, text, color });
+    if (this.currentActions.length > 5) {
+      const oldest = this.currentActions.shift();
+      this.historyEvents.unshift(oldest);
+      if (this.historyEvents.length > 30) {
+        this.historyEvents.pop();
+      }
+    }
+    this.updateTimeline();
   },
 
   update() {
@@ -180,10 +195,12 @@ const BattleUI = {
     const content = document.getElementById('timeline-content');
     if (!content || !Battle.eventQueue || !Battle.battlefield) return;
 
-    let html = '<div style="color:#888;margin-bottom:4px;border-bottom:1px solid #333;padding-bottom:2px;">— 即将到来 —</div>';
+    let html = '';
 
-    const sorted = [...Battle.eventQueue].sort((a, b) => a.time - b.time).slice(0, 5);
-    for (const evt of sorted) {
+    const upcoming = [...Battle.eventQueue].sort((a, b) => a.time - b.time).slice(0, 5);
+    html += '<div class="timeline-section timeline-upcoming">';
+    html += '<div class="timeline-divider">— 即将到来 —</div>';
+    for (const evt of upcoming) {
       const timeOffset = (evt.time - Battle.battlefield.time).toFixed(0);
       let label = '';
       let color = '#aaa';
@@ -204,25 +221,40 @@ const BattleUI = {
         label = '通信完成';
         color = '#8cf';
       }
-      html += `<div style="color:${color};padding:1px 0;">+${timeOffset}t ${label}</div>`;
+      html += `<div class="timeline-item upcoming" style="color:${color};">+${timeOffset}秒 ${label}</div>`;
     }
+    if (upcoming.length === 0) {
+      html += '<div class="timeline-item upcoming" style="color:#555;">（无）</div>';
+    }
+    html += '</div>';
 
-    if (this.historyEvents.length > 0) {
-      html += '<div style="color:#888;margin:6px 0 4px;border-bottom:1px solid #333;padding-bottom:2px;">— 历史记录 —</div>';
-      for (const h of this.historyEvents.slice(0, 8)) {
-        html += `<div style="color:${h.color};padding:1px 0;opacity:0.7;">${h.time}t ${h.text}</div>`;
-      }
+    html += '<div class="timeline-section timeline-current">';
+    html += '<div class="timeline-divider current-divider">▶ 当前行动</div>';
+    for (const act of this.currentActions) {
+      html += `<div class="timeline-item current" style="color:${act.color};">${act.text}</div>`;
     }
+    if (this.currentActions.length === 0) {
+      html += '<div class="timeline-item current" style="color:#555;">（等待中）</div>';
+    }
+    html += '</div>';
+
+    html += '<div class="timeline-section timeline-history">';
+    html += '<div class="timeline-divider">— 历史记录 —</div>';
+    for (const h of this.historyEvents.slice(0, 8)) {
+      html += `<div class="timeline-item history" style="color:${h.color};opacity:0.7;">${h.time}秒 ${h.text}</div>`;
+    }
+    if (this.historyEvents.length === 0) {
+      html += '<div class="timeline-item history" style="color:#555;opacity:0.5;">（无）</div>';
+    }
+    html += '</div>';
 
     content.innerHTML = html;
   },
 
   remove() {
     this.historyEvents = [];
+    this.currentActions = [];
     this.clearBattlePanels();
     this.updateRadar();
   }
-};
-
-// battle.js  / workspace / mud - game - engine / assets / js / systems
-// ========== 战斗系统（时间轴模式） ==========
+};
