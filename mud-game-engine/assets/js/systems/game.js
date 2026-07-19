@@ -2,13 +2,14 @@
 const Game = {
   commandHistory: [],
   historyIndex: -1,
-
+ 
   init() {
     Msg.init();
     MapSystem.init();
     Player.init();
     Player.visitedRooms.add(Player.room);
-
+    BattleUI.init();
+ 
     const inputEl = document.getElementById('input');
     inputEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
@@ -36,12 +37,12 @@ const Game = {
         }
       }
     });
-
+ 
     this.showIntro();
     this.look();
     this.updateUI();
   },
-
+ 
   showIntro() {
     Msg.divider();
     Msg.story('═══════════════════════════════════════');
@@ -58,27 +59,27 @@ const Game = {
     Msg.system('提示: 输入 help 查看所有可用指令');
     Msg.divider();
   },
-
+ 
   look() {
     const room = MapSystem.getRoom(Player.room);
     if (!room) return;
     Msg.divider();
     Msg.add(`<span class="room-name">【${room.name}】</span>`, 'info');
     Msg.info(room.desc);
-
+ 
     const exits = Object.keys(room.exits || {});
     if (exits.length > 0) {
       const exitStr = exits.map(e => `<span class="direction">${MapSystem.getDirectionName(e)}</span>`).join('、');
       Msg.info(`出入口: ${exitStr}`);
     }
-
+ 
     if (room.npcs && room.npcs.length > 0) {
       room.npcs.forEach(nid => {
         const npc = NPCDB[nid];
         if (npc) Msg.info(`👤 <span class="npc-name">${npc.name}</span> - ${npc.title} 在这里。`);
       });
     }
-
+ 
     if (room.items && room.items.length > 0) {
       room.items.forEach((iid, idx) => {
         const item = ItemDB[iid];
@@ -89,27 +90,31 @@ const Game = {
       });
       if (room.items.length > 1) Msg.system('提示: 可输入 pick 编号 或 pick 物品名 拾取指定物品；直接输入 pick 会拾取全部。');
     }
-
+ 
     if (room.battlefield && room.battlefield.enemies && room.battlefield.enemies.length > 0) {
       const bf = MapSystem.initBattlefield(room.id);
       const alive = bf.enemies.filter(e => e.hp > 0).length;
       if (alive > 0) {
-        Msg.warn(`⚠ 探测到 ${alive} 个敌对单位信号！输入 fight 或 攻击 展开战斗。`);
+        Msg.warn(`⚠ 探测到 ${alive} 个敌对单位信号。`);
       } else {
         Msg.info('区域内已无敌对信号。');
       }
     }
-
+ 
     if (room.isShop) {
       Msg.info('🏪 这里是装备库。输入 <span class="help-cmd">shop</span> 查看商品。');
     }
   },
-
+ 
   move(direction) {
     const room = MapSystem.getRoom(Player.room);
     if (!room || !room.exits || !room.exits[direction]) {
       Msg.warning('这个方向无法通行。');
       return;
+    }
+    if (Battle.active) {
+      Battle.end();
+      BattleUI.remove();
     }
     const nextRoomId = room.exits[direction];
     Player.room = nextRoomId;
@@ -118,19 +123,16 @@ const Game = {
 
     const nextRoom = MapSystem.getRoom(nextRoomId);
     if (nextRoom && nextRoom.battlefield) {
-      const bf = MapSystem.initBattlefield(nextRoomId, MapSystem.getOppositeDirection(direction));
-      const alive = bf.enemies.filter(e => e.hp > 0).length;
-      if (alive > 0) {
-        this.look();
-        this.updateUI();
-        return;
-      }
+      this.look();
+      this.updateUI();
+      Battle.start(nextRoomId, MapSystem.getOppositeDirection(direction));
+      return;
     }
 
     this.look();
     this.updateUI();
   },
-
+ 
   showBag(showDetail = false) {
     Msg.divider();
     Msg.add('🎒 背包', 'info');
@@ -174,7 +176,7 @@ const Game = {
     });
     if (!showDetail) Msg.system('提示: 输入 bag -d 可查看物品描述详情。');
   },
-
+ 
   showStatus() {
     Msg.divider();
     Msg.add('📜 机体状态', 'info');
@@ -203,7 +205,7 @@ const Game = {
       Msg.info(`状态效果: ${effStr}`);
     }
   },
-
+ 
   showSkills() {
     Msg.divider();
     Msg.add('✨ 技能列表', 'info');
@@ -218,14 +220,14 @@ const Game = {
       });
     }
   },
-
+ 
   equip(itemName) {
     if (!itemName) { Msg.warning('请指定要装备的物品。'); return; }
     const item = this.findItemInBag(itemName);
     if (!item) { Msg.danger('背包中没有该物品。'); return; }
     const template = ItemDB[item.id];
     if (!template) return;
-
+ 
     if (template.type === 'weapon') {
       Player.equipWeapon(item.id, 'primary');
     } else if (template.type === 'armor') {
@@ -234,7 +236,7 @@ const Game = {
       Msg.danger('该物品无法装备。');
     }
   },
-
+ 
   unequip(slotName) {
     if (!slotName) {
       Msg.info('卸下装备用法: unequip 主武器/副武器/装甲');
@@ -252,14 +254,14 @@ const Game = {
     Player.equipment[slot] = null;
     Msg.success(`已卸下 ${item.name}。`);
   },
-
+ 
   useItem(itemName) {
     if (!itemName) { Msg.warning('请指定要使用的物品。'); return; }
     const item = this.findItemInBag(itemName);
     if (!item) { Msg.danger('背包中没有该物品。'); return; }
     const template = ItemDB[item.id];
     if (!template) return;
-
+ 
     if (template.type === 'consumable') {
       Player.removeItem(item.id);
       if (template.healHp) {
@@ -278,24 +280,30 @@ const Game = {
       Msg.warning('该物品无法直接使用。');
     }
   },
+ 
+  callNPC(npcName) {
+    if (Battle.active && Battle.battlefield) {
+      return;
+    }
+    this.talk(npcName);
+  },
 
-  fight(target) {
-    if (Battle.active) {
-      Msg.warning('你已经在战斗中了！');
+  handleCall(npcId) {
+    const npc = NPCDB[npcId];
+    if (!npc) {
+      Msg.error('未知的通信目标。');
       return;
     }
-    const room = MapSystem.getRoom(Player.room);
-    if (!room || !room.battlefield) {
-      Msg.warning('此区域无法展开战斗。');
-      return;
-    }
-    const bf = MapSystem.initBattlefield(room.id);
-    const alive = bf.enemies.filter(e => e.hp > 0).length;
-    if (alive === 0) {
-      Msg.info('区域内已无敌对信号。');
-      return;
-    }
-    Battle.start(room.id);
+    Msg.divider();
+    Msg.info(`📡 与 <span class="npc-name">${npc.name}</span> 建立通信连接...`);
+    setTimeout(() => {
+      Msg.info(`<span class="npc-name">${npc.name}</span> 说道：`);
+      const line = Utils.pick(npc.dialog.default);
+      Msg.story(`  "${line}"`);
+      if (npc.dialog.shop === 'shop') {
+        Msg.info(`  (输入 <span class="help-cmd">shop</span> 查看装备)`);
+      }
+    }, 300);
   },
 
   pickItem(itemName) {
@@ -335,7 +343,7 @@ const Game = {
       });
     }
   },
-
+ 
   dropItem(itemName) {
     if (!itemName) { Msg.warning('请指定要丢弃的物品。'); return; }
     const item = this.findItemInBag(itemName);
@@ -350,7 +358,7 @@ const Game = {
     }
     Msg.info(`丢弃了 <span class="item-tag ${template.type}">${template.name}</span>`);
   },
-
+ 
   talk(npcName) {
     const room = MapSystem.getRoom(Player.room);
     if (!room || !room.npcs || room.npcs.length === 0) {
@@ -361,7 +369,7 @@ const Game = {
       const npc = NPCDB[nid];
       return npc && (npc.name.includes(npcName) || nid === npcName);
     }) : room.npcs[0];
-
+ 
     if (!npcId) { Msg.danger('没有找到这个人。'); return; }
     const npc = NPCDB[npcId];
     Msg.divider();
@@ -380,7 +388,7 @@ const Game = {
       }
     }
   },
-
+ 
   shop(action) {
     const room = MapSystem.getRoom(Player.room);
     if (!room || !room.isShop) {
@@ -400,7 +408,7 @@ const Game = {
     if (!shopNpc) {
       shopNpc = { shopItems: ['repair_kit_small','armor_patch','auto_cannon_mk1','light_alloy_plate'] };
     }
-
+ 
     if (action === 'list' || !action) {
       Msg.divider();
       Msg.add(`🏪 ${shopNpc.name || '装备库'} 的商品`, 'info');
@@ -437,7 +445,7 @@ const Game = {
       Msg.success(`💰 购买了 <span class="item-tag ${targetItem.type}">${targetItem.name}</span>，花费 ${targetItem.price}G`);
     }
   },
-
+ 
   sell(itemName) {
     if (!itemName) { Msg.warning('请指定要出售的物品。'); return; }
     const item = this.findItemInBag(itemName);
@@ -449,7 +457,7 @@ const Game = {
     Player.gold += sellPrice;
     Msg.success(`💰 出售了 <span class="item-tag ${template.type}">${template.name}</span>，获得 ${sellPrice}G`);
   },
-
+ 
   castOutside(skillName) {
     if (!skillName) { this.showSkills(); return; }
     let skill = null;
@@ -459,7 +467,7 @@ const Game = {
     if (!skill || !Player.skills.includes(skill.id)) { Msg.danger('未知技能或尚未习得。'); return; }
     Msg.info('技能系统待完善。');
   },
-
+ 
   showStats() {
     Msg.divider();
     Msg.add('📊 任务统计', 'info');
@@ -476,7 +484,7 @@ const Game = {
       }
     }
   },
-
+ 
   showMap() {
     Msg.divider();
     Msg.add('🗺 区域地图', 'info');
@@ -488,7 +496,7 @@ const Game = {
     });
     Msg.system('提示: 绿色=全部探索 黄色=部分 红色=未探索');
   },
-
+ 
   showHelp(topic) {
     Msg.divider();
     Msg.add('📖 指令帮助', 'info');
@@ -515,10 +523,10 @@ const Game = {
       combat: {
         title: '⚔ 战斗指令',
         items: [
-          ['fight/kill', '展开战斗'],
           ['move <方向/坐标>', '移动机体'],
-          ['fire <目标>', '攻击敌人'],
+          ['fire <目标>', '攻击敌人（开火后进入战斗状态）'],
           ['aim <目标>', '瞄准并查看目标'],
+          ['call <目标>', '与 NPC 通信（需接近）'],
           ['timeline', '查看时间轴'],
           ['wait', '等待'],
           ['retreat', '撤退'],
@@ -537,8 +545,7 @@ const Game = {
       npc: {
         title: '💬 NPC互动',
         items: [
-          ['talk [NPC名]', '与NPC对话'],
-          ['talk 任务', '向NPC询问任务'],
+          ['call [NPC名]', '与NPC通信（需接近）'],
           ['shop/buy', '查看/购买装备'],
           ['sell [物品名]', '出售物品(半价)'],
         ]
@@ -552,7 +559,7 @@ const Game = {
         ]
       }
     };
-
+ 
     if (topic && helps[topic]) {
       const h = helps[topic];
       Msg.add(h.title, 'info');
@@ -567,10 +574,10 @@ const Game = {
         });
         Msg.info('');
       });
-      Msg.system('提示: 战斗中支持时间轴回合制，输入 fight 展开战斗');
+      Msg.system('提示: 进入战场场景自动开启时间轴，开火或被攻击后进入战斗状态');
     }
   },
-
+ 
   save() {
     const data = {
       name: Player.name,
@@ -600,7 +607,7 @@ const Game = {
       Msg.danger('保存失败！');
     }
   },
-
+ 
   load() {
     try {
       const raw = localStorage.getItem('mud_save');
@@ -637,26 +644,26 @@ const Game = {
       console.error(e);
     }
   },
-
+ 
   findItemInBag(name) {
     return Player.inventory.find(i => {
       const item = ItemDB[i.id];
       return item && (item.name === name || i.id === name);
     });
   },
-
+ 
   showRoom() {
     this.look();
     this.updateUI();
   },
-
+ 
   updateUI() {
     this.updatePlayerInfo();
     this.updateEquipInfo();
     this.updateMinimap();
     this.updateLocation();
   },
-
+ 
   updatePlayerInfo() {
     const el = document.getElementById('player-info');
     if (!el) return;
@@ -679,7 +686,7 @@ const Game = {
       <div class="stat-row"><span class="stat-label">资金</span><span class="stat-value gold">${Player.gold}G</span></div>
     `;
   },
-
+ 
   updateEquipInfo() {
     const el = document.getElementById('equip-info');
     if (!el) return;
@@ -696,7 +703,7 @@ const Game = {
       return `<div class="equip-slot"><span class="equip-slot-name">${s.label}</span>${itemStr}</div>`;
     }).join('');
   },
-
+ 
   updateMinimap() {
     const el = document.getElementById('minimap');
     if (!el) return;
@@ -705,7 +712,7 @@ const Game = {
     if (!currentRoom) return;
     const currentZ = currentRoom.z || 0;
     if (levelEl) levelEl.textContent = `当前高度：${MapSystem.getLevelName(currentZ)}`;
-
+ 
     const roomsOnLevel = Object.values(MapSystem.rooms).filter(room => (room.z || 0) === currentZ);
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const room of roomsOnLevel) {
@@ -714,7 +721,7 @@ const Game = {
         minY = Math.min(minY, room.y); maxY = Math.max(maxY, room.y);
       }
     }
-
+ 
     const offsetX = currentRoom.x - 2;
     const offsetY = currentRoom.y - 2;
     const dirInfo = {
@@ -733,7 +740,7 @@ const Game = {
       }
       return borderStyles.join(';');
     };
-
+ 
     let html = '';
     for (let dy = 0; dy < 5; dy++) {
       for (let dx = 0; dx < 5; dx++) {
@@ -758,7 +765,7 @@ const Game = {
     }
     el.innerHTML = html;
   },
-
+ 
   updateLocation() {
     const room = MapSystem.getRoom(Player.room);
     const el = document.getElementById('location-info');
@@ -768,3 +775,4 @@ const Game = {
     }
   }
 };
+

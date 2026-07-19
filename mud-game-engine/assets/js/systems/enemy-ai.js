@@ -2,10 +2,10 @@
 const EnemyAI = {
   update(enemy, battlefield) {
     if (enemy.hp <= 0) return;
-
+ 
     const distToPlayer = this.getDistance(enemy.position, Player.position);
     const canSeePlayer = distToPlayer <= enemy.visionRadius;
-
+ 
     if (enemy.state === 'idle') {
       if (canSeePlayer) {
         enemy.state = 'alert';
@@ -36,12 +36,12 @@ const EnemyAI = {
       }
     }
   },
-
+ 
   takeTurn(enemy, battlefield) {
     if (enemy.hp <= 0) return;
-
+ 
     const distToPlayer = this.getDistance(enemy.position, Player.position);
-
+ 
     if (enemy.state === 'pursue' || enemy.state === 'alert') {
       if (distToPlayer <= enemy.attackRange && enemy.attackTimer <= 0) {
         Battle.enemyAttack(enemy, Player.position);
@@ -67,7 +67,7 @@ const EnemyAI = {
       Battle.scheduleNextEnemyTurn(enemy);
     }
   },
-
+ 
   moveTowardPlayer(enemy, battlefield) {
     const dx = Player.position[0] - enemy.position[0];
     const dy = Player.position[1] - enemy.position[1];
@@ -80,7 +80,7 @@ const EnemyAI = {
     ];
     Battle.startEnemyMove(enemy, newPos);
   },
-
+ 
   moveToward(enemy, target, battlefield) {
     const dx = target[0] - enemy.position[0];
     const dy = target[1] - enemy.position[1];
@@ -93,11 +93,11 @@ const EnemyAI = {
     ];
     Battle.startEnemyMove(enemy, newPos);
   },
-
+ 
   doPatrol(enemy, battlefield) {
     if (!enemy.patrolPath || enemy.patrolPath.length === 0) return;
   },
-
+ 
   doPatrolMove(enemy, battlefield) {
     if (!enemy.patrolPath || enemy.patrolPath.length === 0) {
       Battle.scheduleNextEnemyTurn(enemy);
@@ -112,10 +112,11 @@ const EnemyAI = {
       this.moveToward(enemy, target, battlefield);
     }
   },
-
+ 
   getDistance(p1, p2) {
     const dx = p1[0] - p2[0];
     const dy = p1[1] - p2[1];
     return Math.sqrt(dx * dx + dy * dy);
   }
 };
+

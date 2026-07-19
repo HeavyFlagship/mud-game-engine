@@ -39,7 +39,7 @@ const Player = {
   level: 1,
   exp: 0,
   expToNext: 50,
-
+ 
   get atk() {
     let base = 0;
     if (this.equipment.primary && this.equipment.primary.damage) {
@@ -47,7 +47,7 @@ const Player = {
     }
     return base;
   },
-
+ 
   get def() {
     let d = 0;
     if (this.equipment.armor && this.equipment.armor.armorValue) {
@@ -55,7 +55,7 @@ const Player = {
     }
     return d;
   },
-
+ 
   get currentSpeed() {
     const room = MapSystem.getRoom(this.room);
     let penalty = 1.0;
@@ -71,12 +71,12 @@ const Player = {
     }
     return Math.max(0.5, speed);
   },
-
+ 
   getChassisType() {
     const v = VehicleDB[this.vehicleId];
     return v ? v.chassis : 'biped';
   },
-
+ 
   init() {
     const vehicle = VehicleDB.scout;
     if (vehicle) {
@@ -108,7 +108,7 @@ const Player = {
     this.inventory.push({ id:'repair_kit_small', count:2 });
     this.inventory.push({ id:'armor_patch', count:2 });
   },
-
+ 
   gainExp(amount) {
     this.exp += amount;
     while (this.exp >= this.expToNext) {
@@ -124,7 +124,7 @@ const Player = {
       Msg.info(`结构值+${hpUp}`);
     }
   },
-
+ 
   addItem(id, count = 1) {
     const existing = this.inventory.find(i => i.id === id);
     if (existing) {
@@ -133,7 +133,7 @@ const Player = {
       this.inventory.push({ id, count });
     }
   },
-
+ 
   removeItem(id, count = 1) {
     const idx = this.inventory.findIndex(i => i.id === id);
     if (idx === -1) return false;
@@ -142,11 +142,11 @@ const Player = {
     if (this.inventory[idx].count <= 0) this.inventory.splice(idx, 1);
     return true;
   },
-
+ 
   hasItem(id) {
     return this.inventory.some(i => i.id === id && i.count > 0);
   },
-
+ 
   equipWeapon(weaponId, slot = 'primary') {
     const weapon = WeaponDB[weaponId];
     if (!weapon) return false;
@@ -159,7 +159,7 @@ const Player = {
     Msg.success(`装备了 ${weapon.name} 到${slot === 'primary' ? '主武器' : '副武器'}槽位！`);
     return true;
   },
-
+ 
   equipArmor(armorId) {
     const armor = ArmorDB[armorId];
     if (!armor) return false;
@@ -173,7 +173,7 @@ const Player = {
     Msg.success(`装备了 ${armor.name}！`);
     return true;
   },
-
+ 
   takeDamage(dmg, damageType = 'kinetic') {
     let remaining = dmg;
     let armorDmg = 0;
@@ -199,34 +199,34 @@ const Player = {
     this.hp = Math.max(0, this.hp - hpDmg);
     return { total: dmg, armor: armorDmg, hp: hpDmg };
   },
-
+ 
   heal(amount) {
     const before = this.hp;
     this.hp = Math.min(this.maxHp, this.hp + amount);
     this.stats.totalHeal += this.hp - before;
     return this.hp - before;
   },
-
+ 
   repairArmor(amount) {
     const before = this.armor;
     this.armor = Math.min(this.maxArmor, this.armor + amount);
     return this.armor - before;
   },
-
+ 
   restoreEnergy(amount) {
     const before = this.energy;
     this.energy = Math.min(this.maxEnergy, this.energy + amount);
     return this.energy - before;
   },
-
+ 
   useEnergy(amount) {
     if (this.energy < amount) return false;
     this.energy -= amount;
     return true;
   },
-
+ 
   isDead() { return this.hp <= 0; },
-
+ 
   respawn() {
     this.hp = Math.floor(this.maxHp * 0.5);
     this.armor = Math.floor(this.maxArmor * 0.5);
@@ -238,3 +238,5 @@ const Player = {
     this.weaponCooldowns = { primary: 0, secondary: 0 };
   }
 };
+
+

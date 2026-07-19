@@ -1,6 +1,7 @@
-// ========== 战斗系统（时间轴模式） ==========
+// ========== 战斗系统（场景时间轴 + 战斗状态标记） ==========
 const Battle = {
   active: false,
+  combatActive: false,
   roomId: null,
   battlefield: null,
   eventQueue: [],
@@ -15,7 +16,8 @@ const Battle = {
   start(roomId, entryDir = 'south') {
     const room = MapSystem.getRoom(roomId);
     if (!room || !room.battlefield) {
-      Msg.error('此区域无法展开战斗。');
+      this.active = false;
+      this.combatActive = false;
       return false;
     }
 
@@ -28,15 +30,22 @@ const Battle = {
     }
 
     this.active = true;
+    this.combatActive = false;
     this.paused = false;
     this.eventQueue = [];
     this.playerAiming = null;
     this.playerTask = null;
 
     Msg.divider();
-    Msg.warn(`⚔ 进入战斗：${room.name}`);
+    Msg.info(`📍 进入场景：${room.name}`);
     Msg.info(`地形：${MapSystem.getTerrainName(this.battlefield.terrain)}`);
-    Msg.info(`敌人数量：${this.battlefield.enemies.length}`);
+    const aliveEnemies = this.battlefield.enemies.filter(e => e.hp > 0).length;
+    if (aliveEnemies > 0) {
+      Msg.warn(`⚠ 探测到 ${aliveEnemies} 个敌对单位信号（开火或被攻击后进入战斗状态）。`);
+    }
+    if (this.battlefield.npcs && this.battlefield.npcs.length > 0) {
+      Msg.info(`📡 检测到 ${this.battlefield.npcs.length} 个友好信号，使用 <span class="help-cmd">call</span> 通信（需先接近）。`);
+    }
 
     this.buildInitialTimeline();
     this.startTickLoop();
@@ -46,6 +55,7 @@ const Battle = {
 
   end() {
     this.active = false;
+    this.combatActive = false;
     this.stopTickLoop();
     this.battlefield = null;
     this.roomId = null;
@@ -53,6 +63,20 @@ const Battle = {
     this.currentActor = null;
     this.playerAiming = null;
     this.playerTask = null;
+    this.paused = false;
+  },
+
+  enterCombat(reason = '') {
+    if (this.combatActive) return;
+    this.combatActive = true;
+    Msg.warn(`⚔ 进入战斗状态！${reason}`);
+    BattleUI.addHistory(`进入战斗状态 ${reason}`, '#f55');
+  },
+
+  exitCombat() {
+    if (!this.combatActive) return;
+    this.combatActive = false;
+    Msg.info('⛑ 脱离战斗状态，场景时间轴继续运行。');
   },
 
   startTickLoop() {
@@ -187,6 +211,8 @@ const Battle = {
           this.scheduleNextEnemyTurn(enemy);
         }
       }
+    } else if (event.type === 'npc_call') {
+      this.onNPCCall(event.npcId);
     }
   },
 
@@ -197,7 +223,10 @@ const Battle = {
       this.executePlayerTask();
     } else {
       this.paused = true;
-      Msg.prompt('> 等待指令（输入 move/fire/aim/use/status/retreat 等）');
+      const hint = this.combatActive
+        ? '> 战斗中（输入 move/fire/aim/use/status/retreat 等）'
+        : '> 场景中（输入 move/call/fire/status/look 等）';
+      Msg.prompt(hint);
     }
   },
 
@@ -214,6 +243,8 @@ const Battle = {
       this.startPlayerMove(task.target);
     } else if (task.type === 'attack') {
       this.playerAttack(task.target, task.slot);
+    } else if (task.type === 'call') {
+      this.scheduleEvent({ type: 'npc_call', actor: 'player', npcId: task.npcId }, 5);
     }
   },
 
@@ -275,6 +306,8 @@ const Battle = {
       return;
     }
 
+    this.enterCombat(`开火攻击 ${enemy.name}[${enemy.instanceId}]`);
+
     const hitRate = this.calculateHitRate(Player, enemy, weapon, dist);
     const hit = Math.random() < hitRate;
 
@@ -288,13 +321,15 @@ const Battle = {
       dmg = result.total;
       Msg.damage(`💥 ${weapon.name} 命中 ${enemy.name}[${enemy.instanceId}]！` +
         `装甲-${result.armor} 结构-${result.hp} (${dmg}总伤害)`);
+      BattleUI.addHistory(`你攻击 ${enemy.name}[${enemy.instanceId}] 命中 ${dmg}伤害`, '#4f4');
       Player.stats.totalDmg += dmg;
 
       if (enemy.hp <= 0) {
         this.onEnemyKilled(enemy);
       }
     } else {
-      Msg.miss(`❌ ${weapon.name} 未命中 ${enemy.name}[${enemy.instanceId}] (命中率 ${(hitRate*100).toFixed(0)}%)`);
+      Msg.miss(`❌ ${weapon.name} 未命中 ${enemy.name}[${enemy.instanceId}] (命中率 ${(hitRate * 100).toFixed(0)}%)`);
+      BattleUI.addHistory(`你攻击 ${enemy.name}[${enemy.instanceId}] 未命中`, '#fa2');
     }
 
     this.playerTask = null;
@@ -372,6 +407,7 @@ const Battle = {
 
   onEnemyKilled(enemy) {
     Msg.success(`🎯 击毁 ${enemy.name}[${enemy.instanceId}]！`);
+    BattleUI.addHistory(`击毁 ${enemy.name}[${enemy.instanceId}]`, '#fc0');
     Player.stats.monstersKilled++;
     Player.killCount[enemy.templateId] = (Player.killCount[enemy.templateId] || 0) + 1;
     Player.gainExp(enemy.exp);
@@ -382,6 +418,7 @@ const Battle = {
           Player.addItem(l.item, count);
           const item = ItemDB[l.item];
           Msg.loot(`获得战利品：${item ? item.name : l.item} x${count}`);
+          BattleUI.addHistory(`获得 ${item ? item.name : l.item} x${count}`, '#f8f');
         }
       }
     }
@@ -408,6 +445,8 @@ const Battle = {
     const dist = this.getDistance(enemy.position, Player.position);
     if (dist > enemy.attackRange) return;
 
+    this.enterCombat(`${enemy.name}[${enemy.instanceId}] 发起攻击`);
+
     const hitRate = this.calculateEnemyHitRate(enemy, dist);
     const hit = Math.random() < hitRate;
 
@@ -419,12 +458,14 @@ const Battle = {
       const result = Player.takeDamage(baseDmg, enemy.damageType);
       Msg.damageEnemy(`💀 ${enemy.name}[${enemy.instanceId}] 攻击命中！` +
         `装甲-${result.armor} 结构-${result.hp} (${result.total}总伤害)`);
+      BattleUI.addHistory(`${enemy.name}[${enemy.instanceId}] 攻击你 命中 ${result.total}伤害`, '#f66');
 
       if (Player.isDead()) {
         this.onPlayerDeath();
       }
     } else {
-      Msg.missEnemy(`➖ ${enemy.name}[${enemy.instanceId}] 攻击未命中 (命中率 ${(hitRate*100).toFixed(0)}%)`);
+      Msg.missEnemy(`➖ ${enemy.name}[${enemy.instanceId}] 攻击未命中 (命中率 ${(hitRate * 100).toFixed(0)}%)`);
+      BattleUI.addHistory(`${enemy.name}[${enemy.instanceId}] 攻击你 未命中`, '#f88');
     }
 
     this.scheduleEvent({ type: 'attack_complete', actor: enemy.instanceId }, enemy.attackCooldown);
@@ -466,29 +507,33 @@ const Battle = {
   checkWinLoss() {
     if (!this.battlefield) return;
     const aliveEnemies = this.battlefield.enemies.filter(e => e.hp > 0);
-    if (aliveEnemies.length === 0) {
-      this.onBattleWin();
+    if (aliveEnemies.length === 0 && this.combatActive) {
+      this.onAreaCleared();
     }
   },
 
-  onBattleWin() {
+  onAreaCleared() {
     Msg.divider();
-    Msg.success('🏆 区域清空！所有敌人已被消灭。');
-    this.paused = true;
-    setTimeout(() => {
-      this.end();
-      Msg.info('你可以继续探索或返回基地。');
-      BattleUI.remove();
-      Game.showRoom();
-    }, 1000);
+    Msg.success('🏆 区域敌对信号清空！');
+    this.exitCombat();
+    Msg.info('场景时间轴继续运行，你可以通信、移动或前往下一区域。');
+  },
+
+  onNPCCall(npcId) {
+    if (typeof Game !== 'undefined' && Game.handleCall) {
+      Game.handleCall(npcId);
+    }
+    this.playerTask = null;
+    this.scheduleNextPlayerTurn();
   },
 
   retreat() {
     if (!this.active) return false;
     Msg.warn('撤退中...');
     this.paused = true;
+    const self = this;
     setTimeout(() => {
-      this.end();
+      self.end();
       const room = MapSystem.getRoom(Player.room);
       const dirs = Object.keys(room.exits || {});
       if (dirs.length > 0) {

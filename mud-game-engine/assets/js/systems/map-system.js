@@ -4,7 +4,7 @@ const MapSystem = {
   areas: [],
   changes: {},
   battlefieldState: {},
-
+ 
   init() {
     this.rooms = JSON.parse(JSON.stringify(MapDB.rooms));
     this.areas = JSON.parse(JSON.stringify(MapDB.areas));
@@ -28,7 +28,7 @@ const MapSystem = {
     }
     this.battlefieldState = {};
   },
-
+ 
   applyChanges(savedChanges) {
     if (!savedChanges) return;
     this.changes = JSON.parse(JSON.stringify(savedChanges));
@@ -55,7 +55,7 @@ const MapSystem = {
       }
     }
   },
-
+ 
   recordChange(roomId, type, itemId) {
     if (!this.changes[roomId]) this.changes[roomId] = { removedItems: [], addedItems: [] };
     if (type === 'remove') {
@@ -64,41 +64,41 @@ const MapSystem = {
       this.changes[roomId].addedItems.push(itemId);
     }
   },
-
+ 
   getRoom(id) {
     const room = this.rooms[id];
     if (room && room.z === undefined) room.z = 0;
     return room;
   },
-
+ 
   getRoomLabel(room) {
     return room.label || room.name.slice(0, 1);
   },
-
+ 
   getDirectionName(dir) {
     const names = { north:'北方', south:'南方', east:'东方', west:'西方', up:'上方', down:'下方' };
     return names[dir] || dir;
   },
-
+ 
   getLevelName(z) {
     if (z === 0) return '地表';
     if (z < 0) return `地下 ${Math.abs(z)} 层`;
     return `高处 ${z} 层`;
   },
-
+ 
   getOppositeDirection(dir) {
     const map = { north:'south', south:'north', east:'west', west:'east', up:'down', down:'up' };
     return map[dir] || 'south';
   },
-
+ 
   initBattlefield(roomId, entryDir) {
     const room = this.getRoom(roomId);
     if (!room || !room.battlefield) return null;
-
+ 
     if (this.battlefieldState[roomId]) {
       return this.battlefieldState[roomId];
     }
-
+ 
     const bf = room.battlefield;
     const state = {
       roomId,
@@ -109,6 +109,7 @@ const MapSystem = {
       hazards: JSON.parse(JSON.stringify(bf.hazards || [])),
       lootPoints: JSON.parse(JSON.stringify(bf.lootPoints || [])),
       enemies: [],
+      npcs: [],
       patrolTimers: [],
       time: 0
     };
@@ -119,10 +120,27 @@ const MapSystem = {
     }
     state.entryPos = entryPos;
 
+    if (room.npcs && room.npcs.length > 0) {
+      const npcCount = room.npcs.length;
+      const spacing = Math.min(200, Math.floor(800 / (npcCount + 1)));
+      const startX = 500 - ((npcCount - 1) * spacing) / 2;
+      room.npcs.forEach((nid, idx) => {
+        const npc = NPCDB[nid];
+        if (!npc) return;
+        state.npcs.push({
+          instanceId: 'N' + (idx + 1),
+          npcId: nid,
+          name: npc.name,
+          position: [startX + idx * spacing, 500],
+          facing: 0
+        });
+      });
+    }
+ 
     let instanceIdCounter = 0;
     const categoryLabels = {};
     const categoryCounts = {};
-
+ 
     if (bf.enemies && bf.enemies.length > 0) {
       bf.enemies.forEach((spawn, idx) => {
         const template = EnemyDB[spawn.enemyId];
@@ -169,19 +187,19 @@ const MapSystem = {
         instanceIdCounter++;
       });
     }
-
+ 
     this.battlefieldState[roomId] = state;
     return state;
   },
-
+ 
   getBattlefield(roomId) {
     return this.battlefieldState[roomId] || null;
   },
-
+ 
   resetBattlefield(roomId) {
     delete this.battlefieldState[roomId];
   },
-
+ 
   getTerrainName(terrainType) {
     const names = {
       flat: '平坦地面',
@@ -194,3 +212,4 @@ const MapSystem = {
     return names[terrainType] || terrainType;
   }
 };
+

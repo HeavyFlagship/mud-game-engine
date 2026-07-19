@@ -28,3 +28,4 @@ const NPCDB = {
     shopItems: ['repair_kit_small','armor_patch','light_alloy_plate']
   }
 };
+

@@ -5,13 +5,13 @@ const CommandSystem = {
     l:'look', '?':'help', h:'help',
     inv:'bag', i:'bag',
     sta:'status',
-    k:'kill', atk:'kill',
+    k:'kill', atk:'fire',
     u:'use', dr:'drink',
     eq:'equip', wp:'equip',
     ue:'unequip', rm:'unequip',
     sk:'skills',
     sh:'shop', buy:'shop',
-    tl:'talk', sp:'talk',
+    call:'call', 通信:'call', hailing:'call',
     p:'pick', g:'get',
     d:'drop',
     sc:'score', st:'stats',
@@ -20,7 +20,7 @@ const CommandSystem = {
     tm:'timeline', tl_b:'timeline',
     re:'retreat', rt:'retreat'
   },
-
+ 
   parse(input) {
     input = input.trim().toLowerCase();
     if (!input) return null;
@@ -29,21 +29,21 @@ const CommandSystem = {
     const args = parts.slice(1);
     return { cmd, args, raw: input };
   },
-
+ 
   runQuery(parsed, title, callback) {
     Msg.withQuery(title, parsed.raw, callback);
   },
-
+ 
   execute(input) {
     const parsed = this.parse(input);
     if (!parsed) return;
     Msg.cmd(`> ${parsed.raw}`);
-
+ 
     if (Battle.active) {
       this.handleBattleCmd(parsed);
       return;
     }
-
+ 
     switch (parsed.cmd) {
       case 'north': case 'south': case 'east': case 'west':
       case 'up': case 'down': case '上': case '下':
@@ -62,13 +62,11 @@ const CommandSystem = {
         Game.useItem(parsed.args.join(' ')); break;
       case 'skills': case '技能':
         this.runQuery(parsed, '技能列表', () => Game.showSkills()); break;
-      case 'kill': case '攻击': case 'fight':
-        Game.fight(parsed.args.join(' ')); break;
       case 'pick': case 'get': case '拾取':
         Game.pickItem(parsed.args.join(' ')); break;
       case 'drop': case '丢弃':
         Game.dropItem(parsed.args.join(' ')); break;
-      case 'talk': case '对话':
+      case 'talk': case '对话': case 'call': case '通信':
         Game.talk(parsed.args.join(' ')); break;
       case 'shop': case '商店': case 'buy': case '购买':
         Game.shop(parsed.args[0] || 'list'); break;
@@ -93,7 +91,7 @@ const CommandSystem = {
     }
     Game.updateUI();
   },
-
+ 
   handleBattleCmd(parsed) {
     switch (parsed.cmd) {
       case 'move': case 'go':
@@ -102,6 +100,8 @@ const CommandSystem = {
         this.cmdBattleFire(parsed.args); break;
       case 'aim': case '瞄准':
         this.cmdBattleAim(parsed.args); break;
+      case 'call': case 'talk': case '对话': case '通信':
+        this.cmdBattleCall(parsed.args); break;
       case 'retreat': case 'flee': case '撤退':
         Battle.retreat(); break;
       case 'timeline':
@@ -123,8 +123,41 @@ const CommandSystem = {
         Battle.paused = false;
         break;
       default:
-        Msg.warning('战斗中可用指令：move/fire/aim/status/use/look/retreat/help/wait');
+        Msg.warning('场景中可用指令：move/fire/aim/call/status/use/look/retreat/help/wait');
     }
+  },
+ 
+  cmdBattleCall(args) {
+    if (!Battle.active || !Battle.battlefield) return;
+    if (!args[0]) {
+      const npcs = Battle.battlefield.npcs || [];
+      if (npcs.length === 0) {
+        Msg.info('本场景没有可通信的 NPC。');
+        return;
+      }
+      let info = '可通信 NPC：\n';
+      for (const n of npcs) {
+        const dist = Battle.getDistance(Player.position, n.position);
+        const inRange = dist <= 100;
+        info += `  ${n.instanceId} - ${n.name} (距离${dist.toFixed(0)}m) ${inRange ? '[通信可达]' : '[需接近]'}\n`;
+      }
+      info += '用法：call <编号或名字>  (需距离 ≤ 100m)';
+      Msg.info(info);
+      return;
+    }
+    const target = args[0].toUpperCase();
+    const npcs = Battle.battlefield.npcs || [];
+    const npc = npcs.find(n => n.instanceId === target || n.name === args[0]);
+    if (!npc) {
+      Msg.error(`未找到目标 ${args[0]}`);
+      return;
+    }
+    const dist = Battle.getDistance(Player.position, npc.position);
+    if (dist > 100) {
+      Msg.error(`距离 ${npc.name} 太远（${dist.toFixed(0)}m），需接近至 100m 以内才能通信。`);
+      return;
+    }
+    Battle.setPlayerTask({ type: 'call', npcId: npc.npcId });
   },
 
   cmdBattleMove(args) {
@@ -155,7 +188,7 @@ const CommandSystem = {
     }
     Battle.setPlayerTask({ type: 'move', target: [targetX, targetY] });
   },
-
+ 
   cmdBattleFire(args) {
     if (!Battle.active || !Battle.battlefield) return;
     if (args.length < 1) {
@@ -187,7 +220,7 @@ const CommandSystem = {
     }
     Battle.setPlayerTask({ type: 'attack', target: targetId, slot });
   },
-
+ 
   cmdBattleAim(args) {
     if (!Battle.active || !Battle.battlefield) return;
     if (args.length < 1) {
@@ -213,7 +246,7 @@ const CommandSystem = {
     }
     Msg.info(info);
   },
-
+ 
   cmdBattleLook() {
     if (!Battle.active || !Battle.battlefield) return;
     const bf = Battle.battlefield;
@@ -237,7 +270,7 @@ const CommandSystem = {
     }
     Msg.info(info);
   },
-
+ 
   getStateName(state) {
     const names = {
       idle:'待机', alert:'警戒', pursue:'追击',
@@ -246,7 +279,7 @@ const CommandSystem = {
     };
     return names[state] || state;
   },
-
+ 
   cmdTimeline() {
     if (!Battle.active || !Battle.eventQueue) return;
     const sorted = [...Battle.eventQueue].sort((a,b) => a.time - b.time).slice(0, 10);
@@ -262,13 +295,14 @@ const CommandSystem = {
     }
     Msg.info(info);
   },
-
+ 
   showBattleHelp() {
-    const help = `战斗指令：
+    const help = `场景指令：
   move <x> <y>     - 移动到指定坐标
   move <方向> <距离> - 向方向移动 (n/s/e/w/ne/nw/se/sw)
   fire <目标> [槽] - 攻击目标 (目标如A1，槽:primary/secondary)
   aim <目标>       - 瞄准并查看目标信息
+  call <目标>      - 与 NPC 通信（需距离 ≤ 100m）
   use <物品>       - 使用物品
   status / bag     - 查看状态/背包
   look             - 查看战场
@@ -279,3 +313,4 @@ const CommandSystem = {
     Msg.info(help);
   }
 };
+
