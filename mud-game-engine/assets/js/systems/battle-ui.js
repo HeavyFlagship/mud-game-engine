@@ -298,9 +298,9 @@ const BattleUI = {
         </div>
         <div class="unit-card-sub" style="color:var(--muted-bright);">${npcDef.title || ''}</div>
         <div class="unit-quick-actions">
-          <button class="quick-action-btn" onclick="BattleUI.execCmd('move ${id}')" title="移动到附近">move</button>
-          <button class="quick-action-btn call${callDisabled}" onclick="BattleUI.execCmd('call ${id}')"${callDisabled ? ' disabled' : ''} title="通信">call</button>
-          <button class="quick-action-btn" onclick="BattleUI.execCmd('look ${id}')" title="查看">look</button>
+          <button class="quick-action-btn" onclick="BattleUI.execCmd('move ${id}')" title="移动到附近">移动</button>
+          <button class="quick-action-btn call${callDisabled}" onclick="BattleUI.execCmd('call ${id}')"${callDisabled ? ' disabled' : ''} title="通信">通信</button>
+          <button class="quick-action-btn" onclick="BattleUI.execCmd('look ${id}')" title="查看">查看</button>
         </div>
       </div>`;
     }
@@ -372,9 +372,16 @@ const BattleUI = {
       this.clearBattlePanels();
       return;
     }
+    this.updateBattleTime();
     this.updateUnitList();
     this.updateEnemyList();
     this.updateTimeline();
+  },
+
+  updateBattleTime() {
+    const el = document.getElementById('battle-time');
+    if (!el || !Battle.battlefield) return;
+    el.textContent = this.formatGameTime(Battle.battlefield.time, 'hh:mm:ss');
   },
 
   clearBattlePanels() {
@@ -421,9 +428,9 @@ const BattleUI = {
           <div style="width:${arPct}%;height:7px;background:#88f;border-radius:2px;"></div></div>
         </span>
         <div class="unit-quick-actions">
-          <button class="quick-action-btn fire${fireDisabled}" onclick="BattleUI.execCmd('fire ${id}')"${fireDisabled ? ' disabled' : ''} title="开火">fire</button>
-          <button class="quick-action-btn" onclick="BattleUI.execCmd('move ${id}')"${dead ? ' disabled' : ''} title="靠近">move</button>
-          <button class="quick-action-btn" onclick="BattleUI.execCmd('look ${id}')" title="查看">look</button>
+          <button class="quick-action-btn fire${fireDisabled}" onclick="BattleUI.execCmd('fire ${id}')"${fireDisabled ? ' disabled' : ''} title="开火">开火</button>
+          <button class="quick-action-btn" onclick="BattleUI.execCmd('move ${id}')"${dead ? ' disabled' : ''} title="靠近">靠近</button>
+          <button class="quick-action-btn" onclick="BattleUI.execCmd('look ${id}')" title="查看">查看</button>
         </div>
       </div>`;
     }

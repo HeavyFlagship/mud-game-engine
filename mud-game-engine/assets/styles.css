@@ -101,21 +101,16 @@ body {
 .radar-section { padding-bottom: 0.5rem; }
 .radar-wrap {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  padding: 14px 14px;
 }
 .radar-dir-btn {
   position: absolute;
-  background: rgba(0, 20, 8, 0.85);
+  background: var(--bg);
   border: 1px solid var(--accent);
   color: var(--accent);
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
   cursor: pointer;
   font-family: inherit;
-  font-size: 14px;
+  font-size: 10px;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -123,16 +118,17 @@ body {
   z-index: 10;
   transition: all 0.2s;
   padding: 0;
+  line-height: 1;
 }
 .radar-dir-btn:hover {
   background: var(--accent);
   color: var(--bg);
-  box-shadow: 0 0 10px var(--glow);
+  box-shadow: 0 0 8px var(--glow);
 }
-.radar-dir-n { top: 4px; left: 50%; transform: translateX(-50%); }
-.radar-dir-s { bottom: 4px; left: 50%; transform: translateX(-50%); }
-.radar-dir-w { left: 4px; top: 50%; transform: translateY(-50%); }
-.radar-dir-e { right: 4px; top: 50%; transform: translateY(-50%); }
+.radar-dir-top { top: 0; left: 50%; transform: translateX(-50%); width: 36px; height: 12px; border-radius: 3px 3px 0 0; }
+.radar-dir-bottom { bottom: 0; left: 50%; transform: translateX(-50%); width: 36px; height: 12px; border-radius: 0 0 3px 3px; }
+.radar-dir-left { left: 0; top: 50%; transform: translateY(-50%); width: 12px; height: 36px; border-radius: 3px 0 0 3px; }
+.radar-dir-right { right: 0; top: 50%; transform: translateY(-50%); width: 12px; height: 36px; border-radius: 0 3px 3px 0; }
 .unit-section {
   border-bottom: 1px solid var(--rule);
   padding-bottom: 0.5rem;
@@ -292,6 +288,16 @@ body {
 .timeline-header {
   padding: 0.75rem 1rem 0.5rem;
   border-bottom: 1px solid var(--rule);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.battle-time {
+  font-family: var(--font-mono), monospace;
+  font-size: var(--font-stat);
+  color: var(--accent4);
+  font-weight: 700;
+  letter-spacing: 0.05em;
 }
 .timeline-content {
   flex: 1;
