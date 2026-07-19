@@ -83,11 +83,11 @@ const Battle = {
     Msg.warn(`⚔ 进入战斗状态！${reason}`);
     BattleUI.addHistory('系统', '#f55', `战斗开始`);
 
-    // 战斗中断：立即触发玩家决策点
-    // 如果玩家正在执行任务（移动/通信）或处于 idle，立即中断
+    // 战斗中断：仅在玩家正在执行持续任务（移动/通信）或 idle 时中断
     const wasMoving = this.playerTask && this.playerTask.type === 'move';
     const wasCalling = this.playerTask && this.playerTask.type === 'call';
     const wasIdling = this.playerIdleEnd !== null;
+    const needInterrupt = wasMoving || wasCalling || wasIdling;
 
     if (wasMoving) {
       Msg.info('⚡ 战斗中断移动，立即进入行动阶段。');
@@ -106,7 +106,10 @@ const Battle = {
     }
 
     this.playerTask = null;
-    this.triggerPlayerDecision();
+    // 仅在需要中断持续任务时触发决策点；否则不打断当前执行流程
+    if (needInterrupt) {
+      this.triggerPlayerDecision();
+    }
   },
 
   cancelPlayerIdle() {

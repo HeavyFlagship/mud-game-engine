@@ -315,28 +315,23 @@ const CommandSystem = {
       return;
     }
     const weapon = Player.equipment[slot];
-    const isOnCooldown = weapon && Player.weaponCooldowns[slot] > 0;
-    const isMoving = Battle.continuousActions.some(a => a.actor === 'player' && a.type === 'move');
-
-    if (isOnCooldown || isMoving || Battle.combatActive) {
-      Battle.addPlayerAction({ type: 'fire', target: targetId, slot, label: `攻击 ${targetId}` });
-      Msg.info(`行动已加入就绪列表：攻击 ${targetId}`);
+    if (!weapon) {
+      Msg.error('该武器槽为空。');
       return;
     }
 
-    const fired = Battle.playerAttack(targetId, slot);
-    // 开火成功后：消耗一个决策点，推进时间轴
-    if (fired) {
-      if (Battle.paused && Battle.currentActor === 'player') {
-        // 玩家决策点开火：解除 paused，让敌人有机会行动
-        Battle.paused = false;
-        // 取消未触发的 player_turn，调度新的（玩家行动消耗时间）
-        Battle.eventQueue = Battle.eventQueue.filter(e => !(e.type === 'player_turn' && e.actor === 'player'));
-        Battle.scheduleNextPlayerTurn();
-      } else if (Battle.playerIdleEnd) {
-        // idle 中开火：取消 idle，让时间轴继续推进
-        Battle.cancelPlayerIdle();
-      }
+    // 总是加入就绪列表
+    Battle.addPlayerAction({ type: 'fire', target: targetId, slot, label: `攻击 ${targetId}` });
+    Msg.info(`行动已加入就绪列表：攻击 ${targetId}`);
+
+    // 如果玩家在决策点（paused 且当前是玩家回合），立即触发执行
+    if (Battle.paused && Battle.currentActor === 'player') {
+      Battle.paused = false;
+      Battle.executeNextPlayerAction();
+    } else if (Battle.playerIdleEnd) {
+      // idle 中加入行动：取消 idle，立即触发执行
+      Battle.cancelPlayerIdle();
+      Battle.executeNextPlayerAction();
     }
   },
  
