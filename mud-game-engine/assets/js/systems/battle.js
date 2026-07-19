@@ -14,7 +14,6 @@ const Battle = {
   playerIdleEnd: null,
   isProcessing: false,
   continuousActions: [],
-  playerActionQueue: [],
 
   start(roomId, entryDir = 'south') {
     const room = MapSystem.getRoom(roomId);
@@ -41,7 +40,6 @@ const Battle = {
     this.playerIdleEnd = null;
     this.isProcessing = false;
     this.continuousActions = [];
-    this.playerActionQueue = [];
 
     Msg.divider();
     Msg.info(`📍 进入场景：${room.name}`);
@@ -74,7 +72,6 @@ const Battle = {
     this.paused = false;
     this.isProcessing = false;
     this.continuousActions = [];
-    this.playerActionQueue = [];
   },
 
   enterCombat(reason = '') {
@@ -121,6 +118,16 @@ const Battle = {
     return false;
   },
 
+  interruptPlayerMove() {
+    this.eventQueue = this.eventQueue.filter(e => !(e.type === 'move_complete' && e.actor === 'player'));
+    this.removeContinuousAction('player', 'move');
+    if (this.playerTask && this.playerTask.type === 'move') {
+      this.playerTask = null;
+    }
+    BattleUI.clearCurrentActions();
+    this.triggerPlayerDecision();
+  },
+
   playerIdle(seconds) {
     this.cancelPlayerIdle();
     // 取消未触发的 player_turn 事件（避免重复）
@@ -142,16 +149,11 @@ const Battle = {
     this.currentActor = 'player';
     BattleUI.clearCurrentActions();
     BattleUI.addCurrentAction('你的行动', '#0ff');
-
-    if (this.playerActionQueue.length > 0) {
-      this.executeNextPlayerAction();
-    } else {
-      this.paused = true;
-      const hint = this.combatActive
-        ? '> 战斗中（输入 move/fire/look/use/status/retreat 等）'
-        : '> 场景中（输入 move/call/fire/status/look 等）';
-      Msg.prompt(hint);
-    }
+    this.paused = true;
+    const hint = this.combatActive
+      ? '> 战斗中（输入 move/fire/look/use/status/retreat 等）'
+      : '> 场景中（输入 move/call/fire/status/look 等）';
+    Msg.prompt(hint);
   },
 
   createContinuousAction(actor, type, startTime, duration, data) {
@@ -183,15 +185,6 @@ const Battle = {
     this.continuousActions = this.continuousActions.filter(
       a => !(a.actor === actor && a.type === type)
     );
-  },
-
-  addPlayerAction(action) {
-    this.playerActionQueue.push(action);
-    BattleUI.update();
-  },
-
-  clearPlayerActionQueue() {
-    this.playerActionQueue = [];
   },
 
   exitCombat() {
@@ -369,19 +362,34 @@ const Battle = {
       BattleUI.clearCurrentActions();
       BattleUI.addCurrentAction('你的行动', '#0ff');
       this.onPlayerTurn();
+    } else if (event.type === 'player_fire') {
+      // 执行玩家开火
+      const weapon = Player.equipment[event.slot];
+      this.playerAttack(event.target, event.slot);
+      // 调度 weapon_ready 事件（冷却结束时触发）
+      if (weapon) {
+        this.scheduleEvent({ type: 'weapon_ready', actor: 'player', slot: event.slot }, weapon.cooldown);
+      }
+      this.scheduleNext();
     } else if (event.type === 'weapon_ready') {
       // 武器冷却完成，进入就绪列表
       const weapon = Player.equipment[event.slot];
       const wName = weapon ? weapon.name : event.slot;
       Msg.info(`🔫 ${wName} 冷却完成，已就绪。`);
       BattleUI.update();
-      // 如果玩家不在执行持续行动，触发决策点
+      // 检查玩家是否在持续行动中
       const isMoving = this.continuousActions.some(a => a.actor === 'player' && a.type === 'move');
-      const isCalling = this.eventQueue.some(e => e.type === 'npc_call' && e.actor === 'player');
-      if (!isMoving && !isCalling && !this.playerIdleEnd) {
+      const hasIdle = !!this.playerIdleEnd;
+      if (isMoving) {
+        // 移动中武器就绪：中断移动，触发决策点
+        this.interruptPlayerMove();
+      } else if (hasIdle) {
+        // idle 中武器就绪：取消 idle，触发决策点
+        this.cancelPlayerIdle();
         this.triggerPlayerDecision();
       } else {
-        this.scheduleNext();
+        // 玩家空闲，直接触发决策点
+        this.triggerPlayerDecision();
       }
     }
   },
@@ -389,9 +397,7 @@ const Battle = {
   onPlayerTurn() {
     if (Player.isDead()) return;
 
-    if (this.playerActionQueue.length > 0) {
-      this.executeNextPlayerAction();
-    } else if (this.playerTask) {
+    if (this.playerTask) {
       this.executePlayerTask();
     } else {
       this.paused = true;
@@ -458,43 +464,7 @@ const Battle = {
     if (this.playerTask && this.playerTask.type === 'move') {
       this.playerTask = null;
     }
-    if (this.playerActionQueue.length > 0) {
-      this.executeNextPlayerAction();
-    } else {
-      this.triggerPlayerDecision();
-    }
-  },
-
-  executeNextPlayerAction() {
-    if (this.playerActionQueue.length === 0) {
-      this.scheduleNextPlayerTurn();
-      return;
-    }
-
-    const nextAction = this.playerActionQueue.shift();
-    BattleUI.update();
-    Msg.info(`执行就绪行动：${nextAction.label}`);
-
-    if (nextAction.type === 'move') {
-      this.startPlayerMove(nextAction.target);
-    } else if (nextAction.type === 'fire') {
-      const fired = this.playerAttack(nextAction.target, nextAction.slot);
-      if (fired) {
-        // 调度 weapon_ready 事件，冷却结束时武器进入就绪列表
-        const cooldown = Player.weaponCooldowns[nextAction.slot] || 0;
-        const initiative = this.calculateInitiative(Player.currentSpeed);
-        const delay = Math.max(initiative, cooldown);
-        this.scheduleEvent({ type: 'weapon_ready', actor: 'player', slot: nextAction.slot }, delay);
-        this.scheduleNext();
-      } else {
-        this.triggerPlayerDecision();
-      }
-    } else if (nextAction.type === 'call') {
-      BattleUI.addHistory('你', '#8cf', '通信');
-      BattleUI.addCurrentAction('通信中...', '#8cf');
-      this.scheduleEvent({ type: 'npc_call', actor: 'player', npcId: nextAction.npcId }, 5);
-      this.scheduleNext();
-    }
+    this.triggerPlayerDecision();
   },
 
   playerAttack(targetId, slot = 'primary') {
@@ -757,11 +727,7 @@ const Battle = {
       Game.handleCall(npcId);
     }
     this.playerTask = null;
-    if (this.playerActionQueue.length > 0) {
-      this.executeNextPlayerAction();
-    } else {
-      this.triggerPlayerDecision();
-    }
+    this.triggerPlayerDecision();
   },
 
   retreat() {

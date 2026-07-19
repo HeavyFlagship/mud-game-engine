@@ -391,13 +391,13 @@ const BattleUI = {
     let html = '';
 
     const upcoming = [...Battle.eventQueue]
-      .filter(evt => evt.type === 'player_turn' || evt.type === 'enemy_turn' || evt.type === 'weapon_ready')
+      .filter(evt => evt.type === 'player_turn' || evt.type === 'enemy_turn' || evt.type === 'weapon_ready' || evt.type === 'player_fire')
       .sort((a, b) => a.time - b.time)
-      .slice(0, 5);
+      .slice(0, 6);
     html += '<div class="timeline-section timeline-upcoming">';
     html += '<div class="timeline-divider">— 即将到来 —</div>';
     for (const evt of upcoming) {
-      const timeOffset = (evt.time - Battle.battlefield.time).toFixed(0);
+      const timeOffset = (evt.time - Battle.battlefield.time).toFixed(1);
       let label = '';
       let color = '#aaa';
       if (evt.type === 'player_turn') {
@@ -411,6 +411,11 @@ const BattleUI = {
         const weapon = Player.equipment[evt.slot];
         label = weapon ? `${weapon.name}就绪` : `${evt.slot}就绪`;
         color = '#ff8';
+      } else if (evt.type === 'player_fire') {
+        const weapon = Player.equipment[evt.slot];
+        const wName = weapon ? weapon.name : evt.slot;
+        label = `开火(${wName})→${evt.target}`;
+        color = '#f80';
       }
       html += `<div class="timeline-item upcoming" style="color:${color};">+${timeOffset}秒 ${label}</div>`;
     }
@@ -458,7 +463,6 @@ const BattleUI = {
       html += '</div>';
     }
 
-    const playerQueue = Battle.playerActionQueue || [];
     const readyWeapons = [];
     for (const slot of ['primary', 'secondary']) {
       const cd = Player.weaponCooldowns[slot] || 0;
@@ -469,22 +473,13 @@ const BattleUI = {
     }
     html += '<div class="timeline-section timeline-queue">';
     html += '<div class="timeline-divider">— 就绪列表 —</div>';
-    let readyIdx = 1;
-    // 就绪武器
-    for (const w of readyWeapons) {
-      html += `<div class="timeline-item queue" style="color:#2f8;">${readyIdx}. 🔫 ${w.name} (${w.slot})</div>`;
-      readyIdx++;
-    }
-    // 就绪行动
-    for (const action of playerQueue) {
-      const typeLabel = action.type === 'move' ? '移动' : action.type === 'fire' ? '攻击' : action.type === 'call' ? '通信' : action.type;
-      const targetLabel = action.target ? ` ${action.target}` : '';
-      const slotLabel = action.slot ? `(${action.slot})` : '';
-      html += `<div class="timeline-item queue" style="color:#ff8;">${readyIdx}. ${typeLabel}${targetLabel}${slotLabel}</div>`;
-      readyIdx++;
-    }
-    if (readyIdx === 1) {
-      html += '<div class="timeline-item queue" style="color:#555;">（无）</div>';
+    if (readyWeapons.length > 0) {
+      for (let i = 0; i < readyWeapons.length; i++) {
+        const w = readyWeapons[i];
+        html += `<div class="timeline-item queue" style="color:#2f8;">${i + 1}. 🔫 ${w.name} (${w.slot})</div>`;
+      }
+    } else {
+      html += '<div class="timeline-item queue" style="color:#555;">（无就绪武器）</div>';
     }
     html += '</div>';
 

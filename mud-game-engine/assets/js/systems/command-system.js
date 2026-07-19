@@ -337,33 +337,33 @@ const CommandSystem = {
       return;
     }
 
-    // 检查是否有就绪武器
+    // 筛选就绪武器
     const readySlots = slots.filter(s => (Player.weaponCooldowns[s] || 0) <= 0);
     if (readySlots.length === 0) {
-      const cdInfo = slots.map(s => `${s}:${(Player.weaponCooldowns[s]||0).toFixed(1)}s`).join(' ');
-      Msg.warn(`所有指定武器都在冷却中（${cdInfo}），行动已加入就绪列表。`);
-      // 把每个武器槽都加入就绪列表
-      for (const s of slots) {
-        Battle.addPlayerAction({ type: 'fire', target: targetId, slot: s, label: `攻击 ${targetId}(${s})` });
-      }
+      const cdInfo = slots.map(s => {
+        const w = Player.equipment[s];
+        return `${w ? w.name : s}:${(Player.weaponCooldowns[s]||0).toFixed(1)}s`;
+      }).join(', ');
+      Msg.warn(`所有指定武器都在冷却中（${cdInfo}）。`);
       return;
     }
 
-    // 将就绪武器的开火行动加入就绪列表
-    for (const s of readySlots) {
-      Battle.addPlayerAction({ type: 'fire', target: targetId, slot: s, label: `攻击 ${targetId}(${s})` });
+    // 调度每个就绪武器的 player_fire 事件（前摇 0.3 秒，依次错开）
+    const fireDelay = 0.3;
+    for (let i = 0; i < readySlots.length; i++) {
+      const s = readySlots[i];
+      const weapon = Player.equipment[s];
+      const delay = fireDelay * (i + 1);
+      Battle.scheduleEvent({ type: 'player_fire', actor: 'player', target: targetId, slot: s, label: `攻击 ${targetId}` }, delay);
     }
-    Msg.info(`行动已加入就绪列表：攻击 ${targetId} (${readySlots.join('/')})`);
 
-    // 如果玩家在决策点（paused 且当前是玩家回合），立即触发执行
+    Msg.info(`开火指令已下达：攻击 ${targetId} (${readySlots.map(s => Player.equipment[s].name).join('/')})`);
+
+    // 如果玩家在决策点（paused），解除暂停让时间轴推进
     if (Battle.paused && Battle.currentActor === 'player') {
       Battle.paused = false;
-      Battle.executeNextPlayerAction();
-    } else if (Battle.playerIdleEnd) {
-      // idle 中加入行动：取消 idle，立即触发执行
-      Battle.cancelPlayerIdle();
-      Battle.executeNextPlayerAction();
     }
+    Battle.scheduleNext();
   },
  
   cmdBattleLook(args) {
