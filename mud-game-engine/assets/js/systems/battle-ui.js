@@ -300,35 +300,24 @@ const BattleUI = {
   },
 
   clearCurrentActions() {
-    for (const act of this.currentActions) {
-      this.historyEvents.unshift(act);
-    }
+    // 只清空当前行动，不加入历史记录（addHistory 已在动作开始时记录）
     this.currentActions = [];
-    if (this.historyEvents.length > 30) {
-      this.historyEvents.pop();
-    }
   },
 
   removeCurrentAction(text) {
+    // 只从当前行动中移除，不加入历史记录（addHistory 已在动作开始时记录）
     const index = this.currentActions.findIndex(a => a.text === text);
     if (index !== -1) {
-      const removed = this.currentActions.splice(index, 1)[0];
-      this.historyEvents.unshift(removed);
-      if (this.historyEvents.length > 30) {
-        this.historyEvents.pop();
-      }
+      this.currentActions.splice(index, 1);
     }
   },
 
   addCurrentAction(text, color = '#fff') {
     const time = Battle.battlefield ? Battle.battlefield.time.toFixed(0) : '?';
     this.currentActions.push({ time, text, color });
+    // 不再因为溢出就塞进历史记录
     if (this.currentActions.length > 5) {
-      const oldest = this.currentActions.shift();
-      this.historyEvents.unshift(oldest);
-      if (this.historyEvents.length > 30) {
-        this.historyEvents.pop();
-      }
+      this.currentActions.shift();
     }
     this.updateTimeline();
   },
