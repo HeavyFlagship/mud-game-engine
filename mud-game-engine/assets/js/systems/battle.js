@@ -92,6 +92,7 @@ const Battle = {
     if (wasMoving) {
       Msg.info('⚡ 战斗中断移动，立即进入行动阶段。');
       this.eventQueue = this.eventQueue.filter(e => !(e.type === 'move_complete' && e.actor === 'player'));
+      this.removeContinuousAction('player', 'move');
       BattleUI.removeCurrentAction('移动中...');
     }
     if (wasCalling) {
@@ -135,17 +136,19 @@ const Battle = {
     // 取消玩家相关事件
     this.eventQueue = this.eventQueue.filter(e => e.type !== 'player_turn' && e.type !== 'player_idle_end');
     this.playerIdleEnd = null;
-
-    // 直接进入玩家决策模式：暂停时间轴，显示决策提示
-    this.paused = true;
     this.currentActor = 'player';
     BattleUI.clearCurrentActions();
     BattleUI.addCurrentAction('你的行动', '#0ff');
 
-    const hint = this.combatActive
-      ? '> 战斗中（输入 move/fire/look/use/status/retreat 等）'
-      : '> 场景中（输入 move/call/fire/status/look 等）';
-    Msg.prompt(hint);
+    if (this.playerActionQueue.length > 0) {
+      this.executeNextPlayerAction();
+    } else {
+      this.paused = true;
+      const hint = this.combatActive
+        ? '> 战斗中（输入 move/fire/look/use/status/retreat 等）'
+        : '> 场景中（输入 move/call/fire/status/look 等）';
+      Msg.prompt(hint);
+    }
   },
 
   createContinuousAction(actor, type, startTime, duration, data) {
@@ -368,7 +371,9 @@ const Battle = {
   onPlayerTurn() {
     if (Player.isDead()) return;
 
-    if (this.playerTask) {
+    if (this.playerActionQueue.length > 0) {
+      this.executeNextPlayerAction();
+    } else if (this.playerTask) {
       this.executePlayerTask();
     } else {
       this.paused = true;
@@ -452,7 +457,7 @@ const Battle = {
     } else if (nextAction.type === 'fire') {
       const fired = this.playerAttack(nextAction.target, nextAction.slot);
       if (fired) {
-        this.executeNextPlayerAction();
+        this.scheduleNextPlayerTurn();
       } else {
         this.scheduleNextPlayerTurn();
       }
@@ -724,7 +729,7 @@ const Battle = {
       Game.handleCall(npcId);
     }
     this.playerTask = null;
-    this.scheduleNextPlayerTurn();
+    this.executeNextPlayerAction();
   },
 
   retreat() {
@@ -777,8 +782,9 @@ const Battle = {
       // idle 中被新任务打断，立即推进时间轴
       this.scheduleNext();
     } else if (wasMoving && task.type === 'move') {
-      // 移动中重新设置移动目标：取消旧 move_complete，启动新移动
+      // 移动中重新设置移动目标：取消旧 move_complete，移除旧连续动作，启动新移动
       this.eventQueue = this.eventQueue.filter(e => !(e.type === 'move_complete' && e.actor === 'player'));
+      this.removeContinuousAction('player', 'move');
       BattleUI.removeCurrentAction('移动中...');
       this.startPlayerMove(task.target);
     }
