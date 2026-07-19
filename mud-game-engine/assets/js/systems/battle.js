@@ -440,7 +440,11 @@ const Battle = {
     if (this.playerTask && this.playerTask.type === 'move') {
       this.playerTask = null;
     }
-    this.executeNextPlayerAction();
+    if (this.playerActionQueue.length > 0) {
+      this.executeNextPlayerAction();
+    } else {
+      this.triggerPlayerDecision();
+    }
   },
 
   executeNextPlayerAction() {
@@ -459,7 +463,7 @@ const Battle = {
       if (fired) {
         this.scheduleNextPlayerTurn();
       } else {
-        this.scheduleNextPlayerTurn();
+        this.triggerPlayerDecision();
       }
     } else if (nextAction.type === 'call') {
       BattleUI.addHistory('你', '#8cf', '通信');
@@ -729,7 +733,11 @@ const Battle = {
       Game.handleCall(npcId);
     }
     this.playerTask = null;
-    this.executeNextPlayerAction();
+    if (this.playerActionQueue.length > 0) {
+      this.executeNextPlayerAction();
+    } else {
+      this.triggerPlayerDecision();
+    }
   },
 
   retreat() {

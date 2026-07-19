@@ -318,7 +318,7 @@ const CommandSystem = {
     const isOnCooldown = weapon && Player.weaponCooldowns[slot] > 0;
     const isMoving = Battle.continuousActions.some(a => a.actor === 'player' && a.type === 'move');
 
-    if (isOnCooldown || isMoving) {
+    if (isOnCooldown || isMoving || Battle.combatActive) {
       Battle.addPlayerAction({ type: 'fire', target: targetId, slot, label: `攻击 ${targetId}` });
       Msg.info(`行动已加入就绪列表：攻击 ${targetId}`);
       return;
