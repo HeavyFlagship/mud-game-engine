@@ -53,9 +53,13 @@
 
   <div class="battle-sidebar" id="battle-sidebar">
     <div class="sidebar-section radar-section">
-      <div class="sidebar-title">📡 雷达</div>
-      <canvas id="radar-canvas" width="180" height="180" style="width:100%;background:#051005;border:1px solid #2d5;border-radius:4px;display:block;"></canvas>
+      <div class="sidebar-title">🗺 场景地图</div>
+      <canvas id="radar-canvas" width="200" height="200" style="width:100%;background:#051005;border:1px solid #2d5;border-radius:4px;display:block;"></canvas>
       <div id="radar-legend" style="font-size:var(--font-radar-legend);color:#888;margin-top:4px;"></div>
+    </div>
+    <div class="sidebar-section unit-section" id="unit-list-section">
+      <div class="sidebar-title">📡 单位列表</div>
+      <div id="unit-list" class="unit-list"></div>
     </div>
     <div class="sidebar-section enemy-section" id="enemy-list-section">
       <div class="sidebar-title">⚔ 敌人列表</div>

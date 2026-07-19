@@ -19,41 +19,73 @@ const BattleUI = {
 
     ctx.clearRect(0, 0, w, h);
 
-    ctx.strokeStyle = '#1a4a1a';
-    ctx.lineWidth = 0.5;
-    ctx.beginPath();
-    ctx.arc(cx, cy, w / 2 - 2, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(cx, cy, w / 3, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(cx, cy, w / 6, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(cx, 0); ctx.lineTo(cx, h);
-    ctx.moveTo(0, cy); ctx.lineTo(w, cy);
-    ctx.stroke();
+    // 方格背景 (10x10)
+    ctx.fillStyle = '#051005';
+    ctx.fillRect(0, 0, w, h);
 
+    ctx.strokeStyle = '#1a3a1a';
+    ctx.lineWidth = 0.5;
+    const gridCount = 10;
+    const gridSize = w / gridCount;
+    const gridOffsetX = cx - (Player.position[0] - 500) * scale;
+    const gridOffsetY = cy - (Player.position[1] - 500) * scale;
+    for (let i = -2; i <= gridCount + 2; i++) {
+      const x = gridOffsetX + i * gridSize;
+      const y = gridOffsetY + i * gridSize;
+      ctx.beginPath();
+      ctx.moveTo(x, 0); ctx.lineTo(x, h);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, y); ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+
+    // 边框
+    ctx.strokeStyle = '#2d5';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+
+    // 玩家位置
     let playerX = 500, playerY = 500;
     if (Battle.active && Battle.battlefield) {
       playerX = Player.position[0];
       playerY = Player.position[1];
     }
-
     const px = cx + (playerX - 500) * scale;
     const py = cy + (playerY - 500) * scale;
-    ctx.fillStyle = '#0ff';
-    ctx.beginPath();
-    ctx.arc(px, py, 5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#0ff';
+
+    // 玩家视野圈
+    ctx.strokeStyle = 'rgba(0, 255, 136, 0.25)';
+    ctx.fillStyle = 'rgba(0, 255, 136, 0.05)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(px, py, 9, 0, Math.PI * 2);
+    ctx.arc(px, py, Player.visionRadius * scale, 0, Math.PI * 2);
+    ctx.fill();
     ctx.stroke();
 
+    // 显示场景中的NPC
     if (Battle.active && Battle.battlefield) {
+      const npcs = Battle.battlefield.npcs || [];
+      for (const npcUnit of npcs) {
+        const npcDef = NPCDB[npcUnit.npcId];
+        if (!npcDef) continue;
+        const dist = Battle.getDistance(Player.position, npcUnit.position);
+        const broadcast = npcDef.broadcastPosition === true;
+        if (!broadcast && dist > Player.visionRadius) continue;
+
+        const nx = cx + (npcUnit.position[0] - 500) * scale;
+        const ny = cy + (npcUnit.position[1] - 500) * scale;
+        ctx.fillStyle = '#8cf';
+        ctx.beginPath();
+        ctx.arc(nx, ny, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = `${Math.round(9 * (canvas.width / 200))}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText(npcUnit.instanceId, nx, ny - 7);
+      }
+
+      // 敌人
       for (const enemy of Battle.battlefield.enemies) {
         if (enemy.hp <= 0) continue;
         const dist = Battle.getDistance(Player.position, enemy.position);
@@ -74,11 +106,12 @@ const BattleUI = {
         ctx.fill();
 
         ctx.fillStyle = '#fff';
-        ctx.font = '9px monospace';
+        ctx.font = `${Math.round(9 * (canvas.width / 200))}px monospace`;
         ctx.textAlign = 'center';
         ctx.fillText(enemy.instanceId, ex, ey - 7);
       }
     } else {
+      // 非战斗状态下显示房间NPC（按广播/视野过滤）
       const room = MapSystem.getRoom(Player.room);
       if (room && room.npcs && room.npcs.length > 0) {
         for (let i = 0; i < room.npcs.length; i++) {
@@ -92,24 +125,70 @@ const BattleUI = {
           ctx.arc(nx, ny, 4, 0, Math.PI * 2);
           ctx.fill();
           ctx.fillStyle = '#fff';
-          ctx.font = '9px monospace';
+          ctx.font = `${Math.round(9 * (canvas.width / 200))}px monospace`;
           ctx.textAlign = 'center';
           ctx.fillText('NPC', nx, ny - 7);
         }
       }
     }
 
+    // 玩家标记（画在最上层）
+    ctx.fillStyle = '#0ff';
+    ctx.beginPath();
+    ctx.arc(px, py, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#0ff';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(px, py, 9, 0, Math.PI * 2);
+    ctx.stroke();
+
     const legendEl = document.getElementById('radar-legend');
     if (legendEl) {
       if (Battle.active) {
         const alive = Battle.battlefield ? Battle.battlefield.enemies.filter(e => e.hp > 0).length : 0;
-        legendEl.innerHTML = `<span style="color:#0ff;">●</span> 玩家 &nbsp; <span style="color:#f44;">●</span> 威胁 &nbsp; <span style="color:#fd0;">●</span> 未警觉 &nbsp; 敌人: ${alive}`;
+        const npcCount = Battle.battlefield ? (Battle.battlefield.npcs || []).length : 0;
+        legendEl.innerHTML = `<span style="color:#0ff;">●</span> 玩家 &nbsp; <span style="color:#8cf;">●</span> NPC &nbsp; <span style="color:#f44;">●</span> 威胁 &nbsp; <span style="color:#fd0;">●</span> 未警觉`;
       } else {
         const room = MapSystem.getRoom(Player.room);
         const npcCount = room && room.npcs ? room.npcs.length : 0;
         legendEl.innerHTML = `<span style="color:#0ff;">●</span> 玩家 &nbsp; <span style="color:#8cf;">●</span> NPC &nbsp; NPC: ${npcCount}`;
       }
     }
+  },
+
+  updateUnitList() {
+    const unitEl = document.getElementById('unit-list');
+    if (!unitEl) return;
+    if (!Battle.active || !Battle.battlefield) {
+      unitEl.innerHTML = '<div style="color:var(--muted);font-style:italic;font-size:var(--font-hint);">未在场景中</div>';
+      return;
+    }
+    const npcs = Battle.battlefield.npcs || [];
+    if (npcs.length === 0) {
+      unitEl.innerHTML = '<div style="color:var(--muted);font-style:italic;font-size:var(--font-hint);">无可交互单位</div>';
+      return;
+    }
+    let html = '';
+    for (const npcUnit of npcs) {
+      const npcDef = NPCDB[npcUnit.npcId];
+      if (!npcDef) continue;
+      const dist = Battle.getDistance(Player.position, npcUnit.position);
+      const broadcast = npcDef.broadcastPosition === true;
+      const visible = broadcast || dist <= Player.visionRadius;
+      if (!visible) continue;
+      const inCallRange = dist <= 100;
+      const shopIcon = npcDef.shopItems ? ' 🛒' : '';
+      const broadcastTag = broadcast ? ' 📡' : '';
+      html += `<div style="margin-bottom:6px;padding:6px;background:#1a2230;border-radius:4px;">
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:#8cf;font-weight:bold;">${npcUnit.instanceId} ${npcDef.name}${broadcastTag}${shopIcon}</span>
+          <span style="color:var(--muted);font-size:var(--font-enemy-header);">${dist.toFixed(0)}m ${inCallRange ? '📞' : '📏'}</span>
+        </div>
+        <div style="font-size:var(--font-enemy-stat);color:var(--muted-bright);">${npcDef.title || ''}</div>
+      </div>`;
+    }
+    unitEl.innerHTML = html || '<div style="color:var(--muted);font-style:italic;font-size:var(--font-hint);">视野内无单位</div>';
   },
 
   render() {
@@ -150,6 +229,7 @@ const BattleUI = {
       this.clearBattlePanels();
       return;
     }
+    this.updateUnitList();
     this.updateEnemyList();
     this.updateTimeline();
   },
@@ -157,11 +237,15 @@ const BattleUI = {
   clearBattlePanels() {
     const enemyEl = document.getElementById('enemy-list');
     if (enemyEl) {
-      enemyEl.innerHTML = '<div style="color:#666;font-style:italic;">未在场景中</div>';
+      enemyEl.innerHTML = '<div style="color:var(--muted);font-style:italic;">未在场景中</div>';
+    }
+    const unitEl = document.getElementById('unit-list');
+    if (unitEl) {
+      unitEl.innerHTML = '<div style="color:var(--muted);font-style:italic;">未在场景中</div>';
     }
     const timelineEl = document.getElementById('timeline-content');
     if (timelineEl) {
-      timelineEl.innerHTML = '<div style="color:#666;font-style:italic;">未在场景中</div>';
+      timelineEl.innerHTML = '<div style="color:var(--muted);font-style:italic;">未在场景中</div>';
     }
   },
 

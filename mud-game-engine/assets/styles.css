@@ -96,6 +96,14 @@ body {
   border-bottom: none;
 }
 .radar-section { padding-bottom: 0.5rem; }
+.unit-section {
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.unit-list { font-size: var(--font-enemy-list); }
 .enemy-section {
   flex: 1;
   overflow-y: auto;
