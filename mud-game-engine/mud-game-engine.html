@@ -51,6 +51,22 @@
     </div>
   </div>
 
+  <div class="battle-sidebar" id="battle-sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">📡 雷达</div>
+      <canvas id="radar-canvas" width="220" height="220" style="width:100%;background:#051005;border:1px solid #2d5;border-radius:4px;display:block;"></canvas>
+      <div id="radar-legend" style="font-size:11px;color:#888;margin-top:6px;"></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-title">⚔ 敌人</div>
+      <div id="enemy-list" style="font-size:12px;"></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-title">⏱ 时间轴</div>
+      <div id="timeline-content" style="font-size:11px;max-height:200px;overflow-y:auto;"></div>
+    </div>
+  </div>
+
   <div class="game-area">
     <div class="output" id="output"></div>
     <div class="battle-bar" id="battle-bar">
