@@ -1,0 +1,60 @@
+/* ========== UI字体大小变量 ==========
+   统一管理游戏界面的字体大小，方便整体调整。
+   分类：标题/正文/提示/按钮/命令/数据/时间轴等
+*/
+:root {
+  /* 标题类 */
+  --font-title: 1.1rem;          /* 页面主标题 */
+  --font-section-title: 0.85rem;/* 侧边栏区块标题（大写字母带间距） */
+  --font-room-name: 1rem;       /* 房间名称 */
+  --font-combat-title: 1rem;    /* 战斗标题 */
+
+  /* 正文类 */
+  --font-body: 15px;            /* 默认正文字体 */
+  --font-output: 0.95rem;       /* 游戏输出区文字 */
+  --font-query: 0.86rem;        /* 查询面板文字 */
+  --font-story: 0.95rem;        /* 剧情文字 */
+
+  /* 提示/说明类 */
+  --font-hint: 0.8rem;          /* 提示性文字 */
+  --font-hint-sm: 0.72rem;      /* 小提示 */
+  --font-system: 0.8rem;        /* 系统提示 */
+
+  /* 按钮类 */
+  --font-btn: 0.8rem;           /* 普通按钮 */
+  --font-btn-sm: 0.75rem;       /* 小按钮/快捷指令 */
+  --font-btn-header: 0.8rem;    /* 头部按钮 */
+  --font-btn-battle: 0.8rem;    /* 战斗按钮 */
+  --font-btn-battle-choice: 0.78rem; /* 战斗选项 */
+
+  /* 命令行/输入类 */
+  --font-input: 0.95rem;        /* 输入框 */
+  --font-prompt: 0.95rem;       /* 命令提示符 */
+
+  /* 数据/状态类 */
+  --font-stat: 0.85rem;        /* 状态数值 */
+  --font-stat-label: 0.85rem;  /* 状态标签 */
+  --font-equip: 0.8rem;        /* 装备信息 */
+  --font-equip-item: 0.78rem;   /* 装备物品名 */
+  --font-map: 0.55rem;         /* 迷你地图文字 */
+  --font-map-current: 0.7rem;   /* 迷你地图当前位置 */
+  --font-map-level: 0.78rem;    /* 地图层级信息 */
+
+  /* 战斗UI类 */
+  --font-radar: 9px;            /* 雷达画布文字 */
+  --font-radar-legend: 11px;    /* 雷达图例 */
+  --font-enemy-list: 0.8rem;   /* 敌人/单位列表正文 */
+  --font-enemy-stat: 0.78rem;   /* 敌人/单位数据 */
+  --font-enemy-header: 0.75rem; /* 敌人列表计数标题 */
+
+  /* 时间轴类 */
+  --font-timeline: 0.82rem;    /* 时间轴正文 */
+  --font-timeline-divider: 0.72rem; /* 时间轴分界线 */
+  --font-timeline-section: 0.75rem; /* 时间轴区块标题 */
+
+  /* 工具类 */
+  --font-tag: 0.85rem;          /* 物品标签 */
+  --font-help-cmd: 0.9rem;      /* 帮助指令 */
+  --font-dir-btn: 0.8rem;       /* 方向按钮 */
+  --font-vert-btn: 0.78rem;     /* 上下按钮 */
+}

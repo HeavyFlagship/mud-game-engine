@@ -26,7 +26,7 @@ const EnemyDB = {
     id: 'assault_bug',
     name: '突击虫',
     category: 'bug',
-    hp: 120,
+    hp: 70,
     armor: 30,
     speed: 10,
     visionRadius: 350,
@@ -46,3 +46,4 @@ const EnemyDB = {
     desc: '中型战斗虫，前肢特化为锋利的切割器官，冲锋速度快，对轻型装甲威胁较大。'
   }
 };
+

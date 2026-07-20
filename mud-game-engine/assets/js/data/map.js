@@ -100,7 +100,7 @@ const MapDB = {
           lootPoints: []
         }
       },
-
+ 
       // ===== 荒原区域 =====
       wasteland_north: {
         id:'wasteland_north', name:'荒原北部', label:'原', x:2, y:4,
@@ -219,7 +219,7 @@ const MapDB = {
           lootPoints: []
         }
       },
-
+ 
       // ===== 地下矿洞 =====
       mine_entrance: {
         id:'mine_entrance', name:'矿洞入口', label:'洞', x:2, y:7, z:-1,
@@ -310,10 +310,11 @@ const MapDB = {
         }
       }
     },
-
+ 
   areas: [
     { name:'🛰 前哨基地', rooms:['outpost_hub','outpost_command','outpost_arsenal','outpost_repair','outpost_gate'] },
     { name:'🏜 荒原区域', rooms:['wasteland_north','wasteland_east','wasteland_south','crystal_valley','canyon_entrance'] },
     { name:'⛏ 地下矿洞', rooms:['mine_entrance','mine_tunnel','mine_side','mine_chamber'] },
   ]
 };
+
