@@ -303,6 +303,10 @@ const Player = {
     this.resources.maxFuel = maxFuel;
 
     // 确保当前值不超过最大值
+    // 如果 resources.energy 为0但 this.energy 有值，使用 this.energy（兼容旧系统初始化）
+    if (this.resources.energy === 0 && this.energy > 0) {
+      this.resources.energy = this.energy;
+    }
     this.resources.energy = Math.min(this.resources.energy, maxEnergy);
     this.resources.ion = Math.min(this.resources.ion, maxIon);
     this.resources.fuel = Math.min(this.resources.fuel, maxFuel);
