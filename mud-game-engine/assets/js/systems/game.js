@@ -196,18 +196,51 @@ const Game = {
     Msg.info(`结构值: <span class="stat-value hp">${Player.hp}</span>/${Player.maxHp}  装甲: <span class="stat-value">${Player.armor}</span>/${Player.maxArmor}`);
     Msg.info(`能量: <span class="stat-value mp">${Math.floor(Player.energy)}</span>/${Player.maxEnergy} (恢复+${Player.energyRegen}/s)`);
     Msg.info(`速度: ${Player.currentSpeed.toFixed(1)}m/s  视野: ${Player.visionRadius}m`);
-    Msg.info(`动力: ${Player.power}kW  算力: ${Player.compute}TFLOPS  重量: ${Player.weight}kg`);
+    Msg.info(`功率: ${Player.budget.powerUsed}/${Player.budget.powerMax}kW  算力: ${Player.budget.computeUsed}/${Player.budget.computeMax}MFlops  装备舱: ${Player.budget.bayUsed}/${Player.budget.bayMax}m³`);
     Msg.info(`经验: ${Player.exp}/${Player.expToNext}`);
-    Msg.info('── 武器 ──');
-    for (const slot of ['primary', 'secondary']) {
-      const w = Player.equipment[slot];
-      const slotName = slot === 'primary' ? '主武器' : '副武器';
-      if (w) {
-        Msg.info(`  ${slotName}: ${w.name} [伤害${w.damage} 射程${w.range}m 冷却${w.cooldown}秒]`);
+
+    // 显示所有装备
+    const slotLabels = {
+      primary:'主武器', secondary:'副武器', armor:'装甲',
+      ew1:'电子战1', ew2:'电子战2', generator:'生成器',
+      container1:'容器1', container2:'容器2', repairer:'修复器',
+      coreComputer:'核心计算机', corePower:'核心动力'
+    };
+    for (const [slot, label] of Object.entries(slotLabels)) {
+      const e = Player.equipment[slot];
+      if (e) {
+        const stats = [];
+        if (e.damage) stats.push(`伤害${e.damage}`);
+        if (e.armorValue) stats.push(`装甲${e.armorValue}`);
+        if (e.range) stats.push(`射程${e.range}m`);
+        if (e.cooldown) stats.push(`冷却${e.cooldown}s`);
+        if (e.capacity) stats.push(`容量${e.capacity}`);
+        const extra = stats.length ? ` [${stats.join(' ')}]` : '';
+        Msg.info(`  ${label}: ${e.name}${extra}`);
       } else {
-        Msg.info(`  ${slotName}: （空）`);
+        Msg.info(`  ${label}: （空）`);
       }
     }
+
+    // 资源
+    const res = Player.resources;
+    if (res.maxIon > 0 || res.maxFuel > 0) {
+      const resStr = [];
+      resStr.push(`能量${Math.floor(res.energy)}/${res.maxEnergy}MJ`);
+      if (res.maxIon > 0) resStr.push(`离子${Math.floor(res.ion)}/${res.maxIon}g`);
+      if (res.maxFuel > 0) resStr.push(`燃料${Math.floor(res.fuel)}/${res.maxFuel}L`);
+      Msg.info(`资源: ${resStr.join(' · ')}`);
+    }
+
+    // 结构抗性
+    const resist = Player.getResistances();
+    const resArr = [];
+    if (resist.kinetic > 0) resArr.push(`动能+${(resist.kinetic*100).toFixed(0)}%`);
+    if (resist.thermal > 0) resArr.push(`热能+${(resist.thermal*100).toFixed(0)}%`);
+    if (resist.shock > 0) resArr.push(`震荡+${(resist.shock*100).toFixed(0)}%`);
+    if (resist.ion > 0) resArr.push(`离子+${(resist.ion*100).toFixed(0)}%`);
+    if (resArr.length > 0) Msg.info(`结构抗性: ${resArr.join(' · ')}`);
+
     if (Player.statusEffects.length > 0) {
       const effStr = Player.statusEffects.map(e => {
         const names = { slow:'减速', poison:'中毒', burn:'灼烧', shock:'电击', corrosion:'腐蚀', stun:'眩晕' };
@@ -232,38 +265,69 @@ const Game = {
     }
   },
  
-  equip(itemName) {
+  equip(itemName, slotName) {
     if (!itemName) { Msg.warning('请指定要装备的物品。'); return; }
     const item = this.findItemInBag(itemName);
     if (!item) { Msg.danger('背包中没有该物品。'); return; }
     const template = ItemDB[item.id];
     if (!template) return;
- 
-    if (template.type === 'weapon') {
-      Player.equipWeapon(item.id, 'primary');
-    } else if (template.type === 'armor') {
-      Player.equipArmor(item.id);
-    } else {
-      Msg.danger('该物品无法装备。');
+
+    const cat = template.category || template.type;
+
+    // 自动选择槽位
+    let slot = slotName;
+    if (!slot) {
+      if (cat === 'weapon') {
+        slot = Player.equipment.primary ? 'secondary' : 'primary';
+      } else if (cat === 'armor') {
+        slot = 'armor';
+      } else if (cat === 'ew') {
+        slot = Player.equipment.ew1 ? 'ew2' : 'ew1';
+      } else if (cat === 'generator') {
+        slot = 'generator';
+      } else if (cat === 'container') {
+        slot = Player.equipment.container1 ? 'container2' : 'container1';
+      } else if (cat === 'repairer') {
+        slot = 'repairer';
+      } else if (cat === 'core') {
+        slot = template.coreType === 'computer' ? 'coreComputer' : 'corePower';
+      }
+    }
+
+    // 槽位名称映射
+    const slotMap = {
+      '主武器':'primary', '副武器':'secondary', '装甲':'armor',
+      '电子战1':'ew1', '电子战2':'ew2',
+      '生成器':'generator', '容器1':'container1', '容器2':'container2',
+      '修复器':'repairer', '核心计算机':'coreComputer', '核心动力':'corePower'
+    };
+    if (slotMap[slot]) slot = slotMap[slot];
+
+    if (!slot) {
+      Msg.danger(`无法自动确定 ${template.name} 的安装槽位，请指定槽位。`);
+      return;
+    }
+
+    if (Player.installEquipment(item.id, slot)) {
+      Player.removeItem(item.id);
     }
   },
- 
+
   unequip(slotName) {
     if (!slotName) {
-      Msg.info('卸下装备用法: unequip 主武器/副武器/装甲');
+      Msg.info('卸下装备用法: unequip 主武器/副武器/装甲/电子战1/电子战2/生成器/容器1/容器2/修复器');
       return;
     }
     const slotMap = {
       '主武器':'primary', '副武器':'secondary', '装甲':'armor',
+      '电子战1':'ew1', '电子战2':'ew2',
+      '生成器':'generator', '容器1':'container1', '容器2':'container2',
+      '修复器':'repairer', '核心计算机':'coreComputer', '核心动力':'corePower',
       'primary':'primary', 'secondary':'secondary', 'armor':'armor'
     };
     const slot = slotMap[slotName];
     if (!slot) { Msg.danger('未知装备栏位。'); return; }
-    const item = Player.equipment[slot];
-    if (!item) { Msg.info('该栏位为空。'); return; }
-    Player.addItem(item.id);
-    Player.equipment[slot] = null;
-    Msg.success(`已卸下 ${item.name}。`);
+    Player.uninstallEquipment(slot, true);
   },
  
   useItem(itemName) {
@@ -419,35 +483,39 @@ const Game = {
     if (!shopNpc) {
       shopNpc = { shopItems: ['repair_kit_small','armor_patch','auto_cannon_mk1','light_alloy_plate'] };
     }
- 
-    if (action === 'list' || !action) {
+
+    // 支持展示所有装备（用于测试）
+    const showAll = action === 'all';
+    const itemList = showAll
+      ? (typeof EquipmentDB !== 'undefined' ? EquipmentDB.getAll() : [])
+      : shopNpc.shopItems.map(id => ItemDB[id]).filter(Boolean);
+
+    if (action === 'list' || !action || showAll) {
       Msg.divider();
-      Msg.add(`🏪 ${shopNpc.name || '装备库'} 的商品`, 'info');
-      shopNpc.shopItems.forEach((itemId, idx) => {
-        const item = ItemDB[itemId];
-        if (item) {
-          const stats = [];
-          if (item.damage) stats.push(`伤害${item.damage}`);
-          if (item.armorValue) stats.push(`装甲${item.armorValue}`);
-          if (item.healHp) stats.push(`修复结构${item.healHp}`);
-          if (item.healArmor) stats.push(`修复装甲${item.healArmor}`);
-          if (item.range) stats.push(`射程${item.range}m`);
-          const extra = stats.length ? ` [${stats.join(',')}]` : '';
-          Msg.info(`  ${idx+1}. <span class="item-tag ${item.type}">${item.name}</span>${extra} - ${item.price}G`);
-        }
+      Msg.add(`🏪 ${shopNpc.name || '装备库'} 的商品${showAll ? '（全部装备）' : ''}`, 'info');
+      itemList.forEach((item, idx) => {
+        const stats = [];
+        if (item.damage) stats.push(`伤害${item.damage}`);
+        if (item.armorValue) stats.push(`装甲${item.armorValue}`);
+        if (item.healHp) stats.push(`修复结构${item.healHp}`);
+        if (item.healArmor) stats.push(`修复装甲${item.healArmor}`);
+        if (item.range) stats.push(`射程${item.range}m`);
+        if (item.powerReq) stats.push(`功率${item.powerReq}kW`);
+        if (item.computeReq) stats.push(`算力${item.computeReq}`);
+        const extra = stats.length ? ` [${stats.join(',')}]` : '';
+        const catTag = item.category ? `[${item.category}] ` : '';
+        Msg.info(`  ${idx+1}. ${catTag}<span class="item-tag ${item.type}">${item.name}</span>${extra} - ${item.price}G`);
       });
       Msg.info('购买: shop/buy 物品名 或 buy 序号');
       Msg.info('出售: sell 物品名 (半价回收)');
+      Msg.info('查看全部: shop all');
     } else {
       let targetItem = null;
       const num = parseInt(action);
-      if (!isNaN(num) && num >= 1 && num <= shopNpc.shopItems.length) {
-        targetItem = ItemDB[shopNpc.shopItems[num - 1]];
+      if (!isNaN(num) && num >= 1 && num <= itemList.length) {
+        targetItem = itemList[num - 1];
       } else {
-        targetItem = ItemDB[shopNpc.shopItems.find(id => {
-          const item = ItemDB[id];
-          return item && (item.name === action || id === action);
-        })];
+        targetItem = itemList.find(it => it.name === action || it.id === action);
       }
       if (!targetItem) { Msg.danger('商品不存在。'); return; }
       if (Player.gold < targetItem.price) { Msg.danger('资金不足！'); return; }
@@ -704,9 +772,25 @@ const Game = {
     const slots = [
       { key:'primary', label:'主武器' },
       { key:'secondary', label:'副武器' },
-      { key:'armor', label:'装甲' }
+      { key:'armor', label:'装甲' },
+      { key:'ew1', label:'电子战1' },
+      { key:'ew2', label:'电子战2' },
+      { key:'generator', label:'生成器' },
+      { key:'container1', label:'容器1' },
+      { key:'container2', label:'容器2' },
+      { key:'repairer', label:'修复器' },
+      { key:'coreComputer', label:'核心计算机' },
+      { key:'corePower', label:'核心动力' }
     ];
-    el.innerHTML = slots.map(s => {
+
+    let html = '';
+
+    // 预算信息
+    html += `<div class="stat-row" style="font-size:var(--font-hint);color:var(--muted);margin-bottom:4px;">`;
+    html += `功率 ${Player.budget.powerUsed}/${Player.budget.powerMax}kW · 算力 ${Player.budget.computeUsed}/${Player.budget.computeMax} · 舱 ${Player.budget.bayUsed}/${Player.budget.bayMax}m³`;
+    html += `</div>`;
+
+    html += slots.map(s => {
       const item = Player.equipment[s.key];
       if (!item) {
         const emptyStr = '<span class="equip-slot-item empty">（空）</span>';
@@ -714,7 +798,7 @@ const Game = {
       }
       const itemStr = `<span class="equip-slot-item">${item.name}</span>`;
       let cooldownHtml = '';
-      // 仅武器显示冷却进度
+      // 武器显示冷却进度
       if (s.key === 'primary' || s.key === 'secondary') {
         const cd = Player.weaponCooldowns[s.key] || 0;
         const maxCd = item.cooldown || 1;
@@ -731,6 +815,24 @@ const Game = {
       }
       return `<div class="equip-slot"><span class="equip-slot-name">${s.label}</span>${itemStr}</div>${cooldownHtml}`;
     }).join('');
+
+    // 资源信息
+    const res = Player.resources;
+    html += `<div style="margin-top:6px;border-top:1px solid var(--border);padding-top:4px;">`;
+    html += `<div class="stat-row" style="font-size:var(--font-hint);"><span class="stat-label">能量</span><span class="stat-value mp">${Math.floor(res.energy)}/${res.maxEnergy}MJ</span></div>`;
+    if (res.maxIon > 0) html += `<div class="stat-row" style="font-size:var(--font-hint);"><span class="stat-label">离子</span><span class="stat-value">${Math.floor(res.ion)}/${res.maxIon}g</span></div>`;
+    if (res.maxFuel > 0) html += `<div class="stat-row" style="font-size:var(--font-hint);"><span class="stat-label">燃料</span><span class="stat-value">${Math.floor(res.fuel)}/${res.maxFuel}L</span></div>`;
+    html += `</div>`;
+
+    // 弹药信息
+    const ammoEntries = Object.entries(Player.ammo).filter(([_, count]) => count > 0);
+    if (ammoEntries.length > 0) {
+      html += `<div style="margin-top:4px;font-size:var(--font-hint);">`;
+      html += ammoEntries.map(([type, count]) => `<span style="color:var(--muted);">${type}: ${count}</span>`).join(' · ');
+      html += `</div>`;
+    }
+
+    el.innerHTML = html;
   },
  
   updateMinimap() {

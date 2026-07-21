@@ -496,10 +496,20 @@ const Battle = {
       return false;
     }
 
-    if (weapon.energyCost && !Player.useEnergy(weapon.energyCost)) {
+    // 检查弹药
+    if (!Player.hasAmmo(weapon)) {
+      Msg.error('弹药不足！');
+      return false;
+    }
+    // 检查能量
+    const energyCost = weapon.energyPerShot || weapon.energyCost || 0;
+    if (energyCost > 0 && !Player.useEnergy(energyCost)) {
       Msg.error('能量不足！');
       return false;
     }
+
+    // 消耗弹药
+    Player.consumeAmmo(weapon);
 
     this.enterCombat(`开火攻击 ${enemy.name}[${enemy.instanceId}]`);
     BattleUI.addHistory('你', '#fa4', '攻击');
@@ -513,8 +523,22 @@ const Battle = {
 
     let dmg = 0;
     if (hit) {
-      const baseDmg = Utils.rand(weapon.damage - weapon.damageVariance, weapon.damage + weapon.damageVariance);
-      const result = this.dealDamage(enemy, baseDmg, weapon.damageType);
+      // 使用damageTable计算伤害
+      let baseDmg = 0;
+      let damageType = weapon.damageType || 'kinetic';
+      if (weapon.damageTable) {
+        let maxDmg = 0;
+        for (const [dt, val] of Object.entries(weapon.damageTable)) {
+          if (val > maxDmg) {
+            maxDmg = val;
+            damageType = dt;
+          }
+        }
+        baseDmg = Utils.rand(maxDmg - (weapon.damageVariance || 0), maxDmg + (weapon.damageVariance || 0));
+      } else {
+        baseDmg = Utils.rand(weapon.damage - (weapon.damageVariance || 0), weapon.damage + (weapon.damageVariance || 0));
+      }
+      const result = this.dealDamage(enemy, baseDmg, damageType);
       dmg = result.total;
       Msg.damage(`[${ts}] 💥 ${weapon.name} 命中 ${enemy.name}[${enemy.instanceId}]！` +
         `装甲-${result.armor} 结构-${result.hp} (${dmg}总伤害)`);

@@ -55,8 +55,16 @@ const CommandSystem = {
         this.runQuery(parsed, '背包', () => Game.showBag(parsed.args.includes('-d'))); break;
       case 'status': case '状态':
         this.runQuery(parsed, '机体状态', () => Game.showStatus()); break;
-      case 'equip': case '装备':
-        Game.equip(parsed.args.join(' ')); break;
+      case 'equip': case '装备': {
+        const equipSlots = ['primary','secondary','armor','ew1','ew2','generator','container1','container2','repairer','coreComputer','corePower','主武器','副武器','装甲','电子战1','电子战2','生成器','容器1','容器2','修复器','核心计算机','核心动力'];
+        if (parsed.args.length >= 2 && equipSlots.includes(parsed.args[parsed.args.length - 1])) {
+          const slot = parsed.args.pop();
+          Game.equip(parsed.args.join(' '), slot);
+        } else {
+          Game.equip(parsed.args.join(' '));
+        }
+        break;
+      }
       case 'unequip': case '卸下':
         Game.unequip(parsed.args.join(' ')); break;
       case 'use': case '使用': case 'drink': case '喝':
