@@ -127,7 +127,6 @@ const BattleUI = {
 
     ctx.clearRect(0, 0, w, h);
 
-    // 方格背景 (10x10)
     ctx.fillStyle = '#051005';
     ctx.fillRect(0, 0, w, h);
 
@@ -146,12 +145,10 @@ const BattleUI = {
       ctx.stroke();
     }
 
-    // 边框
     ctx.strokeStyle = '#2d5';
     ctx.lineWidth = 1;
     ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
 
-    // 玩家位置
     let playerX = 500, playerY = 500;
     if (Battle.active && Battle.battlefield) {
       playerX = Player.position[0];
@@ -160,7 +157,6 @@ const BattleUI = {
     const px = cx + (playerX - 500) * scale;
     const py = cy + (playerY - 500) * scale;
 
-    // 玩家视野圈
     ctx.strokeStyle = 'rgba(0, 255, 136, 0.25)';
     ctx.fillStyle = 'rgba(0, 255, 136, 0.05)';
     ctx.lineWidth = 1;
@@ -169,7 +165,6 @@ const BattleUI = {
     ctx.fill();
     ctx.stroke();
 
-    // 显示场景中的NPC
     if (Battle.active && Battle.battlefield) {
       const npcs = Battle.battlefield.npcs || [];
       for (const npcUnit of npcs) {
@@ -191,7 +186,6 @@ const BattleUI = {
         ctx.fillText(npcUnit.instanceId, nx, ny - 7);
       }
 
-      // 敌人
       for (const enemy of Battle.battlefield.enemies) {
         if (enemy.hp <= 0) continue;
         const dist = Battle.getDistance(Player.position, enemy.position);
@@ -217,7 +211,6 @@ const BattleUI = {
         ctx.fillText(enemy.instanceId, ex, ey - 7);
       }
     } else {
-      // 非战斗状态下显示房间NPC（按广播/视野过滤）
       const room = MapSystem.getRoom(Player.room);
       if (room && room.npcs && room.npcs.length > 0) {
         for (let i = 0; i < room.npcs.length; i++) {
@@ -238,7 +231,6 @@ const BattleUI = {
       }
     }
 
-    // 玩家标记（画在最上层）
     ctx.fillStyle = '#0ff';
     ctx.beginPath();
     ctx.arc(px, py, 5, 0, Math.PI * 2);
@@ -338,12 +330,10 @@ const BattleUI = {
   },
 
   clearCurrentActions() {
-    // 只清空当前行动，不加入历史记录（addHistory 已在动作开始时记录）
     this.currentActions = [];
   },
 
   removeCurrentAction(text) {
-    // 只从当前行动中移除，不加入历史记录（addHistory 已在动作开始时记录）
     const index = this.currentActions.findIndex(a => a.text === text);
     if (index !== -1) {
       this.currentActions.splice(index, 1);
@@ -353,7 +343,6 @@ const BattleUI = {
   addCurrentAction(text, color = '#fff') {
     const time = Battle.battlefield ? Battle.battlefield.time.toFixed(0) : '?';
     this.currentActions.push({ time, text, color });
-    // 不再因为溢出就塞进历史记录
     if (this.currentActions.length > 5) {
       this.currentActions.shift();
     }
