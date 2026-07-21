@@ -347,6 +347,9 @@ body {
 .bar-fill.mp { background: linear-gradient(90deg, var(--mp-bar-start), var(--accent4)); }
 .bar-fill.exp { background: linear-gradient(90deg, var(--exp-bar-start), var(--accent3)); }
 
+.equip-item {
+  margin-bottom: 0.4rem;
+}
 .equip-slot {
   display: flex;
   justify-content: space-between;
@@ -358,9 +361,33 @@ body {
 .equip-slot-item { color: var(--accent); font-size: var(--font-equip-item); }
 .equip-slot-item.empty { color: var(--rule); font-style: italic; }
 
+.weapon-ammo {
+  margin-top: 0.15rem;
+  margin-left: 0.5rem;
+}
+.weapon-ammo-bar {
+  width: 100%;
+  height: 4px;
+  background: var(--bg);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.weapon-ammo-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: #4f8;
+  transition: width 0.3s linear;
+}
+.weapon-ammo-text {
+  font-size: var(--font-hint);
+  color: #4f8;
+  margin-top: 1px;
+}
+
 .weapon-cooldown {
-  margin-top: 0.2rem;
-  margin-bottom: 0.3rem;
+  margin-top: 0.15rem;
+  margin-left: 0.5rem;
+  margin-bottom: 0.1rem;
 }
 .weapon-cooldown-bar {
   width: 100%;

@@ -818,18 +818,6 @@ const Game = {
 
     let html = '';
 
-    // 预算信息（整合核心模块信息）
-    const pc = Player.equipment.coreComputer;
-    const pp = Player.equipment.corePower;
-    const coreInfo = [];
-    if (pc) coreInfo.push(`算力+${pc.coreOutput}`);
-    if (pp) coreInfo.push(`功率+${pp.coreOutput}`);
-    const coreStr = coreInfo.length ? `(${coreInfo.join(',')})` : '';
-    html += `<div class="stat-row" style="font-size:var(--font-hint);color:var(--muted);margin-bottom:4px;">`;
-    html += `功率 ${Player.budget.powerUsed.toFixed(1)}/${Player.budget.powerMax}kW · 算力 ${Player.budget.computeUsed.toFixed(1)}/${Player.budget.computeMax} · 舱 ${Player.budget.bayUsed.toFixed(2)}/${Player.budget.bayMax}m³ ${coreStr}`;
-    html += `</div>`;
-
-    // 仅显示已安装的装备（按类型分组）
     const equipSlots = ['primary', 'secondary', 'armor', 'ew1', 'ew2', 'generator', 'container1', 'container2', 'repairer'];
     const slotLabels = {
       primary: '主武器', secondary: '副武器', armor: '装甲',
@@ -841,8 +829,8 @@ const Game = {
       const item = Player.equipment[slot];
       if (!item) continue;
 
-      // 获取武器对应的弹药信息
-      let ammoHtml = '';
+      let extraHtml = '';
+
       if (slot === 'primary' || slot === 'secondary') {
         const ammoMap = {
           '火炮': { type: '20mm_ap', name: '20mm弹', max: item.magazine || 0 },
@@ -858,17 +846,13 @@ const Game = {
           const total = current + (Player.ammo[ammoInfo.type + '_bag'] || 0);
           const max = ammoInfo.max || total;
           const pct = max > 0 ? (total / max * 100) : 100;
-          ammoHtml = `
-            <div class="weapon-cooldown" style="margin-top:2px;">
-              <div class="weapon-cooldown-bar"><div class="weapon-cooldown-fill" style="width:${Math.min(100, pct)}%;background:#4f8;"></div></div>
-              <div class="weapon-cooldown-status" style="font-size:var(--font-hint);"><span>${ammoInfo.name}: ${total}${max > 0 ? `/${max}` : ''}</span></div>
+          extraHtml += `
+            <div class="weapon-ammo">
+              <div class="weapon-ammo-bar"><div class="weapon-ammo-fill" style="width:${Math.min(100, pct)}%"></div></div>
+              <div class="weapon-ammo-text">${ammoInfo.name}: ${total}${max > 0 ? `/${max}` : ''}</div>
             </div>`;
         }
-      }
 
-      // 冷却条
-      let cooldownHtml = '';
-      if (slot === 'primary' || slot === 'secondary') {
         const cd = Player.weaponCooldowns[slot] || 0;
         const maxCd = item.cooldown || 1;
         const isReady = cd <= 0;
@@ -876,18 +860,24 @@ const Game = {
         const statusText = isReady ? '就绪' : `冷却 ${cd.toFixed(1)}s`;
         const fillClass = isReady ? 'ready' : 'cooling';
         const statusClass = isReady ? 'ready' : 'cooling';
-        cooldownHtml = `
+        extraHtml += `
           <div class="weapon-cooldown">
             <div class="weapon-cooldown-bar"><div class="weapon-cooldown-fill ${fillClass}" style="width:${pct}%"></div></div>
-            <div class="weapon-cooldown-status ${statusClass}"><span>${statusText}</span></div>
+            <div class="weapon-cooldown-status ${statusClass}">${statusText}</div>
           </div>`;
       }
 
+      html += `<div class="equip-item">`;
       html += `<div class="equip-slot">`;
       html += `<span class="equip-slot-name">${slotLabels[slot]}</span>`;
       html += `<span class="equip-slot-item">${item.name}</span>`;
-      html += `${ammoHtml}${cooldownHtml}`;
       html += `</div>`;
+      html += `${extraHtml}`;
+      html += `</div>`;
+    }
+
+    if (html === '') {
+      html = `<div style="font-size:var(--font-hint);color:var(--muted);text-align:center;padding:0.5rem;">（未装备）</div>`;
     }
 
     el.innerHTML = html;
