@@ -43,7 +43,7 @@ const Game = {
     this.updateUI();
 
     const startRoom = MapSystem.getRoom(Player.room);
-    if (startRoom && startRoom.battlefield) {
+    if (startRoom && startRoom.battlefield && !startRoom.isSafeZone) {
       Battle.start(Player.room, 'south');
     }
   },
@@ -133,7 +133,7 @@ const Game = {
     Player.position = [500, 500];
 
     const nextRoom = MapSystem.getRoom(nextRoomId);
-    if (nextRoom && nextRoom.battlefield) {
+    if (nextRoom && nextRoom.battlefield && !nextRoom.isSafeZone) {
       this.look();
       this.updateUI();
       Battle.start(nextRoomId, MapSystem.getOppositeDirection(direction));
