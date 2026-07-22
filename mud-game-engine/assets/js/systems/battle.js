@@ -40,6 +40,7 @@ const Battle = {
     Timeline.start(0);
     this.registerHandlers();
     this.registerUpdaters();
+    Timeline.onTickEnd = () => { BattleUI.update(); };
 
     this.buildInitialTimeline();
     BattleUI.render();
@@ -127,6 +128,7 @@ const Battle = {
     this.active = false;
     this.combatActive = false;
     Timeline.stop();
+    Timeline.onTickEnd = null;
     this.battlefield = null;
     this.roomId = null;
     this.currentActor = null;
@@ -716,6 +718,9 @@ const Battle = {
       Timeline.removeContinuousAction('player', 'move');
       BattleUI.removeCurrentAction('移动中...');
       this.startPlayerMove(task.target);
+    } else {
+      // 非决策点且无持续动作：直接启动任务（如场景中直接 move）
+      this.executePlayerTask();
     }
   },
 

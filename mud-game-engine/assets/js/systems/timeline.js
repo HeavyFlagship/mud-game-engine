@@ -19,6 +19,8 @@ const Timeline = {
   handlers: {},
   // 时间推进更新器注册表：name -> fn(delta)
   updaters: {},
+  // 每次 tick 后的 UI 刷新回调
+  onTickEnd: null,
 
   init() {
     this.time = 0;
@@ -154,6 +156,8 @@ const Timeline = {
 
     this.eventQueue.shift();
     this.dispatchEvent(next);
+    // tick 结束后刷新 UI（雷达/时间轴/装备面板等）
+    if (this.onTickEnd) this.onTickEnd();
   },
 
   // 分发事件到注册的 handler
