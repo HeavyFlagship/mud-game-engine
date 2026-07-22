@@ -50,7 +50,12 @@ const Battle = {
 
   // 注册战斗相关事件处理器
   registerHandlers() {
-    Timeline.on('player_turn', () => this.onPlayerTurn());
+    Timeline.on('player_turn', () => {
+      BattleUI.clearCurrentActions();
+      this.currentActor = 'player';
+      BattleUI.addCurrentAction('你的行动', '#0ff');
+      this.onPlayerTurn();
+    });
     Timeline.on('enemy_turn', (e) => {
       this.currentActor = e.actor;
       const enemy = this.battlefield.enemies.find(en => en.instanceId === e.actor);

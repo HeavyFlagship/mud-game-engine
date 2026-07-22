@@ -156,6 +156,8 @@ const Timeline = {
 
     this.eventQueue.shift();
     this.dispatchEvent(next);
+    // 事件处理后再清理一次已结束的持续动作（endTime === currentTime 的情况）
+    this.continuousActions = this.continuousActions.filter(a => a.endTime > this.time);
     // tick 结束后刷新 UI（雷达/时间轴/装备面板等）
     if (this.onTickEnd) this.onTickEnd();
   },
