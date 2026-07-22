@@ -287,13 +287,13 @@ const Player = {
 
   // 切换机体（在基地内）
   switchVehicle(vehicleId) {
-    if (Battle.active) {
-      Msg.error('战斗中无法切换机体。');
-      return false;
-    }
     const room = MapSystem.getRoom(this.room);
     if (!room || !room.isSafeZone) {
       Msg.error('只能在基地内切换机体。');
+      return false;
+    }
+    if (Battle.active || Battle.combatActive) {
+      Msg.error('战斗中无法切换机体。');
       return false;
     }
     const vehicle = VehicleDB[vehicleId];

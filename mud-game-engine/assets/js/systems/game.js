@@ -432,7 +432,7 @@ const Game = {
         Msg.info(`  #${idx + 1} <span ${typeTag}>${item.name}</span>${countStr}`);
       }
     });
-    Msg.system('提示: withdraw <编号> [数量] 取出, wequip <编号> 直接装备');
+    Msg.system('提示: export <背包编号> [数量] 存入仓库, import <仓库编号> [数量] 取回, wequip <编号> 直接装备');
   },
 
   depositToWarehouse(itemName, count = 1) {

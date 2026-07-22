@@ -78,9 +78,9 @@ const CommandSystem = {
         Game.switchVehicle(parsed.args[0] || ''); break;
       case 'warehouse': case '仓库':
         Game.showWarehouse(); break;
-      case 'deposit': case '存入':
+      case 'deposit': case 'export': case '存入': case '存仓':
         Game.depositToWarehouse(parsed.args[0] || '', parseInt(parsed.args[1]) || 1); break;
-      case 'withdraw': case '取出':
+      case 'withdraw': case 'import': case '取出': case '取回':
         Game.withdrawFromWarehouse(parsed.args[0] || '', parseInt(parsed.args[1]) || 1); break;
       case 'wequip': case '仓装':
         Game.equipFromWarehouse(parsed.args[0] || ''); break;
