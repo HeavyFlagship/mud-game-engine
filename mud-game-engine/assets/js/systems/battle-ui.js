@@ -520,7 +520,8 @@ const BattleUI = {
     if (readyWeapons.length > 0) {
       for (let i = 0; i < readyWeapons.length; i++) {
         const w = readyWeapons[i];
-        html += `<div class="timeline-item queue" style="color:#2f8;">${i + 1}. 🔫 ${w.name} (${w.slot})</div>`;
+        const slotNum = Object.keys(Player.equipment).indexOf(w.slot) + 1;
+        html += `<div class="timeline-item queue" style="color:#2f8;">${i + 1}. 🔫 ${w.name} (#${slotNum})</div>`;
       }
     } else {
       html += '<div class="timeline-item queue" style="color:#555;">（无就绪武器）</div>';

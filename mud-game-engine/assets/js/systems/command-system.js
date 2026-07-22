@@ -20,7 +20,8 @@ const CommandSystem = {
     fi:'fire', shoot:'fire', atk:'fire',
     ent:'enter', 进入:'enter',
     tm:'timeline', tl_b:'timeline',
-    re:'retreat', rt:'retreat'
+    re:'retreat', rt:'retreat',
+    rl:'reload'
   },
 
   // 战场专用指令（仅当 Battle.active 时由 handleBattleCmd 处理）
@@ -68,6 +69,8 @@ const CommandSystem = {
         Game.equip(parsed.args.join(' ')); break;
       case 'unequip': case '卸下':
         Game.unequip(parsed.args[0] || ''); break;
+      case 'reload': case '装填':
+        Game.reload(parsed.args[0] || ''); break;
       case 'use': case '使用': case 'drink': case '喝':
         Game.useItem(parsed.args.join(' ')); break;
       case 'skills': case '技能':

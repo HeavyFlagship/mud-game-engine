@@ -497,7 +497,7 @@ const Battle = {
     }
 
     // 检查弹药
-    if (!Player.hasAmmo(weapon)) {
+    if (!Player.hasAmmo(weapon, slot)) {
       Msg.error('弹药不足！');
       return false;
     }
@@ -509,7 +509,7 @@ const Battle = {
     }
 
     // 消耗弹药
-    Player.consumeAmmo(weapon);
+    Player.consumeAmmo(weapon, slot);
 
     this.enterCombat(`开火攻击 ${enemy.name}[${enemy.instanceId}]`);
     BattleUI.addHistory('你', '#fa4', '攻击');

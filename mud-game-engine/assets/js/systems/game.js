@@ -171,9 +171,7 @@ const Game = {
     // 当前装备（接口槽位）
     Msg.info('── 接口装备 ──');
     let hasEquip = false;
-    let slotNum = 0;
     for (const [key, slot] of Object.entries(Player.equipment)) {
-      slotNum++;
       const desc = Player.getSlotDesc(key);
       const equip = slot.equip;
       if (equip) {
@@ -185,9 +183,9 @@ const Game = {
         if (equip.cooldown) stats.push(`冷却${equip.cooldown}s`);
         if (equip.capacity) stats.push(`容量${equip.capacity}`);
         const extra = stats.length ? ` [${stats.join(', ')}]` : '';
-        Msg.info(`  #${slotNum} ${desc}: <span class="item-tag ${equip.type}">${equip.name}</span>${extra}`);
+        Msg.info(`  ${desc}: <span class="item-tag ${equip.type}">${equip.name}</span>${extra}`);
       } else {
-        Msg.info(`  #${slotNum} ${desc}: (空闲)`);
+        Msg.info(`  ${desc}: (空闲)`);
       }
     }
     if (!hasEquip) {
@@ -343,7 +341,23 @@ const Game = {
     }
     Player.uninstallEquipment(slotKey, true);
   },
- 
+
+  reload(arg) {
+    if (!arg) {
+      Msg.info('装填弹药用法: reload <接口编号>（如 reload 1，编号见 bag）');
+      Player.showInterfaceStatus();
+      return;
+    }
+    let slotKey = arg;
+    const num = parseInt(arg);
+    if (!isNaN(num) && num >= 1) {
+      const keys = Object.keys(Player.equipment);
+      slotKey = keys[num - 1];
+      if (!slotKey) { Msg.danger(`没有第 ${num} 个接口。`); return; }
+    }
+    Player.reload(slotKey);
+  },
+
   useItem(itemName) {
     if (!itemName) { Msg.warning('请指定要使用的物品。'); return; }
     const item = this.findItemInBag(itemName);
@@ -827,23 +841,24 @@ const Game = {
 
       if (item.category === 'weapon') {
         const ammoMap = {
-          '火炮': { type: '20mm_ap', name: '20mm弹', max: item.magazine || 0 },
-          '电磁炮': { type: 'railgun_slug', name: '轨道弹', max: item.magazine || 0 },
-          '离子炮': { type: 'ion_charge', name: '离子', max: item.magazine || 0 },
-          '导弹': { type: 'missile_he', name: '导弹', max: item.launchBay || 0 },
+          '火炮': { type: '20mm_ap', name: '20mm弹' },
+          '电磁炮': { type: 'railgun_slug', name: '轨道弹' },
+          '离子炮': { type: 'ion_charge', name: '离子' },
+          '导弹': { type: 'missile_he', name: '导弹' },
           '激光炮': null,
           '近战': null
         };
         const ammoInfo = ammoMap[item.subCategory];
         if (ammoInfo) {
-          const current = Player.ammo[ammoInfo.type] || 0;
-          const total = current + (Player.ammo[ammoInfo.type + '_bag'] || 0);
-          const max = ammoInfo.max || total;
-          const pct = max > 0 ? (total / max * 100) : 100;
+          const magCurrent = Player.magazines[key] || 0;
+          const magMax = item.magazine || 0;
+          const reserve = Player.ammo[ammoInfo.type] || 0;
+          const pct = magMax > 0 ? (magCurrent / magMax * 100) : (reserve > 0 ? 100 : 0);
+          const magDisplay = magMax > 0 ? `${magCurrent}/${magMax}` : `${magCurrent}`;
           extraHtml += `
             <div class="weapon-ammo">
               <div class="weapon-ammo-bar"><div class="weapon-ammo-fill" style="width:${Math.min(100, pct)}%"></div></div>
-              <div class="weapon-ammo-text">${ammoInfo.name}: ${total}${max > 0 ? `/${max}` : ''}</div>
+              <div class="weapon-ammo-text">${ammoInfo.name}: ${magDisplay}${reserve > 0 ? ` (+${reserve}备弹)` : ''}</div>
             </div>`;
         }
 

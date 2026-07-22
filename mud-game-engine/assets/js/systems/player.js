@@ -52,13 +52,15 @@ const Player = {
     bayMax: 0
   },
 
-  // 弹药库存
+  // 弹药库存（全局储备）
   ammo: {
     '20mm_ap': 200,
     'railgun_slug': 50,
     'ion_charge': 100,
     'missile_he': 20
   },
+  // 各武器槽的弹匣当前装填量（key: slot_0, slot_1...）
+  magazines: {},
 
   inventory: [],
   skills: [],
@@ -332,9 +334,22 @@ const Player = {
 
     // 安装
     this.equipment[targetSlot].equip = { ...equip };
-    // 武器冷却初始化
+    // 武器冷却和弹匣初始化
     if (equip.category === 'weapon') {
       this.weaponCooldowns[targetSlot] = 0;
+      // 初始化弹匣：从全局弹药池中填充
+      if (equip.magazine && equip.magazine > 0) {
+        const ammoType = this._getAmmoType(equip);
+        if (ammoType) {
+          const available = this.ammo[ammoType] || 0;
+          this.magazines[targetSlot] = Math.min(equip.magazine, available);
+          this.ammo[ammoType] -= this.magazines[targetSlot];
+        } else {
+          this.magazines[targetSlot] = 0;
+        }
+      } else {
+        this.magazines[targetSlot] = 0;
+      }
     }
     this.recalcBudget();
     this.recalcResources();
@@ -370,6 +385,14 @@ const Player = {
     }
     slot.equip = null;
     delete this.weaponCooldowns[slotKey];
+    // 返回弹匣中的弹药到全局池
+    if (equip.category === 'weapon' && equip.magazine && equip.magazine > 0) {
+      const ammoType = this._getAmmoType(equip);
+      if (ammoType && this.magazines[slotKey]) {
+        this.ammo[ammoType] = (this.ammo[ammoType] || 0) + this.magazines[slotKey];
+        delete this.magazines[slotKey];
+      }
+    }
     this.recalcBudget();
     this.recalcResources();
     const slotDesc = this.getSlotDesc(slotKey);
@@ -564,34 +587,77 @@ const Player = {
     return bonus;
   },
 
-  // 检查是否有足够弹药
-  hasAmmo(weapon) {
-    if (!weapon || !weapon.ammoPerShot || weapon.ammoPerShot <= 0) return true;
+  _getAmmoType(weapon) {
+    if (!weapon || !weapon.subCategory) return null;
     const ammoMap = {
       '火炮': '20mm_ap',
       '电磁炮': 'railgun_slug',
       '离子炮': 'ion_charge',
       '导弹': 'missile_he'
     };
-    const ammoType = ammoMap[weapon.subCategory];
-    if (!ammoType) return true;
-    return (this.ammo[ammoType] || 0) >= weapon.ammoPerShot;
+    return ammoMap[weapon.subCategory] || null;
   },
 
-  // 消耗弹药
-  consumeAmmo(weapon) {
+  // 检查是否有足够弹药（检查指定槽位的弹匣）
+  hasAmmo(weapon, slotKey) {
     if (!weapon || !weapon.ammoPerShot || weapon.ammoPerShot <= 0) return true;
-    const ammoMap = {
-      '火炮': '20mm_ap',
-      '电磁炮': 'railgun_slug',
-      '离子炮': 'ion_charge',
-      '导弹': 'missile_he'
-    };
-    const ammoType = ammoMap[weapon.subCategory];
+    const ammoType = this._getAmmoType(weapon);
     if (!ammoType) return true;
-    if ((this.ammo[ammoType] || 0) < weapon.ammoPerShot) return false;
-    this.ammo[ammoType] -= weapon.ammoPerShot;
+    if (!slotKey) {
+      return (this.ammo[ammoType] || 0) >= weapon.ammoPerShot;
+    }
+    const currentMag = this.magazines[slotKey] || 0;
+    return currentMag >= weapon.ammoPerShot;
+  },
+
+  // 消耗弹药（从指定槽位的弹匣消耗）
+  consumeAmmo(weapon, slotKey) {
+    if (!weapon || !weapon.ammoPerShot || weapon.ammoPerShot <= 0) return true;
+    const ammoType = this._getAmmoType(weapon);
+    if (!ammoType) return true;
+    if (!slotKey) {
+      if ((this.ammo[ammoType] || 0) < weapon.ammoPerShot) return false;
+      this.ammo[ammoType] -= weapon.ammoPerShot;
+      return true;
+    }
+    const currentMag = this.magazines[slotKey] || 0;
+    if (currentMag < weapon.ammoPerShot) return false;
+    this.magazines[slotKey] -= weapon.ammoPerShot;
     return true;
+  },
+
+  // 重新装填弹匣（从全局弹药池填充到指定槽位）
+  reload(slotKey) {
+    const slot = this.equipment[slotKey];
+    if (!slot || !slot.equip || slot.equip.category !== 'weapon') {
+      Msg.error('指定槽位没有武器。');
+      return;
+    }
+    const weapon = slot.equip;
+    if (!weapon.magazine || weapon.magazine <= 0) {
+      Msg.info(`${weapon.name} 无需装填。`);
+      return;
+    }
+    const ammoType = this._getAmmoType(weapon);
+    if (!ammoType) {
+      Msg.info(`${weapon.name} 无需弹药。`);
+      return;
+    }
+    const currentMag = this.magazines[slotKey] || 0;
+    const needed = weapon.magazine - currentMag;
+    if (needed <= 0) {
+      Msg.info(`${weapon.name} 弹匣已满。`);
+      return;
+    }
+    const available = this.ammo[ammoType] || 0;
+    const actual = Math.min(needed, available);
+    if (actual <= 0) {
+      Msg.warning('没有可用的备弹。');
+      return;
+    }
+    this.magazines[slotKey] += actual;
+    this.ammo[ammoType] -= actual;
+    Msg.success(`装填了 ${actual} 发弹药到 ${weapon.name}，当前弹匣: ${this.magazines[slotKey]}/${weapon.magazine}`);
   },
 
   gainExp(amount) {
