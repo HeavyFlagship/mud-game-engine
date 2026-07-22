@@ -279,7 +279,7 @@ const Battle = {
 
   regenEnergy(delta) {
     if (Player.energy < Player.maxEnergy) {
-      Player.energy = Math.min(Player.maxEnergy, Player.energy + (Player.energyRegen * delta / 10));
+      Player.energy = Math.min(Player.maxEnergy, Player.energy + (Player.energyRegen * delta));
     }
   },
 
@@ -433,7 +433,7 @@ const Battle = {
     const dy = targetPos[1] - Player.position[1];
     const dist = Math.sqrt(dx * dx + dy * dy);
     const speed = Player.currentSpeed;
-    const time = dist / speed * 10;
+    const time = dist / speed;
 
     const clamped = this.clampToBattlefield(targetPos);
     Player.facing = Math.atan2(dy, dx);
@@ -556,10 +556,18 @@ const Battle = {
   },
 
   calculateHitRate(attacker, target, weapon, dist) {
-    let hitRate = weapon.baseAccuracy;
+    const spreadRadius = weapon.spread * dist;
+    const baseHitRate = Math.min(1, Math.pow((target.targetRadius || 2) / Math.max(spreadRadius, 0.1), 2));
 
-    if (target.speed > 5) {
-      hitRate *= Math.max(0.5, 1 - (target.speed - 5) * 0.03);
+    let hitRate = baseHitRate;
+
+    const targetSpeed = target.currentSpeed || target.speed || 0;
+    if (targetSpeed > 5) {
+      hitRate *= Math.max(0.5, 1 - (targetSpeed - 5) * 0.03);
+    }
+
+    if (this.isInCover(target.position)) {
+      hitRate *= 0.6;
     }
 
     if (dist > weapon.optimalRange) {
@@ -567,14 +575,6 @@ const Battle = {
       hitRate *= Math.max(0.1, 1 - overRange * 0.001);
     } else if (dist < weapon.optimalRange * 0.3) {
       hitRate = Math.min(0.99, hitRate * 1.2);
-    }
-
-    if (this.isInCover(target.position)) {
-      hitRate *= 0.6;
-    }
-
-    if (weapon.spread && weapon.spread > 0) {
-      hitRate *= Math.max(0.7, 1 - weapon.spread * 0.1);
     }
 
     return Math.max(0.01, Math.min(0.99, hitRate));
@@ -591,34 +591,53 @@ const Battle = {
 
   dealDamage(target, dmg, damageType = 'kinetic') {
     if (target.instanceId) {
-      let remaining = dmg;
       let armorDmg = 0;
       let hpDmg = 0;
+      const resist = target.getResistances ? target.getResistances() : {};
+      const damageResist = resist[damageType] || 0;
+      const actualDmg = Math.floor(dmg * (1 - damageResist));
+
       if (damageType === 'kinetic') {
-        armorDmg = Math.min(target.armor, remaining);
+        armorDmg = Math.min(target.armor, actualDmg);
         target.armor -= armorDmg;
-        remaining -= armorDmg;
-        hpDmg = remaining;
+        hpDmg = actualDmg - armorDmg;
       } else if (damageType === 'thermal') {
-        armorDmg = Math.min(target.armor, Math.floor(remaining * 0.6));
+        const burnStack = target.statusEffects.find(e => e.type === 'burn');
+        const burnMultiplier = burnStack ? (1 + burnStack.stacks * 0.2) : 1;
+        const thermalDmg = Math.floor(actualDmg * burnMultiplier);
+        armorDmg = Math.min(target.armor, Math.floor(thermalDmg * 0.5));
         target.armor -= armorDmg;
-        remaining = Math.max(0, remaining - armorDmg);
-        hpDmg = remaining;
-      } else if (damageType === 'shock') {
-        armorDmg = Math.min(target.armor, Math.floor(remaining * 0.8));
-        target.armor -= armorDmg;
-        remaining = Math.max(0, remaining - armorDmg);
-        hpDmg = remaining;
-      } else if (damageType === 'corrosion') {
-        hpDmg = remaining;
-        if (Math.random() < 0.3) {
-          target.statusEffects.push({ type: 'corrosion', value: 5, duration: 50 });
+        hpDmg = thermalDmg - armorDmg;
+        const existingBurn = target.statusEffects.find(e => e.type === 'burn');
+        if (existingBurn) {
+          existingBurn.stacks = Math.min(10, existingBurn.stacks + 1);
+          existingBurn.duration = 10;
+        } else {
+          target.statusEffects.push({ type: 'burn', stacks: 1, duration: 10 });
         }
+      } else if (damageType === 'shock') {
+        armorDmg = Math.min(target.armor, Math.floor(actualDmg * 0.8));
+        target.armor -= armorDmg;
+        hpDmg = Math.floor(actualDmg * 0.2);
+      } else if (damageType === 'ion') {
+        hpDmg = actualDmg;
+        const existingIon = target.statusEffects.find(e => e.type === 'ion_disrupt');
+        if (existingIon) {
+          existingIon.duration = Math.min(30, existingIon.duration + 3);
+        } else {
+          target.statusEffects.push({ type: 'ion_disrupt', duration: 5 });
+        }
+      } else if (damageType === 'corrosion') {
+        target.statusEffects.push({ type: 'corrosion', value: Math.floor(actualDmg / 5), duration: 30 });
+      } else if (damageType === 'explosive') {
+        armorDmg = Math.min(target.armor, Math.floor(actualDmg * 0.7));
+        target.armor -= armorDmg;
+        hpDmg = actualDmg - armorDmg;
       } else {
-        hpDmg = remaining;
+        hpDmg = actualDmg;
       }
       target.hp = Math.max(0, target.hp - hpDmg);
-      return { total: dmg, armor: armorDmg, hp: hpDmg };
+      return { total: dmg, actual: actualDmg, armor: armorDmg, hp: hpDmg };
     } else {
       return Player.takeDamage(dmg, damageType);
     }
@@ -648,7 +667,7 @@ const Battle = {
     const dx = targetPos[0] - enemy.position[0];
     const dy = targetPos[1] - enemy.position[1];
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const time = dist / enemy.speed * 10;
+    const time = dist / enemy.speed;
 
     const clamped = this.clampToBattlefield(targetPos);
     enemy.facing = Math.atan2(dy, dx);

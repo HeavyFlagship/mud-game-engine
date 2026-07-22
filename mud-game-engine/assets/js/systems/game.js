@@ -276,7 +276,7 @@ const Game = {
 
     if (Player.statusEffects.length > 0) {
       const effStr = Player.statusEffects.map(e => {
-        const names = { slow:'减速', poison:'中毒', burn:'灼烧', shock:'电击', corrosion:'腐蚀', stun:'眩晕' };
+        const names = { slow:'减速', poison:'中毒', burn:'灼烧', shock:'电击', corrosion:'腐蚀', stun:'眩晕', ion_disrupt:'EMP干扰' };
         return `${names[e.type] || e.type}(${e.duration.toFixed(0)}秒)`;
       }).join(' ');
       Msg.info(`状态效果: ${effStr}`);

@@ -139,12 +139,22 @@ const Player = {
       // 设置预算基准
       this.budget.powerMax = vehicle.power;
       this.budget.computeMax = vehicle.compute;
-      this.budget.bayMax = 10; // 默认装备舱容量
+      this.budget.bayMax = vehicle.equipmentBay || 10;
     }
 
-    // 安装默认核心模块
-    this.installEquipment('basic_core_computer', 'coreComputer');
-    this.installEquipment('basic_core_power', 'corePower');
+    // 安装默认核心模块（核心模块不占用预算，而是增加预算上限）
+    const coreComputer = EquipmentDB.get('basic_core_computer');
+    const corePower = EquipmentDB.get('basic_core_power');
+    if (coreComputer) {
+      this.equipment.coreComputer = { ...coreComputer };
+      this.budget.computeMax += coreComputer.coreOutput || 0;
+      Msg.success(`安装了 ${coreComputer.name}，算力上限+${coreComputer.coreOutput}`);
+    }
+    if (corePower) {
+      this.equipment.corePower = { ...corePower };
+      this.budget.powerMax += corePower.coreOutput || 0;
+      Msg.success(`安装了 ${corePower.name}，功率上限+${corePower.coreOutput}`);
+    }
 
     // 安装默认武器和装甲
     if (vehicle && vehicle.defaultWeapons && vehicle.defaultWeapons[0]) {
@@ -349,12 +359,16 @@ const Player = {
       if (armor.thermResist) res.thermal += armor.thermResist;
       if (armor.shockResist) res.shock += armor.shockResist;
       if (armor.dynamicResist) {
-        // 动态装甲：平均分配到所有类型
-        for (const k of Object.keys(res)) res[k] += armor.dynamicResist;
+        const lastDamageType = this.lastDamageType;
+        if (lastDamageType && res[lastDamageType] !== undefined) {
+          res[lastDamageType] += armor.dynamicResist;
+        }
       }
     }
     return res;
   },
+
+  lastDamageType: null,
 
   // 获取电子战加成
   getEWBonus() {
@@ -451,6 +465,7 @@ const Player = {
   // ===== 伤害与修复系统 =====
 
   takeDamage(dmg, damageType = 'kinetic') {
+    this.lastDamageType = damageType;
     const res = this.getResistances();
     const resist = res[damageType] || 0;
     // 应用结构抗性减免
