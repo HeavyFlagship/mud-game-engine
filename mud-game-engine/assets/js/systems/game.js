@@ -525,7 +525,7 @@ const Game = {
         itemList = EquipmentDB.getAll();
       }
     } else {
-      itemList = shopNpc.shopItems.map(id => ItemDB[id]).filter(Boolean);
+      itemList = shopNpc.shopItems.map(id => ItemDB.get(id)).filter(Boolean);
     }
 
     if (action === 'list' || !action || showAll) {

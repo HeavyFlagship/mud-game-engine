@@ -75,7 +75,7 @@ const Player = {
   statusEffects: [],
   killCount: {},
   stats: { totalDmg:0, totalHeal:0, monstersKilled:0, deaths:0 },
-  gold: 100,
+  gold: 10000,
   level: 1,
   exp: 0,
   expToNext: 50,
