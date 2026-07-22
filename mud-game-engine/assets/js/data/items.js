@@ -17,6 +17,11 @@ const ItemDB = {
       const eq = EquipmentDB.get(id);
       if (eq) return eq;
     }
+    // 查询载具
+    if (typeof VehicleDB !== 'undefined' && VehicleDB[id]) {
+      const v = VehicleDB[id];
+      return { id: v.id, name: v.name, type: 'vehicle', category: 'vehicle', price: v.price || 0, desc: v.desc };
+    }
     // 回退到本地分类查询
     for (const cat of Object.values(this)) {
       if (cat && typeof cat === 'object' && cat[id]) return { ...cat[id] };

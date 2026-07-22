@@ -15,27 +15,11 @@ const VehicleDB = {
     targetRadius: 2.0,
     power: 150,
     compute: 80,
-    // 接口定义：每个接口提供一组属性，装备的 interfaceReq 必须全部被某个空闲接口覆盖
-    // 每个接口键值对表示"该类型的接口有几个"
-    // 接口属性说明：
-    //   外部 - 暴露在环境中，可安装炮台、装甲板等
-    //   内部 - 载具内部空间，可安装内衬装甲、容器等
-    //   电源 - 提供功率输出
-    //   数据 - 提供数据通信
-    //   弹药管道 - 提供弹药输送
-    //   离子管道 - 提供离子输送
-    //   流体管道 - 提供燃料等流体输送
-    //   界面 - 装备体积适配接口
     interfaces: [
-      // 4个外部+电源+数据+弹药管道+界面接口（适合火炮、电磁炮等武器）
       { types: ['外部','电源','数据','弹药管道','界面'], count: 2 },
-      // 2个外部+电源+数据+界面接口（适合激光炮、近战武器、装甲板等）
       { types: ['外部','电源','数据','界面'], count: 2 },
-      // 2个外部+电源+数据+离子管道+界面接口（适合离子炮等）
       { types: ['外部','电源','数据','离子管道','界面'], count: 1 },
-      // 2个内部+电源+数据+界面接口（适合内衬装甲、容器、修复器等）
       { types: ['内部','电源','数据','界面'], count: 2 },
-      // 1个外部+数据+界面接口（适合电子战设备、雷达等低功耗设备）
       { types: ['外部','数据','界面'], count: 1 },
     ],
     equipmentBay: 300,
@@ -44,7 +28,101 @@ const VehicleDB = {
     defaultArmor: ['light_alloy_plate'],
     energyCapacity: 200,
     energyRegen: 5,
+    price: 0,
     desc: '标准型先遣侦察机体，双足结构，机动性良好，适合复杂地形作业。'
+  },
+  assault: {
+    id: 'assault',
+    name: '突击机体 MK-I',
+    type: '机体',
+    chassis: 'biped',
+    maxHp: 280,
+    maxArmor: 120,
+    maxSpeed: 10,
+    weight: 1800,
+    overweightCoeff: 1.4,
+    visionRadius: 180,
+    signalRadius: 2.8,
+    targetRadius: 2.5,
+    power: 200,
+    compute: 100,
+    interfaces: [
+      { types: ['外部','电源','数据','弹药管道','界面'], count: 3 },
+      { types: ['外部','电源','数据','界面'], count: 2 },
+      { types: ['外部','电源','数据','离子管道','界面'], count: 1 },
+      { types: ['内部','电源','数据','界面'], count: 3 },
+      { types: ['外部','数据','界面'], count: 2 },
+    ],
+    equipmentBay: 400,
+    cargo: 250,
+    defaultWeapons: ['auto_cannon_mk1'],
+    defaultArmor: ['light_alloy_plate'],
+    energyCapacity: 280,
+    energyRegen: 6,
+    price: 8000,
+    desc: '重型突击机体，装甲更厚，武器接口更多，适合正面作战。'
+  },
+  striker: {
+    id: 'striker',
+    name: '打击机体 MK-I',
+    type: '机体',
+    chassis: 'quad',
+    maxHp: 350,
+    maxArmor: 150,
+    maxSpeed: 8,
+    weight: 2500,
+    overweightCoeff: 1.3,
+    visionRadius: 160,
+    signalRadius: 3.0,
+    targetRadius: 3.0,
+    power: 250,
+    compute: 120,
+    interfaces: [
+      { types: ['外部','电源','数据','弹药管道','界面'], count: 4 },
+      { types: ['外部','电源','数据','界面'], count: 3 },
+      { types: ['外部','电源','数据','离子管道','界面'], count: 2 },
+      { types: ['内部','电源','数据','界面'], count: 4 },
+      { types: ['外部','数据','界面'], count: 2 },
+    ],
+    equipmentBay: 500,
+    cargo: 350,
+    defaultWeapons: ['auto_cannon_mk1'],
+    defaultArmor: ['light_alloy_plate'],
+    energyCapacity: 350,
+    energyRegen: 7,
+    price: 15000,
+    desc: '四足重装机体，火力与防护并重，适合攻坚战和阵地战。'
+  },
+  stealth: {
+    id: 'stealth',
+    name: '隐匿机体 MK-I',
+    type: '机体',
+    chassis: 'biped',
+    maxHp: 150,
+    maxArmor: 60,
+    maxSpeed: 14,
+    weight: 900,
+    overweightCoeff: 1.6,
+    visionRadius: 250,
+    signalRadius: 2.0,
+    targetRadius: 1.8,
+    power: 120,
+    compute: 150,
+    interfaces: [
+      { types: ['外部','电源','数据','弹药管道','界面'], count: 1 },
+      { types: ['外部','电源','数据','界面'], count: 2 },
+      { types: ['外部','电源','数据','离子管道','界面'], count: 1 },
+      { types: ['内部','电源','数据','界面'], count: 2 },
+      { types: ['外部','数据','界面'], count: 3 },
+    ],
+    equipmentBay: 200,
+    cargo: 150,
+    defaultWeapons: ['pulse_laser_mk1'],
+    defaultArmor: ['light_alloy_plate'],
+    energyCapacity: 180,
+    energyRegen: 8,
+    price: 12000,
+    desc: '轻型隐匿机体，机动性极佳，电子战接口丰富，适合侦察与骚扰。'
   }
 };
 

@@ -21,7 +21,8 @@ const CommandSystem = {
     ent:'enter', 进入:'enter',
     tm:'timeline', tl_b:'timeline',
     re:'retreat', rt:'retreat',
-    rl:'reload'
+    rl:'reload',
+    hg:'hangar', wh:'warehouse'
   },
 
   // 战场专用指令（仅当 Battle.active 时由 handleBattleCmd 处理）
@@ -71,6 +72,18 @@ const CommandSystem = {
         Game.unequip(parsed.args[0] || ''); break;
       case 'reload': case '装填':
         Game.reload(parsed.args[0] || ''); break;
+      case 'hangar': case '机库':
+        Game.showHangar(); break;
+      case 'switch': case '切换':
+        Game.switchVehicle(parsed.args[0] || ''); break;
+      case 'warehouse': case '仓库':
+        Game.showWarehouse(); break;
+      case 'deposit': case '存入':
+        Game.depositToWarehouse(parsed.args[0] || '', parseInt(parsed.args[1]) || 1); break;
+      case 'withdraw': case '取出':
+        Game.withdrawFromWarehouse(parsed.args[0] || '', parseInt(parsed.args[1]) || 1); break;
+      case 'wequip': case '仓装':
+        Game.equipFromWarehouse(parsed.args[0] || ''); break;
       case 'use': case '使用': case 'drink': case '喝':
         Game.useItem(parsed.args.join(' ')); break;
       case 'skills': case '技能':

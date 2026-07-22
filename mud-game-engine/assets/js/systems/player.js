@@ -22,7 +22,6 @@ const Player = {
   overweightCoeff: 1.5,
 
   // 装备槽位：动态生成，基于载具接口
-  // 格式：{ slot_0: { interfaceTypes: ['外部','电源','数据','界面'], equip: null }, ... }
   equipment: {},
 
   // 核心模块（固定槽位，不占接口）
@@ -32,36 +31,18 @@ const Player = {
   // 武器冷却映射：slot_key -> cooldown
   weaponCooldowns: {},
 
-  // 资源管理
-  resources: {
-    energy: 0,
-    maxEnergy: 0,
-    ion: 0,
-    maxIon: 0,
-    fuel: 0,
-    maxFuel: 0
-  },
-
-  // 预算管理（功率/算力/装备舱）
-  budget: {
-    powerUsed: 0,
-    powerMax: 0,
-    computeUsed: 0,
-    computeMax: 0,
-    bayUsed: 0,
-    bayMax: 0
-  },
-
-  // 弹药库存（全局储备）
-  ammo: {
-    '20mm_ap': 200,
-    'railgun_slug': 50,
-    'ion_charge': 100,
-    'missile_he': 20
-  },
-  // 各武器槽的弹匣当前装填量（key: slot_0, slot_1...）
+  // 弹匣状态：slot_key -> currentMagazine
   magazines: {},
 
+  // 机库系统：存储拥有的机体配置
+  // 格式：[{ vehicleId, equipment, coreComputer, corePower, magazines }]
+  hangar: [],
+
+  // 基地仓库：存储物品
+  // 格式：[{ id, count }]
+  warehouse: [],
+
+  // 玩家背包
   inventory: [],
   skills: [],
   visitedRooms: new Set(),
@@ -73,9 +54,32 @@ const Player = {
   exp: 0,
   expToNext: 50,
 
-  get atk() {
-    const weapons = this.getEquippedWeapons();
-    return weapons.length > 0 ? weapons[0].damage || 0 : 0;
+  // 弹药库存（全局储备）
+  ammo: {
+    '20mm_ap': 200,
+    'railgun_slug': 50,
+    'ion_charge': 100,
+    'missile_he': 20
+  },
+
+  // 资源管理
+  resources: {
+    energy: 0,
+    maxEnergy: 0,
+    ion: 0,
+    maxIon: 0,
+    fuel: 0,
+    maxFuel: 0
+  },
+
+  // 预算管理
+  budget: {
+    powerUsed: 0,
+    powerMax: 0,
+    computeUsed: 0,
+    computeMax: 0,
+    bayUsed: 0,
+    bayMax: 0
   },
 
   get def() {
@@ -226,6 +230,261 @@ const Player = {
     this.inventory.push({ id:'repair_kit_small', count:2 });
     this.inventory.push({ id:'armor_patch', count:2 });
     this.recalcResources();
+
+    // 初始化机库：将初始机体存入机库
+    this.saveCurrentVehicleToHangar();
+  },
+
+  // ===== 机库系统 =====
+
+  // 保存当前机体配置到机库
+  saveCurrentVehicleToHangar() {
+    const existing = this.hangar.find(v => v.vehicleId === this.vehicleId);
+    if (existing) {
+      existing.equipment = JSON.parse(JSON.stringify(this.equipment));
+      existing.coreComputer = this.coreComputer ? { ...this.coreComputer } : null;
+      existing.corePower = this.corePower ? { ...this.corePower } : null;
+      existing.magazines = { ...this.magazines };
+    } else {
+      this.hangar.push({
+        vehicleId: this.vehicleId,
+        equipment: JSON.parse(JSON.stringify(this.equipment)),
+        coreComputer: this.coreComputer ? { ...this.coreComputer } : null,
+        corePower: this.corePower ? { ...this.corePower } : null,
+        magazines: { ...this.magazines }
+      });
+    }
+  },
+
+  // 购买新机体
+  buyVehicle(vehicleId) {
+    const vehicle = VehicleDB[vehicleId];
+    if (!vehicle) {
+      Msg.error('该载具不存在。');
+      return false;
+    }
+    if (this.hangar.some(v => v.vehicleId === vehicleId)) {
+      Msg.warning('你已经拥有该机体了。');
+      return false;
+    }
+    const price = vehicle.price || 0;
+    if (this.gold < price) {
+      Msg.error(`金币不足，需要 ${price} 金币。`);
+      return false;
+    }
+    this.gold -= price;
+    // 创建空白配置存入机库
+    this.hangar.push({
+      vehicleId,
+      equipment: {},
+      coreComputer: null,
+      corePower: null,
+      magazines: {}
+    });
+    Msg.success(`购买了 ${vehicle.name}，已存入机库。`);
+    return true;
+  },
+
+  // 切换机体（在基地内）
+  switchVehicle(vehicleId) {
+    if (Battle.active) {
+      Msg.error('战斗中无法切换机体。');
+      return false;
+    }
+    const room = MapSystem.getRoom(this.room);
+    if (!room || !room.isSafeZone) {
+      Msg.error('只能在基地内切换机体。');
+      return false;
+    }
+    const vehicle = VehicleDB[vehicleId];
+    if (!vehicle) {
+      Msg.error('该载具不存在。');
+      return false;
+    }
+    const savedConfig = this.hangar.find(v => v.vehicleId === vehicleId);
+    if (!savedConfig) {
+      Msg.error('机库中没有该机体。');
+      return false;
+    }
+    if (vehicleId === this.vehicleId) {
+      Msg.info('当前已在使用该机体。');
+      return false;
+    }
+
+    // 保存当前机体配置
+    this.saveCurrentVehicleToHangar();
+
+    // 切换到新机体
+    this.loadVehicleConfig(savedConfig);
+    Msg.success(`已切换到 ${vehicle.name}。`);
+    return true;
+  },
+
+  // 加载机体配置
+  loadVehicleConfig(config) {
+    const vehicle = VehicleDB[config.vehicleId];
+    if (!vehicle) return;
+
+    this.vehicleId = config.vehicleId;
+    this.maxHp = vehicle.maxHp;
+    this.hp = vehicle.maxHp;
+    this.maxArmor = vehicle.maxArmor;
+    this.armor = vehicle.maxArmor;
+    this.speed = vehicle.maxSpeed;
+    this.visionRadius = vehicle.visionRadius;
+    this.signalRadius = vehicle.signalRadius;
+    this.targetRadius = vehicle.targetRadius;
+    this.power = vehicle.power;
+    this.compute = vehicle.compute;
+    this.weight = vehicle.weight;
+    this.overweightCoeff = vehicle.overweightCoeff;
+    this.maxEnergy = vehicle.energyCapacity;
+    this.energy = vehicle.energyCapacity;
+    this.energyRegen = vehicle.energyRegen;
+    this.budget.powerMax = vehicle.power;
+    this.budget.computeMax = vehicle.compute;
+    this.budget.bayMax = vehicle.equipmentBay || 10;
+
+    // 清空并重建装备槽位
+    this.equipment = {};
+    this.weaponCooldowns = {};
+    this.initSlots();
+
+    // 恢复核心模块
+    if (config.coreComputer) {
+      this.coreComputer = { ...config.coreComputer };
+      this.budget.computeMax += config.coreComputer.coreOutput || 0;
+    } else {
+      this.coreComputer = null;
+    }
+    if (config.corePower) {
+      this.corePower = { ...config.corePower };
+      this.budget.powerMax += config.corePower.coreOutput || 0;
+    } else {
+      this.corePower = null;
+    }
+
+    // 恢复装备
+    for (const [slotKey, slot] of Object.entries(config.equipment || {})) {
+      if (this.equipment[slotKey] && slot.equip) {
+        this.equipment[slotKey].equip = { ...slot.equip };
+      }
+    }
+    this.magazines = { ...(config.magazines || {}) };
+    this.recalcBudget();
+    this.recalcResources();
+  },
+
+  // ===== 仓库系统 =====
+
+  // 存入物品到仓库
+  depositToWarehouse(itemName, count = 1) {
+    const num = parseInt(itemName);
+    let item = null;
+    if (!isNaN(num) && num >= 1) {
+      item = this.inventory[num - 1];
+    } else {
+      item = this.inventory.find(i => {
+        const template = ItemDB.get(i.id);
+        return template && (template.name === itemName || i.id === itemName);
+      });
+    }
+    if (!item) {
+      Msg.error('背包中没有该物品。');
+      return false;
+    }
+    const actualCount = Math.min(count, item.count);
+    if (actualCount <= 0) {
+      Msg.error('数量无效。');
+      return false;
+    }
+
+    const existing = this.warehouse.find(w => w.id === item.id);
+    if (existing) {
+      existing.count += actualCount;
+    } else {
+      this.warehouse.push({ id: item.id, count: actualCount });
+    }
+    item.count -= actualCount;
+    if (item.count <= 0) {
+      this.inventory = this.inventory.filter(i => i !== item);
+    }
+    const template = ItemDB.get(item.id);
+    Msg.success(`已将 ${template?.name || item.id} x${actualCount} 存入仓库。`);
+    return true;
+  },
+
+  // 从仓库取出物品
+  withdrawFromWarehouse(itemName, count = 1) {
+    const num = parseInt(itemName);
+    let entry = null;
+    if (!isNaN(num) && num >= 1) {
+      entry = this.warehouse[num - 1];
+    } else {
+      entry = this.warehouse.find(w => {
+        const template = ItemDB.get(w.id);
+        return template && (template.name === itemName || w.id === itemName);
+      });
+    }
+    if (!entry) {
+      Msg.error('仓库中没有该物品。');
+      return false;
+    }
+    const actualCount = Math.min(count, entry.count);
+    if (actualCount <= 0) {
+      Msg.error('数量无效。');
+      return false;
+    }
+
+    const existing = this.inventory.find(i => i.id === entry.id);
+    if (existing) {
+      existing.count += actualCount;
+    } else {
+      this.inventory.push({ id: entry.id, count: actualCount });
+    }
+    entry.count -= actualCount;
+    if (entry.count <= 0) {
+      this.warehouse = this.warehouse.filter(w => w !== entry);
+    }
+    const template = ItemDB.get(entry.id);
+    Msg.success(`已从仓库取出 ${template?.name || entry.id} x${actualCount}。`);
+    return true;
+  },
+
+  // 从仓库直接装备（仅限装备类）
+  equipFromWarehouse(itemName) {
+    const num = parseInt(itemName);
+    let entry = null;
+    if (!isNaN(num) && num >= 1) {
+      entry = this.warehouse[num - 1];
+    } else {
+      entry = this.warehouse.find(w => {
+        const template = ItemDB.get(w.id);
+        return template && (template.name === itemName || w.id === itemName);
+      });
+    }
+    if (!entry) {
+      Msg.error('仓库中没有该物品。');
+      return false;
+    }
+    const template = ItemDB.get(entry.id);
+    if (!template) {
+      Msg.error('物品数据错误。');
+      return false;
+    }
+    if (template.category === 'core' || !template.interfaceReq) {
+      Msg.error('该物品无法直接装备。');
+      return false;
+    }
+
+    if (this.installEquipment(entry.id, undefined)) {
+      entry.count--;
+      if (entry.count <= 0) {
+        this.warehouse = this.warehouse.filter(w => w !== entry);
+      }
+      return true;
+    }
+    return false;
   },
 
   // ===== 装备安装系统（基于接口匹配） =====

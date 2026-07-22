@@ -362,6 +362,106 @@ const Game = {
     Player.reload(slotKey);
   },
 
+  reload(arg) {
+    if (!arg) {
+      Msg.info('装填弹药用法: reload <接口编号>（如 reload 1，编号见 bag）');
+      Player.showInterfaceStatus();
+      return;
+    }
+    let slotKey = arg;
+    const num = parseInt(arg);
+    if (!isNaN(num) && num >= 1) {
+      const keys = Object.keys(Player.equipment);
+      slotKey = keys[num - 1];
+      if (!slotKey) { Msg.danger(`没有第 ${num} 个接口。`); return; }
+    }
+    Player.reload(slotKey);
+  },
+
+  showHangar() {
+    Msg.divider();
+    Msg.add('🏭 机库', 'info');
+    if (Player.hangar.length === 0) {
+      Msg.system('机库是空的。');
+      return;
+    }
+    Player.hangar.forEach((v, idx) => {
+      const vehicle = VehicleDB[v.vehicleId];
+      const isCurrent = v.vehicleId === Player.vehicleId;
+      const status = isCurrent ? ' ✅[当前使用]' : '';
+      if (vehicle) {
+        const equipCount = Object.values(v.equipment || {}).filter(s => s && s.equip).length;
+        Msg.info(`  #${idx + 1} <span class="item-tag core">${vehicle.name}</span> - HP${vehicle.maxHp} 装甲${vehicle.maxArmor} 接口${equipCount}装备${status}`);
+      } else {
+        Msg.info(`  #${idx + 1} ${v.vehicleId}${status}`);
+      }
+    });
+    Msg.system('提示: 在基地内输入 switch <编号> 切换机体');
+  },
+
+  switchVehicle(arg) {
+    if (!arg) {
+      Msg.info('切换机体用法: switch <编号>（如 switch 1，编号见 hangar）');
+      return;
+    }
+    const num = parseInt(arg);
+    if (isNaN(num) || num < 1) {
+      Msg.error('请输入有效的编号。');
+      return;
+    }
+    const entry = Player.hangar[num - 1];
+    if (!entry) {
+      Msg.error(`没有第 ${num} 号机体。`);
+      return;
+    }
+    Player.switchVehicle(entry.vehicleId);
+  },
+
+  showWarehouse() {
+    Msg.divider();
+    Msg.add('📦 基地仓库', 'info');
+    if (Player.warehouse.length === 0) {
+      Msg.system('仓库是空的。');
+      return;
+    }
+    Player.warehouse.forEach((entry, idx) => {
+      const item = ItemDB.get(entry.id);
+      if (item) {
+        const countStr = entry.count > 1 ? ` x${entry.count}` : '';
+        const typeTag = item.type ? `class="item-tag ${item.type}"` : '';
+        Msg.info(`  #${idx + 1} <span ${typeTag}>${item.name}</span>${countStr}`);
+      }
+    });
+    Msg.system('提示: withdraw <编号> [数量] 取出, wequip <编号> 直接装备');
+  },
+
+  depositToWarehouse(itemName, count = 1) {
+    const room = MapSystem.getRoom(Player.room);
+    if (!room || !room.isSafeZone) {
+      Msg.error('只能在基地内存取物品。');
+      return;
+    }
+    Player.depositToWarehouse(itemName, count);
+  },
+
+  withdrawFromWarehouse(itemName, count = 1) {
+    const room = MapSystem.getRoom(Player.room);
+    if (!room || !room.isSafeZone) {
+      Msg.error('只能在基地内存取物品。');
+      return;
+    }
+    Player.withdrawFromWarehouse(itemName, count);
+  },
+
+  equipFromWarehouse(itemName) {
+    const room = MapSystem.getRoom(Player.room);
+    if (!room || !room.isSafeZone) {
+      Msg.error('只能在基地内装备物品。');
+      return;
+    }
+    Player.equipFromWarehouse(itemName);
+  },
+
   useItem(itemName) {
     if (!itemName) { Msg.warning('请指定要使用的物品。'); return; }
     const item = this.findItemInBag(itemName);
@@ -534,17 +634,32 @@ const Game = {
         Msg.system('暂无商品。');
       } else {
         itemList.forEach((item, idx) => {
-          const stats = [];
-          if (item.damage) stats.push(`伤害${item.damage}`);
-          if (item.armorValue) stats.push(`装甲${item.armorValue}`);
-          if (item.healHp) stats.push(`修复结构${item.healHp}`);
-          if (item.healArmor) stats.push(`修复装甲${item.healArmor}`);
-          if (item.range) stats.push(`射程${item.range}m`);
-          if (item.powerReq) stats.push(`功率${item.powerReq}kW`);
-          if (item.computeReq) stats.push(`算力${item.computeReq}`);
-          const extra = stats.length ? ` [${stats.join(',')}]` : '';
-          const catTag = item.category ? `[${item.category}] ` : '';
-          Msg.info(`  ${idx+1}. ${catTag}<span class="item-tag ${item.type}">${item.name}</span>${extra} - ${item.price}G`);
+          // 检查是否是载具
+          if (item.category === 'vehicle' || VehicleDB[item.id]) {
+            const vehicle = VehicleDB[item.id];
+            if (vehicle) {
+              const stats = [];
+              if (vehicle.maxHp) stats.push(`HP${vehicle.maxHp}`);
+              if (vehicle.maxArmor) stats.push(`装甲${vehicle.maxArmor}`);
+              if (vehicle.maxSpeed) stats.push(`速度${vehicle.maxSpeed}`);
+              const extra = stats.length ? ` [${stats.join(',')}]` : '';
+              const owned = Player.hangar.some(v => v.vehicleId === item.id);
+              const ownTag = owned ? ' ✅已拥有' : '';
+              Msg.info(`  ${idx+1}. [机体] <span class="item-tag core">${vehicle.name}</span>${extra} - ${vehicle.price || 0}G${ownTag}`);
+            }
+          } else {
+            const stats = [];
+            if (item.damage) stats.push(`伤害${item.damage}`);
+            if (item.armorValue) stats.push(`装甲${item.armorValue}`);
+            if (item.healHp) stats.push(`修复结构${item.healHp}`);
+            if (item.healArmor) stats.push(`修复装甲${item.healArmor}`);
+            if (item.range) stats.push(`射程${item.range}m`);
+            if (item.powerReq) stats.push(`功率${item.powerReq}kW`);
+            if (item.computeReq) stats.push(`算力${item.computeReq}`);
+            const extra = stats.length ? ` [${stats.join(',')}]` : '';
+            const catTag = item.category ? `[${item.category}] ` : '';
+            Msg.info(`  ${idx+1}. ${catTag}<span class="item-tag ${item.type}">${item.name}</span>${extra} - ${item.price}G`);
+          }
         });
       }
       Msg.info('购买: shop/buy 物品名 或 buy 序号');
@@ -563,10 +678,37 @@ const Game = {
         Msg.info('输入 shop all 查看全部装备。');
         return;
       }
-      if (Player.gold < targetItem.price) { Msg.danger('资金不足！'); return; }
-      Player.gold -= targetItem.price;
-      Player.addItem(targetItem.id);
-      Msg.success(`💰 购买了 <span class="item-tag ${targetItem.type}">${targetItem.name}</span>，花费 ${targetItem.price}G`);
+      // 检查是否是载具
+      if (targetItem.category === 'vehicle' || VehicleDB[targetItem.id]) {
+        const vehicle = VehicleDB[targetItem.id];
+        if (!vehicle) {
+          Msg.danger('载具数据错误。');
+          return;
+        }
+        if (Player.hangar.some(v => v.vehicleId === targetItem.id)) {
+          Msg.warning('你已经拥有该机体了。');
+          return;
+        }
+        if (Player.gold < (vehicle.price || 0)) {
+          Msg.danger('资金不足！');
+          return;
+        }
+        Player.gold -= vehicle.price || 0;
+        Player.hangar.push({
+          vehicleId: targetItem.id,
+          equipment: {},
+          coreComputer: null,
+          corePower: null,
+          magazines: {}
+        });
+        Msg.success(`💰 购买了机体 <span class="item-tag core">${vehicle.name}</span>，花费 ${vehicle.price || 0}G`);
+        Msg.info('输入 hangar 查看机库，switch <编号> 切换机体。');
+      } else {
+        if (Player.gold < targetItem.price) { Msg.danger('资金不足！'); return; }
+        Player.gold -= targetItem.price;
+        Player.addItem(targetItem.id);
+        Msg.success(`💰 购买了 <span class="item-tag ${targetItem.type}">${targetItem.name}</span>，花费 ${targetItem.price}G`);
+      }
     }
   },
  
@@ -717,6 +859,11 @@ const Game = {
       position: Player.position,
       inventory: Player.inventory,
       equipment: Player.equipment,
+      hangar: Player.hangar,
+      warehouse: Player.warehouse,
+      magazines: Player.magazines,
+      coreComputer: Player.coreComputer,
+      corePower: Player.corePower,
       skills: Player.skills,
       visitedRooms: [...Player.visitedRooms],
       killCount: Player.killCount,
@@ -749,9 +896,15 @@ const Game = {
         energy: data.energy, maxEnergy: data.maxEnergy,
         gold: data.gold, room: data.room,
         position: data.position || [500, 500],
-        inventory: data.inventory, equipment: data.equipment,
-        skills: data.skills,
-        visitedRooms: new Set(data.visitedRooms),
+        inventory: data.inventory || [],
+        equipment: data.equipment || {},
+        hangar: data.hangar || [],
+        warehouse: data.warehouse || [],
+        magazines: data.magazines || {},
+        coreComputer: data.coreComputer || null,
+        corePower: data.corePower || null,
+        skills: data.skills || [],
+        visitedRooms: new Set(data.visitedRooms || []),
         killCount: data.killCount || {},
         stats: data.stats || { totalDmg:0, totalHeal:0, monstersKilled:0, deaths:0 }
       });
@@ -821,17 +974,13 @@ const Game = {
 
     let html = '';
 
-    // 核心模块
-    if (Player.coreComputer) {
-      html += `<div class="equip-item"><div class="equip-slot">`;
-      html += `<span class="equip-slot-name">核心计算机</span>`;
-      html += `<span class="equip-slot-item">${Player.coreComputer.name}</span>`;
-      html += `</div></div>`;
-    }
-    if (Player.corePower) {
-      html += `<div class="equip-item"><div class="equip-slot">`;
-      html += `<span class="equip-slot-name">核心动力</span>`;
-      html += `<span class="equip-slot-item">${Player.corePower.name}</span>`;
+    // 显示当前载具型号
+    const vehicle = VehicleDB[Player.vehicleId];
+    if (vehicle) {
+      html += `<div class="equip-item" style="border-bottom: 1px solid var(--border);padding-bottom:0.5rem;margin-bottom:0.5rem;">`;
+      html += `<div class="equip-slot">`;
+      html += `<span class="equip-slot-name">机体</span>`;
+      html += `<span class="equip-slot-item" style="color:var(--accent);font-weight:bold;">${vehicle.name}</span>`;
       html += `</div></div>`;
     }
 
