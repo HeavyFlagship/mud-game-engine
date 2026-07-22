@@ -400,18 +400,12 @@ const Player = {
     return true;
   },
 
-  // 获取槽位描述（接口类型 + 编号）
+  // 获取槽位描述（仅接口类型）
   getSlotDesc(slotKey) {
     const slot = this.equipment[slotKey];
     if (!slot) return slotKey;
     const types = slot.interfaceTypes.join('+');
-    // 计算同类型槽位的序号
-    let idx = 0;
-    for (const [key, s] of Object.entries(this.equipment)) {
-      if (key === slotKey) break;
-      if (s.interfaceTypes.join('+') === types) idx++;
-    }
-    return `[${types}]#${idx + 1}`;
+    return `[${types}]`;
   },
 
   // 显示接口占用状态

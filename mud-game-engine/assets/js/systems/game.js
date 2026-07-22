@@ -171,7 +171,9 @@ const Game = {
     // 当前装备（接口槽位）
     Msg.info('── 接口装备 ──');
     let hasEquip = false;
+    let slotNum = 0;
     for (const [key, slot] of Object.entries(Player.equipment)) {
+      slotNum++;
       const desc = Player.getSlotDesc(key);
       const equip = slot.equip;
       if (equip) {
@@ -183,9 +185,9 @@ const Game = {
         if (equip.cooldown) stats.push(`冷却${equip.cooldown}s`);
         if (equip.capacity) stats.push(`容量${equip.capacity}`);
         const extra = stats.length ? ` [${stats.join(', ')}]` : '';
-        Msg.info(`  ${desc}: <span class="item-tag ${equip.type}">${equip.name}</span>${extra}`);
+        Msg.info(`  #${slotNum} ${desc}: <span class="item-tag ${equip.type}">${equip.name}</span>${extra}`);
       } else {
-        Msg.info(`  ${desc}: (空闲)`);
+        Msg.info(`  #${slotNum} ${desc}: (空闲)`);
       }
     }
     if (!hasEquip) {
@@ -248,7 +250,9 @@ const Game = {
     }
 
     // 显示接口装备
+    let statusSlotNum = 0;
     for (const [key, slot] of Object.entries(Player.equipment)) {
+      statusSlotNum++;
       const desc = Player.getSlotDesc(key);
       const e = slot.equip;
       if (e) {
@@ -259,7 +263,7 @@ const Game = {
         if (e.cooldown) stats.push(`冷却${e.cooldown}s`);
         if (e.capacity) stats.push(`容量${e.capacity}`);
         const extra = stats.length ? ` [${stats.join(' ')}]` : '';
-        Msg.info(`  ${desc}: ${e.name}${extra}`);
+        Msg.info(`  #${statusSlotNum} ${desc}: ${e.name}${extra}`);
       }
     }
 
