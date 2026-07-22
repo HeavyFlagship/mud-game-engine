@@ -43,7 +43,7 @@ const Game = {
     this.updateUI();
 
     const startRoom = MapSystem.getRoom(Player.room);
-    if (startRoom && startRoom.battlefield && !startRoom.isSafeZone) {
+    if (startRoom && startRoom.battlefield) {
       Battle.start(Player.room, 'south');
     }
   },
@@ -123,9 +123,12 @@ const Game = {
       Msg.warning('这个方向无法通行。');
       return;
     }
+    if (Battle.combatActive) {
+      Msg.warn('战斗中无法切换场景！请先撤退（retreat）。');
+      return;
+    }
     if (Battle.active) {
       Battle.end();
-      BattleUI.remove();
     }
     const nextRoomId = room.exits[direction];
     Player.room = nextRoomId;
@@ -133,15 +136,13 @@ const Game = {
     Player.position = [500, 500];
 
     const nextRoom = MapSystem.getRoom(nextRoomId);
-    if (nextRoom && nextRoom.battlefield && !nextRoom.isSafeZone) {
-      this.look();
-      this.updateUI();
-      Battle.start(nextRoomId, MapSystem.getOppositeDirection(direction));
-      return;
-    }
-
     this.look();
     this.updateUI();
+    if (nextRoom && nextRoom.battlefield) {
+      Battle.start(nextRoomId, MapSystem.getOppositeDirection(direction));
+    } else {
+      BattleUI.remove();
+    }
   },
  
   showBag(showDetail = false) {
@@ -170,7 +171,9 @@ const Game = {
     // 当前装备（接口槽位）
     Msg.info('── 接口装备 ──');
     let hasEquip = false;
+    let slotNum = 0;
     for (const [key, slot] of Object.entries(Player.equipment)) {
+      slotNum++;
       const desc = Player.getSlotDesc(key);
       const equip = slot.equip;
       if (equip) {
@@ -182,9 +185,9 @@ const Game = {
         if (equip.cooldown) stats.push(`冷却${equip.cooldown}s`);
         if (equip.capacity) stats.push(`容量${equip.capacity}`);
         const extra = stats.length ? ` [${stats.join(', ')}]` : '';
-        Msg.info(`  ${desc}: <span class="item-tag ${equip.type}">${equip.name}</span>${extra} (${key})`);
+        Msg.info(`  #${slotNum} ${desc}: <span class="item-tag ${equip.type}">${equip.name}</span>${extra}`);
       } else {
-        Msg.info(`  ${desc}: (空闲) (${key})`);
+        Msg.info(`  #${slotNum} ${desc}: (空闲)`);
       }
     }
     if (!hasEquip) {
@@ -205,7 +208,7 @@ const Game = {
     if (Player.inventory.length === 0) {
       Msg.system('背包是空的。');
     } else {
-      Player.inventory.forEach(({ id, count }) => {
+      Player.inventory.forEach(({ id, count }, idx) => {
         const item = ItemDB.get(id);
         if (item) {
           const countStr = count > 1 ? ` x${count}` : '';
@@ -220,11 +223,11 @@ const Game = {
           if (item.interfaceReq) statsStr.push(`接口:${item.interfaceReq.join('+')}`);
           const extra = statsStr.length ? ` [${statsStr.join(', ')}]` : '';
           const desc = showDetail ? ` - ${item.desc}` : '';
-          Msg.info(`  <span class="item-tag ${item.type}">${item.name}</span>${countStr}${extra}${desc}`);
+          Msg.info(`  #${idx + 1} <span class="item-tag ${item.type}">${item.name}</span>${countStr}${extra}${desc}`);
         }
       });
     }
-    if (!showDetail) Msg.system('提示: 输入 bag -d 可查看物品描述详情。');
+    if (!showDetail) Msg.system('提示: 输入 bag -d 可查看物品描述详情。装备: equip <编号|物品名>，卸下: unequip <接口编号>');
   },
  
   showStatus() {
@@ -305,24 +308,38 @@ const Game = {
     }
   },
  
-  equip(itemName, slotKey) {
-    if (!itemName) { Msg.warning('请指定要装备的物品。'); return; }
-    const item = this.findItemInBag(itemName);
-    if (!item) { Msg.danger('背包中没有该物品。'); return; }
+  equip(arg) {
+    if (!arg) { Msg.warning('请指定要装备的物品：equip <编号|物品名>。'); return; }
+    let item = null;
+    const num = parseInt(arg);
+    if (!isNaN(num) && num >= 1) {
+      item = Player.inventory[num - 1];
+      if (!item) { Msg.danger(`背包中没有第 ${num} 件物品。`); return; }
+    } else {
+      item = this.findItemInBag(arg);
+      if (!item) { Msg.danger('背包中没有该物品。'); return; }
+    }
     const template = ItemDB.get(item.id);
     if (!template) return;
 
-    if (Player.installEquipment(item.id, slotKey || undefined)) {
+    if (Player.installEquipment(item.id, undefined)) {
       Player.removeItem(item.id);
     }
   },
 
-  unequip(slotKey) {
-    if (!slotKey) {
-      Msg.info('卸下装备用法: unequip <槽位编号> (如 slot_0)');
-      Msg.info('输入 bag 查看当前装备及槽位编号。');
+  unequip(arg) {
+    if (!arg) {
+      Msg.info('卸下装备用法: unequip <接口编号>（如 unequip 1，编号见 bag）');
       Player.showInterfaceStatus();
       return;
+    }
+    // 支持数字编号（1-based）或 slot_key
+    let slotKey = arg;
+    const num = parseInt(arg);
+    if (!isNaN(num) && num >= 1) {
+      const keys = Object.keys(Player.equipment);
+      slotKey = keys[num - 1];
+      if (!slotKey) { Msg.danger(`没有第 ${num} 个接口。`); return; }
     }
     Player.uninstallEquipment(slotKey, true);
   },
@@ -735,9 +752,13 @@ const Game = {
   },
  
   findItemInBag(name) {
+    const lower = String(name).toLowerCase();
     return Player.inventory.find(i => {
       const item = ItemDB.get(i.id);
-      return item && (item.name === name || i.id === name);
+      if (!item) return false;
+      return item.name.toLowerCase() === lower ||
+             i.id.toLowerCase() === lower ||
+             item.name.toLowerCase().includes(lower);
     });
   },
  

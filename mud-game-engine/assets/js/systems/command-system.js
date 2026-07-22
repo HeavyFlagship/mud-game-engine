@@ -12,6 +12,7 @@ const CommandSystem = {
     sk:'skills',
     sh:'shop', buy:'shop',
     call:'call', 通信:'call', hailing:'call',
+    对话:'talk',
     p:'pick', g:'get',
     d:'drop',
     sc:'score', st:'stats',
@@ -21,6 +22,11 @@ const CommandSystem = {
     tm:'timeline', tl_b:'timeline',
     re:'retreat', rt:'retreat'
   },
+
+  // 战场专用指令（仅当 Battle.active 时由 handleBattleCmd 处理）
+  battleOnlyCmds: ['move','go','enter','进入','fire','shoot','attack','攻击',
+                   'retreat','flee','撤退','timeline','wait','等待','idle','待机',
+                   'call','通信','hailing','look','查看'],
  
   parse(input) {
     input = input.trim().toLowerCase();
@@ -39,12 +45,15 @@ const CommandSystem = {
     const parsed = this.parse(input);
     if (!parsed) return;
     Msg.cmd(`> ${parsed.raw}`);
- 
-    if (Battle.active) {
+
+    // 战场专用指令：仅当 Battle.active 时由 handleBattleCmd 处理
+    // 其余指令（shop/equip/unequip/talk/方向移动等）在任何状态下均可使用
+    if (Battle.active && this.battleOnlyCmds.includes(parsed.cmd)) {
       this.handleBattleCmd(parsed);
+      Game.updateUI();
       return;
     }
- 
+
     switch (parsed.cmd) {
       case 'north': case 'south': case 'east': case 'west':
       case 'up': case 'down': case '上': case '下':
@@ -55,19 +64,10 @@ const CommandSystem = {
         this.runQuery(parsed, '背包', () => Game.showBag(parsed.args.includes('-d'))); break;
       case 'status': case '状态':
         this.runQuery(parsed, '机体状态', () => Game.showStatus()); break;
-      case 'equip': case '装备': {
-        // equip <物品名> [槽位编号]
-        // 槽位编号如 slot_0, slot_1 等
-        if (parsed.args.length >= 2 && parsed.args[parsed.args.length - 1].startsWith('slot_')) {
-          const slot = parsed.args.pop();
-          Game.equip(parsed.args.join(' '), slot);
-        } else {
-          Game.equip(parsed.args.join(' '));
-        }
-        break;
-      }
+      case 'equip': case '装备':
+        Game.equip(parsed.args.join(' ')); break;
       case 'unequip': case '卸下':
-        Game.unequip(parsed.args.join(' ')); break;
+        Game.unequip(parsed.args[0] || ''); break;
       case 'use': case '使用': case 'drink': case '喝':
         Game.useItem(parsed.args.join(' ')); break;
       case 'skills': case '技能':
@@ -76,7 +76,7 @@ const CommandSystem = {
         Game.pickItem(parsed.args.join(' ')); break;
       case 'drop': case '丢弃':
         Game.dropItem(parsed.args.join(' ')); break;
-      case 'talk': case '对话': case 'call': case '通信':
+      case 'talk': case '对话':
         Game.talk(parsed.args.join(' ')); break;
       case 'shop': case '商店': case 'buy': case '购买':
         Game.shop(parsed.args[0] || 'list'); break;
@@ -110,30 +110,21 @@ const CommandSystem = {
         this.cmdBattleEnter(parsed.args); break;
       case 'fire': case 'shoot': case 'attack': case '攻击':
         this.cmdBattleFire(parsed.args); break;
-      case 'call': case 'talk': case '对话': case '通信':
+      case 'call': case '通信': case 'hailing':
         this.cmdBattleCall(parsed.args); break;
       case 'retreat': case 'flee': case '撤退':
         Battle.retreat(); break;
       case 'timeline':
         this.cmdTimeline(); break;
-      case 'status': case '状态':
-        this.runQuery(parsed, '机体状态', () => Game.showStatus()); break;
-      case 'bag': case '背包':
-        this.runQuery(parsed, '背包', () => Game.showBag(parsed.args.includes('-d'))); break;
-      case 'use': case '使用':
-        Game.useItem(parsed.args.join(' '));
-        break;
       case 'look': case '查看':
         this.cmdBattleLook(parsed.args); break;
-      case 'help': case '帮助':
-        this.runQuery(parsed, '战斗指令帮助', () => this.showBattleHelp()); break;
       case 'wait': case '等待':
         Battle.setPlayerTask({ type: 'wait' });
         break;
       case 'idle': case '待机':
         this.cmdBattleIdle(parsed.args); break;
       default:
-        Msg.warning('场景中可用指令：move/fire/call/idle/status/use/look/retreat/help/wait');
+        Msg.warning('场景中可用指令：move/fire/call/idle/look/retreat/timeline/wait');
     }
   },
 
@@ -392,7 +383,7 @@ const CommandSystem = {
         info += `  ${e.instanceId} - ${e.name} (距离${dist.toFixed(0)}m) ${inRange ? '[射程内]' : '[超射程]'}\n`;
       }
       info += '用法：fire <目标编号> [武器槽]\n';
-      info += '  武器槽: primary/secondary/all (默认all, 所有就绪武器开火)';
+      info += '  武器槽: all(默认) 或接口编号（见 bag），默认所有就绪武器开火';
       Msg.info(info);
       return;
     }
@@ -415,12 +406,19 @@ const CommandSystem = {
         slots.push(w.slot);
       }
     } else {
-      const w = Player.equipment[slotArg]?.equip;
+      // 支持数字编号（1-based）或 slot_key
+      let slotKey = slotArg;
+      const num = parseInt(slotArg);
+      if (!isNaN(num) && num >= 1) {
+        const keys = Object.keys(Player.equipment);
+        slotKey = keys[num - 1];
+      }
+      const w = Player.equipment[slotKey]?.equip;
       if (!w) {
-        Msg.error(`武器槽 ${slotArg} 为空或无效。可用: primary/secondary/all`);
+        Msg.error(`武器槽 ${slotArg} 为空或无效。可用: all 或接口编号（见 bag）`);
         return;
       }
-      slots.push(slotArg);
+      slots.push(slotKey);
     }
 
     if (slots.length === 0) {
@@ -516,11 +514,13 @@ const CommandSystem = {
       return;
     }
 
-    // 无参数：查看战场全貌
-    let info = `战场：${MapSystem.getRoom(Battle.roomId)?.name || '未知区域'}\n`;
+    // 无参数：先显示房间信息，再附加战场全貌
+    Game.look();
+    let info = `\n战场：${MapSystem.getRoom(Battle.roomId)?.name || '未知区域'}\n`;
     info += `地形：${MapSystem.getTerrainName(bf.terrain)}\n`;
     info += `你的位置：(${Math.round(Player.position[0])}, ${Math.round(Player.position[1])})\n`;
-    info += `敌人 (${bf.enemies.filter(e=>e.hp>0).length}/${bf.enemies.length})：\n`;
+    const aliveEnemies = bf.enemies.filter(e=>e.hp>0);
+    info += `敌人 (${aliveEnemies.length}/${bf.enemies.length})：\n`;
     for (const e of bf.enemies) {
       if (e.hp <= 0) continue;
       const dist = Battle.getDistance(Player.position, e.position);
@@ -528,6 +528,9 @@ const CommandSystem = {
         const state = this.getStateName(e.state);
         info += `  ${e.instanceId} ${e.name} - ${dist.toFixed(0)}m - HP${e.hp}/${e.maxHp} - ${state}\n`;
       }
+    }
+    if (aliveEnemies.length === 0) {
+      info += '  （无敌对信号）\n';
     }
     if (bf.covers && bf.covers.length > 0) {
       info += `掩体：${bf.covers.length}处\n`;

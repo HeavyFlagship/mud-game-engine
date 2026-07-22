@@ -136,8 +136,9 @@ const BattleUI = {
     ctx.lineWidth = 0.5;
     const gridCount = 10;
     const gridSize = w / gridCount;
-    const gridOffsetX = cx - (Player.position[0] - 500) * scale;
-    const gridOffsetY = cy - (Player.position[1] - 500) * scale;
+    // 网格固定在世界坐标，不随玩家位置滚动
+    const gridOffsetX = cx - 500 * scale;
+    const gridOffsetY = cy - 500 * scale;
     for (let i = -2; i <= gridCount + 2; i++) {
       const x = gridOffsetX + i * gridSize;
       const y = gridOffsetY + i * gridSize;
@@ -507,11 +508,11 @@ const BattleUI = {
     }
 
     const readyWeapons = [];
-    for (const slot of ['primary', 'secondary']) {
-      const cd = Player.weaponCooldowns[slot] || 0;
-      const w = Player.equipment[slot]?.equip;
-      if (cd <= 0 && w) {
-        readyWeapons.push({ slot, name: w.name });
+    for (const [slotKey, slot] of Object.entries(Player.equipment)) {
+      const cd = Player.weaponCooldowns[slotKey] || 0;
+      const w = slot.equip;
+      if (w && w.category === 'weapon' && cd <= 0) {
+        readyWeapons.push({ slot: slotKey, name: w.name });
       }
     }
     html += '<div class="timeline-section timeline-queue">';

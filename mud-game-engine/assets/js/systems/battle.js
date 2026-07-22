@@ -246,9 +246,9 @@ const Battle = {
   },
 
   updateCooldowns(delta) {
-    for (const slot of ['primary', 'secondary']) {
-      if (Player.weaponCooldowns[slot] > 0) {
-        Player.weaponCooldowns[slot] = Math.max(0, Player.weaponCooldowns[slot] - delta);
+    for (const slotKey of Object.keys(Player.weaponCooldowns)) {
+      if (Player.weaponCooldowns[slotKey] > 0) {
+        Player.weaponCooldowns[slotKey] = Math.max(0, Player.weaponCooldowns[slotKey] - delta);
       }
     }
     for (const enemy of this.battlefield.enemies) {

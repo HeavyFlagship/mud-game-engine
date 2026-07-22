@@ -470,6 +470,26 @@ const Player = {
 
     this.maxEnergy = maxEnergy;
     this.energy = this.resources.energy;
+
+    // 重新计算装甲上限（载具基础装甲 + 已装备装甲板的 armorValue）
+    const baseArmor = vehicle ? vehicle.maxArmor : 0;
+    let bonusArmor = 0;
+    for (const slot of Object.values(this.equipment)) {
+      const e = slot.equip;
+      if (e && e.category === 'armor' && e.armorValue) {
+        bonusArmor += e.armorValue;
+      }
+    }
+    const newMaxArmor = baseArmor + bonusArmor;
+    const delta = newMaxArmor - this.maxArmor;
+    this.maxArmor = newMaxArmor;
+    if (delta > 0) {
+      // 装备装甲板：新增的装甲值直接加入当前装甲
+      this.armor = Math.min(this.maxArmor, this.armor + delta);
+    } else if (delta < 0) {
+      // 卸下装甲板：扣除对应装甲值（不低于0）
+      this.armor = Math.max(0, this.armor + delta);
+    }
   },
 
   // 获取已装备武器列表
