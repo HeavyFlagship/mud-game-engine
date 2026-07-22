@@ -1,19 +1,15 @@
-// ========== 战斗系统（场景时间轴 + 战斗状态标记） ==========
+// ========== 战斗系统（战斗状态 + 战斗逻辑） ==========
+// 时间轴机制由 Timeline 负责，本模块通过注册 handler/updater 使用时间轴。
 const Battle = {
   active: false,
   combatActive: false,
   roomId: null,
   battlefield: null,
-  eventQueue: [],
   currentActor: null,
-  actionDelay: 500,
-  actionTimeout: null,
-  paused: false,
   playerAiming: null,
   playerTask: null,
   playerIdleEnd: null,
   isProcessing: false,
-  continuousActions: [],
   playerFireHint: null,
 
   start(roomId, entryDir = 'south') {
@@ -34,36 +30,111 @@ const Battle = {
 
     this.active = true;
     this.combatActive = false;
-    this.paused = false;
-    this.eventQueue = [];
     this.playerAiming = null;
     this.playerTask = null;
     this.playerIdleEnd = null;
     this.isProcessing = false;
-    this.continuousActions = [];
     this.playerFireHint = null;
 
-    // 场景信息由 Game.look() 统一显示，这里不再重复输出
+    // 启动时间轴并注册战斗系统的事件处理器与更新器
+    Timeline.start(0);
+    this.registerHandlers();
+    this.registerUpdaters();
+
     this.buildInitialTimeline();
     BattleUI.render();
-    this.advanceTimeline();
+    Timeline.scheduleNext();
     return true;
+  },
+
+  // 注册战斗相关事件处理器
+  registerHandlers() {
+    Timeline.on('player_turn', () => this.onPlayerTurn());
+    Timeline.on('enemy_turn', (e) => {
+      this.currentActor = e.actor;
+      const enemy = this.battlefield.enemies.find(en => en.instanceId === e.actor);
+      if (enemy) this.onEnemyTurn(enemy);
+      else Timeline.scheduleNext();
+    });
+    Timeline.on('move_complete', (e) => {
+      if (e.actor === 'player') {
+        BattleUI.removeCurrentAction('移动中...');
+        this.onPlayerMoveComplete();
+      } else {
+        const enemy = this.battlefield.enemies.find(en => en.instanceId === e.actor);
+        if (enemy) {
+          BattleUI.removeCurrentAction(`${enemy.name}[${enemy.instanceId}]移动中...`);
+          this.onEnemyMoveComplete(enemy);
+        } else {
+          Timeline.scheduleNext();
+        }
+      }
+    });
+    Timeline.on('attack_complete', (e) => {
+      this.currentActor = null;
+      const enemy = this.battlefield.enemies.find(en => en.instanceId === e.actor);
+      if (enemy) this.scheduleNextEnemyTurn(enemy);
+      else Timeline.scheduleNext();
+    });
+    Timeline.on('npc_call', (e) => {
+      BattleUI.removeCurrentAction('通信中...');
+      BattleUI.addCurrentAction('通信完成', '#8cf');
+      this.onNPCCall(e.npcId);
+    });
+    Timeline.on('player_idle_end', () => {
+      this.playerIdleEnd = null;
+      this.currentActor = 'player';
+      BattleUI.clearCurrentActions();
+      BattleUI.addCurrentAction('你的行动', '#0ff');
+      this.onPlayerTurn();
+    });
+    Timeline.on('player_fire', (e) => {
+      const weapon = Player.equipment[e.slot]?.equip;
+      this.playerAttack(e.target, e.slot);
+      if (weapon) {
+        Timeline.scheduleEvent({ type: 'weapon_ready', actor: 'player', slot: e.slot }, weapon.cooldown);
+      }
+      Timeline.scheduleNext();
+    });
+    Timeline.on('weapon_ready', (e) => {
+      const weapon = Player.equipment[e.slot]?.equip;
+      const wName = weapon ? weapon.name : e.slot;
+      Msg.info(`🔫 ${wName} 冷却完成，已就绪。`);
+      BattleUI.update();
+      const isMoving = Timeline.continuousActions.some(a => a.actor === 'player' && a.type === 'move');
+      const hasIdle = !!this.playerIdleEnd;
+      if (isMoving) {
+        this.interruptPlayerMove();
+      } else if (hasIdle) {
+        this.cancelPlayerIdle();
+        this.triggerPlayerDecision();
+      } else {
+        this.triggerPlayerDecision();
+      }
+    });
+  },
+
+  // 注册战斗相关时间更新器
+  registerUpdaters() {
+    Timeline.addUpdater('cooldowns', (delta) => this.updateCooldowns(delta));
+    Timeline.addUpdater('statusEffects', (delta) => this.updateStatusEffects(delta));
+    Timeline.addUpdater('energy', (delta) => this.regenEnergy(delta));
+    Timeline.addUpdater('ai', (delta) => this.updateAI(delta));
+    Timeline.addUpdater('winLoss', () => this.checkWinLoss());
   },
 
   end() {
     this.active = false;
     this.combatActive = false;
-    this.stopActionLoop();
+    Timeline.stop();
     this.battlefield = null;
     this.roomId = null;
-    this.eventQueue = [];
     this.currentActor = null;
     this.playerAiming = null;
     this.playerTask = null;
     this.playerIdleEnd = null;
-    this.paused = false;
     this.isProcessing = false;
-    this.continuousActions = [];
+    this.playerFireHint = null;
   },
 
   enterCombat(reason = '') {
@@ -72,7 +143,6 @@ const Battle = {
     Msg.warn(`⚔ 进入战斗状态！${reason}`);
     BattleUI.addHistory('系统', '#f55', `战斗开始`);
 
-    // 战斗中断：仅在玩家正在执行持续任务（移动/通信）或 idle 时中断
     const wasMoving = this.playerTask && this.playerTask.type === 'move';
     const wasCalling = this.playerTask && this.playerTask.type === 'call';
     const wasIdling = this.playerIdleEnd !== null;
@@ -80,13 +150,13 @@ const Battle = {
 
     if (wasMoving) {
       Msg.info('⚡ 战斗中断移动，立即进入行动阶段。');
-      this.eventQueue = this.eventQueue.filter(e => !(e.type === 'move_complete' && e.actor === 'player'));
-      this.removeContinuousAction('player', 'move');
+      Timeline.cancelEvents(e => e.type === 'move_complete' && e.actor === 'player');
+      Timeline.removeContinuousAction('player', 'move');
       BattleUI.removeCurrentAction('移动中...');
     }
     if (wasCalling) {
       Msg.info('⚡ 战斗中断通信，立即进入行动阶段。');
-      this.eventQueue = this.eventQueue.filter(e => e.type === 'npc_call');
+      Timeline.cancelEventsByType('npc_call');
       BattleUI.removeCurrentAction('通信中...');
     }
     if (wasIdling) {
@@ -95,7 +165,6 @@ const Battle = {
     }
 
     this.playerTask = null;
-    // 仅在需要中断持续任务时触发决策点；否则不打断当前执行流程
     if (needInterrupt) {
       this.triggerPlayerDecision();
     }
@@ -103,7 +172,7 @@ const Battle = {
 
   cancelPlayerIdle() {
     if (this.playerIdleEnd) {
-      this.eventQueue = this.eventQueue.filter(e => e.type !== 'player_idle_end');
+      Timeline.cancelEventsByType('player_idle_end');
       this.playerIdleEnd = null;
       return true;
     }
@@ -111,8 +180,8 @@ const Battle = {
   },
 
   interruptPlayerMove() {
-    this.eventQueue = this.eventQueue.filter(e => !(e.type === 'move_complete' && e.actor === 'player'));
-    this.removeContinuousAction('player', 'move');
+    Timeline.cancelEvents(e => e.type === 'move_complete' && e.actor === 'player');
+    Timeline.removeContinuousAction('player', 'move');
     if (this.playerTask && this.playerTask.type === 'move') {
       this.playerTask = null;
     }
@@ -122,127 +191,33 @@ const Battle = {
 
   playerIdle(seconds) {
     this.cancelPlayerIdle();
-    // 取消未触发的 player_turn 事件（避免重复）
-    this.eventQueue = this.eventQueue.filter(e => !(e.type === 'player_turn' && e.actor === 'player'));
-    this.scheduleEvent({ type: 'player_idle_end', actor: 'player' }, seconds);
-    this.playerIdleEnd = this.battlefield.time + seconds;
+    Timeline.cancelEvents(e => e.type === 'player_turn' && e.actor === 'player');
+    Timeline.scheduleEvent({ type: 'player_idle_end', actor: 'player' }, seconds);
+    this.playerIdleEnd = Timeline.time + seconds;
     BattleUI.addHistory('你', '#888', `待机${seconds}秒`);
-    // 如果当前 paused（玩家决策点），解除让时间轴推进
-    if (this.paused) {
-      this.paused = false;
+    if (Timeline.paused) {
+      Timeline.paused = false;
     }
-    this.scheduleNext();
+    Timeline.scheduleNext();
   },
 
   triggerPlayerDecision() {
-    // 取消玩家相关事件
-    this.eventQueue = this.eventQueue.filter(e => e.type !== 'player_turn' && e.type !== 'player_idle_end');
+    Timeline.cancelEvents(e => e.type === 'player_turn' || e.type === 'player_idle_end');
     this.playerIdleEnd = null;
     this.currentActor = 'player';
     BattleUI.clearCurrentActions();
     BattleUI.addCurrentAction('你的行动', '#0ff');
-    this.paused = true;
+    Timeline.paused = true;
     const hint = this.combatActive
       ? '> 战斗中（输入 move/fire/look/use/status/retreat 等）'
       : '> 场景中（输入 move/call/fire/status/look 等）';
     Msg.prompt(hint);
   },
 
-  createContinuousAction(actor, type, startTime, duration, data) {
-    return {
-      actor,
-      type,
-      startTime,
-      endTime: startTime + duration,
-      duration,
-      data,
-      getPosition: (currentTime) => {
-        if (type !== 'move') return null;
-        const elapsed = currentTime - startTime;
-        const ratio = Math.min(1, elapsed / duration);
-        return [
-          data.startPos[0] + (data.endPos[0] - data.startPos[0]) * ratio,
-          data.startPos[1] + (data.endPos[1] - data.startPos[1]) * ratio
-        ];
-      },
-      isActive: (currentTime) => currentTime >= startTime && currentTime <= startTime + duration
-    };
-  },
-
-  addContinuousAction(action) {
-    this.continuousActions.push(action);
-  },
-
-  removeContinuousAction(actor, type) {
-    this.continuousActions = this.continuousActions.filter(
-      a => !(a.actor === actor && a.type === type)
-    );
-  },
-
   exitCombat() {
     if (!this.combatActive) return;
     this.combatActive = false;
     Msg.info('⛑ 脱离战斗状态，场景时间轴继续运行。');
-  },
-
-  stopActionLoop() {
-    if (this.actionTimeout) {
-      clearTimeout(this.actionTimeout);
-      this.actionTimeout = null;
-    }
-  },
-
-  advanceTimeline() {
-    if (!this.active || !this.battlefield || this.paused) return;
-    if (this.eventQueue.length === 0) return;
-
-    this.eventQueue.sort((a, b) => a.time - b.time);
-    const next = this.eventQueue[0];
-    const delta = next.time - this.battlefield.time;
-
-    if (delta > 0) {
-      this.advanceTime(delta);
-    }
-
-    this.eventQueue.shift();
-    this.processEvent(next);
-    BattleUI.update();
-  },
-
-  advanceTime(delta) {
-    if (delta <= 0) return;
-    this.battlefield.time += delta;
-    const currentTime = this.battlefield.time;
-
-    for (const action of this.continuousActions) {
-      if (action.isActive(currentTime)) {
-        const pos = action.getPosition(currentTime);
-        if (pos) {
-          if (action.actor === 'player') {
-            Player.position = pos;
-          } else {
-            const enemy = this.battlefield.enemies.find(e => e.instanceId === action.actor);
-            if (enemy) enemy.position = pos;
-          }
-        }
-      }
-    }
-
-    this.continuousActions = this.continuousActions.filter(a => a.isActive(currentTime));
-
-    this.updateCooldowns(delta);
-    this.updateStatusEffects(delta);
-    this.regenEnergy(delta);
-    this.updateAI(delta);
-    this.checkWinLoss();
-  },
-
-  scheduleNext() {
-    if (!this.active || this.paused) return;
-    this.stopActionLoop();
-    this.actionTimeout = setTimeout(() => {
-      this.advanceTimeline();
-    }, this.actionDelay);
   },
 
   updateCooldowns(delta) {
@@ -290,10 +265,10 @@ const Battle = {
   },
 
   buildInitialTimeline() {
-    this.eventQueue = [];
-    this.scheduleEvent({ type: 'player_turn', actor: 'player' }, this.calculateInitiative(Player.speed));
+    Timeline.eventQueue = [];
+    Timeline.scheduleEvent({ type: 'player_turn', actor: 'player' }, this.calculateInitiative(Player.speed));
     for (const enemy of this.battlefield.enemies) {
-      this.scheduleEvent({ type: 'enemy_turn', actor: enemy.instanceId, enemyId: enemy.templateId },
+      Timeline.scheduleEvent({ type: 'enemy_turn', actor: enemy.instanceId, enemyId: enemy.templateId },
         this.calculateInitiative(enemy.speed));
     }
   },
@@ -303,96 +278,13 @@ const Battle = {
     return base + Utils.rand(0, 10);
   },
 
-  scheduleEvent(event, delay) {
-    event.time = this.battlefield.time + delay;
-    this.eventQueue.push(event);
-  },
-
-  processEvent(event) {
-    if (event.type === 'player_turn') {
-      BattleUI.clearCurrentActions();
-      this.currentActor = 'player';
-      BattleUI.addCurrentAction('你的行动', '#0ff');
-      this.onPlayerTurn();
-    } else if (event.type === 'enemy_turn') {
-      this.currentActor = event.actor;
-      const enemy = this.battlefield.enemies.find(e => e.instanceId === event.actor);
-      if (enemy) {
-        this.onEnemyTurn(enemy);
-      } else {
-        this.scheduleNext();
-      }
-    } else if (event.type === 'move_complete') {
-      if (event.actor === 'player') {
-        BattleUI.removeCurrentAction('移动中...');
-        this.onPlayerMoveComplete();
-      } else {
-        const enemy = this.battlefield.enemies.find(e => e.instanceId === event.actor);
-        if (enemy) {
-          BattleUI.removeCurrentAction(`${enemy.name}[${enemy.instanceId}]移动中...`);
-          this.onEnemyMoveComplete(enemy);
-        } else {
-          this.scheduleNext();
-        }
-      }
-    } else if (event.type === 'attack_complete') {
-      this.currentActor = null;
-      const enemy = this.battlefield.enemies.find(e => e.instanceId === event.actor);
-      if (enemy) {
-        this.scheduleNextEnemyTurn(enemy);
-      } else {
-        this.scheduleNext();
-      }
-    } else if (event.type === 'npc_call') {
-      BattleUI.removeCurrentAction('通信中...');
-      BattleUI.addCurrentAction('通信完成', '#8cf');
-      this.onNPCCall(event.npcId);
-    } else if (event.type === 'player_idle_end') {
-      // 待机结束，进入玩家决策点
-      this.playerIdleEnd = null;
-      this.currentActor = 'player';
-      BattleUI.clearCurrentActions();
-      BattleUI.addCurrentAction('你的行动', '#0ff');
-      this.onPlayerTurn();
-    } else if (event.type === 'player_fire') {
-      // 执行玩家开火
-      const weapon = Player.equipment[event.slot]?.equip;
-      this.playerAttack(event.target, event.slot);
-      // 调度 weapon_ready 事件（冷却结束时触发）
-      if (weapon) {
-        this.scheduleEvent({ type: 'weapon_ready', actor: 'player', slot: event.slot }, weapon.cooldown);
-      }
-      this.scheduleNext();
-    } else if (event.type === 'weapon_ready') {
-      // 武器冷却完成，进入就绪列表
-      const weapon = Player.equipment[event.slot]?.equip;
-      const wName = weapon ? weapon.name : event.slot;
-      Msg.info(`🔫 ${wName} 冷却完成，已就绪。`);
-      BattleUI.update();
-      // 检查玩家是否在持续行动中
-      const isMoving = this.continuousActions.some(a => a.actor === 'player' && a.type === 'move');
-      const hasIdle = !!this.playerIdleEnd;
-      if (isMoving) {
-        // 移动中武器就绪：中断移动，触发决策点
-        this.interruptPlayerMove();
-      } else if (hasIdle) {
-        // idle 中武器就绪：取消 idle，触发决策点
-        this.cancelPlayerIdle();
-        this.triggerPlayerDecision();
-      } else {
-        // 玩家空闲，直接触发决策点
-        this.triggerPlayerDecision();
-      }
-    }
-  },
-
   onPlayerTurn() {
     if (Player.isDead()) return;
 
     if (this.playerTask) {
       this.executePlayerTask();
     } else {
-      this.paused = true;
+      Timeline.paused = true;
       const hint = this.combatActive
         ? '> 战斗中（输入 move/fire/look/use/status/retreat 等）'
         : '> 场景中（输入 move/call/fire/status/look 等）';
@@ -402,11 +294,11 @@ const Battle = {
 
   onEnemyTurn(enemy) {
     if (enemy.hp <= 0) {
-      this.scheduleNext();
+      Timeline.scheduleNext();
       return;
     }
     EnemyAI.takeTurn(enemy, this.battlefield);
-    this.scheduleNext();
+    Timeline.scheduleNext();
   },
 
   executePlayerTask() {
@@ -418,8 +310,8 @@ const Battle = {
     } else if (task.type === 'call') {
       BattleUI.addHistory('你', '#8cf', '通信');
       BattleUI.addCurrentAction('通信中...', '#8cf');
-      this.scheduleEvent({ type: 'npc_call', actor: 'player', npcId: task.npcId }, 5);
-      this.scheduleNext();
+      Timeline.scheduleEvent({ type: 'npc_call', actor: 'player', npcId: task.npcId }, 5);
+      Timeline.scheduleNext();
     } else if (task.type === 'wait') {
       BattleUI.addHistory('你', '#888', '等待');
       this.playerTask = null;
@@ -439,16 +331,16 @@ const Battle = {
     Player.facing = Math.atan2(dy, dx);
 
     BattleUI.addHistory('你', '#8f8', '移动');
-    const moveAction = this.createContinuousAction('player', 'move', this.battlefield.time, time, {
+    const moveAction = Timeline.createContinuousAction('player', 'move', Timeline.time, time, {
       startPos,
       endPos: clamped
-    });
-    this.addContinuousAction(moveAction);
-    this.scheduleEvent({ type: 'move_complete', actor: 'player' }, time);
+    }, (pos) => { Player.position = pos; });
+    Timeline.addContinuousAction(moveAction);
+    Timeline.scheduleEvent({ type: 'move_complete', actor: 'player' }, time);
     this.currentActor = 'player';
     BattleUI.addCurrentAction('移动中...', '#8f8');
     Msg.info(`机体向 (${Math.round(clamped[0])}, ${Math.round(clamped[1])}) 移动中...`);
-    this.scheduleNext();
+    Timeline.scheduleNext();
   },
 
   onPlayerMoveComplete() {
@@ -457,7 +349,6 @@ const Battle = {
     if (this.playerTask && this.playerTask.type === 'move') {
       this.playerTask = null;
     }
-    // 移动到达边界，自动切换场景
     if (autoExit && !this.combatActive) {
       const room = MapSystem.getRoom(Player.room);
       if (room && room.exits && room.exits[autoExit]) {
@@ -496,25 +387,22 @@ const Battle = {
       return false;
     }
 
-    // 检查弹药
     if (!Player.hasAmmo(weapon, slot)) {
       Msg.error('弹药不足！');
       return false;
     }
-    // 检查能量
     const energyCost = weapon.energyPerShot || weapon.energyCost || 0;
     if (energyCost > 0 && !Player.useEnergy(energyCost)) {
       Msg.error('能量不足！');
       return false;
     }
 
-    // 消耗弹药
     Player.consumeAmmo(weapon, slot);
 
     this.enterCombat(`开火攻击 ${enemy.name}[${enemy.instanceId}]`);
     BattleUI.addHistory('你', '#fa4', '攻击');
 
-    const ts = BattleUI.formatGameTime(this.battlefield.time, 'hh:mm:ss');
+    const ts = BattleUI.formatGameTime(Timeline.time, 'hh:mm:ss');
     const hitRate = this.calculateHitRate(Player, enemy, weapon, dist);
     const hit = Math.random() < hitRate;
 
@@ -523,7 +411,6 @@ const Battle = {
 
     let dmg = 0;
     if (hit) {
-      // 使用damageTable计算伤害
       let baseDmg = 0;
       let damageType = weapon.damageType || 'kinetic';
       if (weapon.damageTable) {
@@ -673,18 +560,18 @@ const Battle = {
     enemy.facing = Math.atan2(dy, dx);
 
     BattleUI.addHistory(`${enemy.name}[${enemy.instanceId}]`, '#8f8', '移动');
-    const moveAction = this.createContinuousAction(enemy.instanceId, 'move', this.battlefield.time, time, {
+    const moveAction = Timeline.createContinuousAction(enemy.instanceId, 'move', Timeline.time, time, {
       startPos,
       endPos: clamped
-    });
-    this.addContinuousAction(moveAction);
+    }, (pos) => { enemy.position = pos; });
+    Timeline.addContinuousAction(moveAction);
     BattleUI.addCurrentAction(`${enemy.name}[${enemy.instanceId}]移动中...`, '#8f8');
-    this.scheduleEvent({ type: 'move_complete', actor: enemy.instanceId }, time);
+    Timeline.scheduleEvent({ type: 'move_complete', actor: enemy.instanceId }, time);
   },
 
   onEnemyMoveComplete(enemy) {
     if (enemy.hp <= 0) {
-      this.scheduleNext();
+      Timeline.scheduleNext();
       return;
     }
     this.scheduleNextEnemyTurn(enemy);
@@ -697,7 +584,7 @@ const Battle = {
     this.enterCombat(`${enemy.name}[${enemy.instanceId}] 发起攻击`);
     BattleUI.addHistory(`${enemy.name}[${enemy.instanceId}]`, '#f66', '攻击');
 
-    const ts = BattleUI.formatGameTime(this.battlefield.time, 'hh:mm:ss');
+    const ts = BattleUI.formatGameTime(Timeline.time, 'hh:mm:ss');
     const hitRate = this.calculateEnemyHitRate(enemy, dist);
     const hit = Math.random() < hitRate;
 
@@ -717,7 +604,7 @@ const Battle = {
       Msg.missEnemy(`[${ts}] ➖ ${enemy.name}[${enemy.instanceId}] 攻击未命中 (命中率 ${(hitRate * 100).toFixed(0)}%)`);
     }
 
-    this.scheduleEvent({ type: 'attack_complete', actor: enemy.instanceId }, enemy.attackCooldown);
+    Timeline.scheduleEvent({ type: 'attack_complete', actor: enemy.instanceId }, enemy.attackCooldown);
   },
 
   calculateEnemyHitRate(enemy, dist) {
@@ -736,7 +623,7 @@ const Battle = {
 
   onPlayerDeath() {
     Msg.error('💀 机体被击毁！信号丢失...');
-    this.paused = true;
+    Timeline.paused = true;
     setTimeout(() => {
       this.end();
       Player.respawn();
@@ -745,14 +632,14 @@ const Battle = {
   },
 
   scheduleNextPlayerTurn() {
-    this.scheduleEvent({ type: 'player_turn', actor: 'player' }, this.calculateInitiative(Player.currentSpeed));
-    this.scheduleNext();
+    Timeline.scheduleEvent({ type: 'player_turn', actor: 'player' }, this.calculateInitiative(Player.currentSpeed));
+    Timeline.scheduleNext();
   },
 
   scheduleNextEnemyTurn(enemy) {
-    this.scheduleEvent({ type: 'enemy_turn', actor: enemy.instanceId, enemyId: enemy.templateId },
+    Timeline.scheduleEvent({ type: 'enemy_turn', actor: enemy.instanceId, enemyId: enemy.templateId },
       this.calculateInitiative(enemy.speed));
-    this.scheduleNext();
+    Timeline.scheduleNext();
   },
 
   checkWinLoss() {
@@ -781,8 +668,8 @@ const Battle = {
   retreat() {
     if (!this.active) return false;
     Msg.warn('撤退中...');
-    this.paused = true;
-    this.stopActionLoop();
+    Timeline.paused = true;
+    Timeline.stopLoop();
     const self = this;
     setTimeout(() => {
       self.end();
@@ -816,28 +703,23 @@ const Battle = {
   },
 
   setPlayerTask(task) {
-    // 设置新任务时取消 idle 待机
     const wasIdling = this.cancelPlayerIdle();
     const wasMoving = this.playerTask && this.playerTask.type === 'move';
     this.playerTask = task;
-    if (this.paused && this.currentActor === 'player') {
-      // 玩家决策点设置任务：解除 paused 执行
-      this.paused = false;
+    if (Timeline.paused && this.currentActor === 'player') {
+      Timeline.paused = false;
       this.executePlayerTask();
     } else if (wasIdling) {
-      // idle 中被新任务打断，立即推进时间轴
-      this.scheduleNext();
+      Timeline.scheduleNext();
     } else if (wasMoving && task.type === 'move') {
-      // 移动中重新设置移动目标：取消旧 move_complete，移除旧连续动作，启动新移动
-      this.eventQueue = this.eventQueue.filter(e => !(e.type === 'move_complete' && e.actor === 'player'));
-      this.removeContinuousAction('player', 'move');
+      Timeline.cancelEvents(e => e.type === 'move_complete' && e.actor === 'player');
+      Timeline.removeContinuousAction('player', 'move');
       BattleUI.removeCurrentAction('移动中...');
       this.startPlayerMove(task.target);
     }
   },
 
   resume() {
-    this.paused = false;
-    this.advanceTimeline();
+    Timeline.resume();
   }
 };

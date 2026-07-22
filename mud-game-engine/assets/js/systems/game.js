@@ -8,6 +8,7 @@ const Game = {
     MapSystem.init();
     Player.init();
     Player.visitedRooms.add(Player.room);
+    Timeline.init();
     BattleUI.init();
  
     const inputEl = document.getElementById('input');

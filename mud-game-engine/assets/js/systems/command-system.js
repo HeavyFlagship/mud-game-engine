@@ -304,7 +304,7 @@ const CommandSystem = {
       return;
     }
 
-    const isMoving = Battle.continuousActions.some(a => a.actor === 'player' && a.type === 'move');
+    const isMoving = Timeline.continuousActions.some(a => a.actor === 'player' && a.type === 'move');
     if (isMoving) {
       // 移动中再次下达 move：中断当前移动，以新目标重新开始
       Battle.interruptPlayerMove();
@@ -465,7 +465,7 @@ const CommandSystem = {
       const s = readySlots[i];
       const weapon = Player.equipment[s]?.equip;
       const delay = fireDelay * (i + 1);
-      Battle.scheduleEvent({ type: 'player_fire', actor: 'player', target: targetId, slot: s, label: `攻击 ${targetId}` }, delay);
+      Timeline.scheduleEvent({ type: 'player_fire', actor: 'player', target: targetId, slot: s, label: `攻击 ${targetId}` }, delay);
     }
 
     if (pendingMove) {
@@ -475,10 +475,10 @@ const CommandSystem = {
     } else {
       // 普通开火：解除 paused 让时间轴推进
       Msg.info(`开火指令已下达：攻击 ${targetId} (${readySlots.map(s => Player.equipment[s]?.equip?.name).join('/')})`);
-      if (Battle.paused && Battle.currentActor === 'player') {
-        Battle.paused = false;
+      if (Timeline.paused && Battle.currentActor === 'player') {
+        Timeline.paused = false;
       }
-      Battle.scheduleNext();
+      Timeline.scheduleNext();
     }
   },
  
@@ -567,11 +567,14 @@ const CommandSystem = {
   },
  
   cmdTimeline() {
-    if (!Battle.active || !Battle.eventQueue) return;
-    const sorted = [...Battle.eventQueue].sort((a,b) => a.time - b.time).slice(0, 10);
+    if (!Timeline.eventQueue || Timeline.eventQueue.length === 0) {
+      Msg.info('时间轴当前为空。');
+      return;
+    }
+    const sorted = [...Timeline.eventQueue].sort((a,b) => a.time - b.time).slice(0, 10);
     let info = '时间轴（接下来10个事件）：\n';
     for (const evt of sorted) {
-      const offset = (evt.time - Battle.battlefield.time).toFixed(0);
+      const offset = (evt.time - (Timeline.time || 0)).toFixed(0);
       let label = '';
       if (evt.type === 'player_turn') label = '你的行动';
       else if (evt.type === 'enemy_turn') label = `${evt.actor}行动`;

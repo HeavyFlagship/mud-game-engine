@@ -332,7 +332,7 @@ const BattleUI = {
   },
 
   addHistory(text, color = '#aaa', actionType = null) {
-    const time = Battle.battlefield ? Battle.battlefield.time : 0;
+    const time = Timeline.time || 0;
     const formattedTime = this.formatGameTime(time, 'mm:ss');
     const displayText = actionType ? `${text}行动：${actionType}` : `${text}`;
     this.historyEvents.unshift({ time: formattedTime, text: displayText, color });
@@ -355,7 +355,7 @@ const BattleUI = {
   },
 
   addCurrentAction(text, color = '#fff') {
-    const time = Battle.battlefield ? Battle.battlefield.time.toFixed(0) : '?';
+    const time = (Timeline.time || 0).toFixed(0);
     this.currentActions.push({ time, text, color });
     // 不再因为溢出就塞进历史记录
     if (this.currentActions.length > 5) {
@@ -382,8 +382,8 @@ const BattleUI = {
 
   updateBattleTime() {
     const el = document.getElementById('battle-time');
-    if (!el || !Battle.battlefield) return;
-    el.textContent = this.formatGameTime(Battle.battlefield.time, 'hh:mm:ss');
+    if (!el) return;
+    el.textContent = this.formatGameTime(Timeline.time || 0, 'hh:mm:ss');
   },
 
   clearBattlePanels() {
@@ -442,25 +442,25 @@ const BattleUI = {
 
   updateTimeline() {
     const content = document.getElementById('timeline-content');
-    if (!content || !Battle.eventQueue || !Battle.battlefield) return;
+    if (!content || !Timeline.eventQueue) return;
 
     let html = '';
 
-    const upcoming = [...Battle.eventQueue]
+    const upcoming = [...Timeline.eventQueue]
       .filter(evt => evt.type === 'player_turn' || evt.type === 'enemy_turn' || evt.type === 'weapon_ready' || evt.type === 'player_fire')
       .sort((a, b) => a.time - b.time)
       .slice(0, 6);
     html += '<div class="timeline-section timeline-upcoming">';
     html += '<div class="timeline-divider">— 即将到来 —</div>';
     for (const evt of upcoming) {
-      const timeOffset = (evt.time - Battle.battlefield.time).toFixed(1);
+      const timeOffset = (evt.time - (Timeline.time || 0)).toFixed(1);
       let label = '';
       let color = '#aaa';
       if (evt.type === 'player_turn') {
         label = '你的行动';
         color = '#0ff';
       } else if (evt.type === 'enemy_turn') {
-        const enemy = Battle.battlefield.enemies.find(e => e.instanceId === evt.actor);
+        const enemy = Battle.battlefield ? Battle.battlefield.enemies.find(e => e.instanceId === evt.actor) : null;
         label = enemy ? `${enemy.name}[${evt.actor}]行动` : `敌人[${evt.actor}]行动`;
         color = '#f66';
       } else if (evt.type === 'weapon_ready') {
@@ -490,14 +490,14 @@ const BattleUI = {
     }
     html += '</div>';
 
-    const continuousActions = Battle.continuousActions || [];
+    const continuousActions = Timeline.continuousActions || [];
     if (continuousActions.length > 0) {
       html += '<div class="timeline-section timeline-continuous">';
       html += '<div class="timeline-divider">— 持续动作 —</div>';
       for (const action of continuousActions) {
-        const remaining = Math.max(0, action.endTime - Battle.battlefield.time).toFixed(0);
+        const remaining = Math.max(0, action.endTime - (Timeline.time || 0)).toFixed(0);
         const total = action.duration || 1;
-        const elapsed = Battle.battlefield.time - action.startTime;
+        const elapsed = (Timeline.time || 0) - action.startTime;
         const pct = Math.max(0, Math.min(100, (elapsed / total) * 100));
         const typeLabel = action.type === 'move' ? '移动' : action.type;
         const actorLabel = action.actor === 'player' ? '你' : action.actor;
