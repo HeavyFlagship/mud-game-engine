@@ -774,7 +774,7 @@ const Player = {
     for (const [key, slot] of Object.entries(this.equipment)) {
       const e = slot.equip;
       if (e && e.category === 'weapon') {
-        weapons.push({ slot: key, ...e });
+        weapons.push({ ...e, slot: key });
       }
     }
     return weapons;
@@ -786,7 +786,7 @@ const Player = {
     for (const [key, slot] of Object.entries(this.equipment)) {
       const e = slot.equip;
       if (e && e.category === 'ew') {
-        devices.push({ slot: key, ...e });
+        devices.push({ ...e, slot: key });
       }
     }
     return devices;
@@ -798,7 +798,7 @@ const Player = {
     for (const [key, slot] of Object.entries(this.equipment)) {
       const e = slot.equip;
       if (e && e.category === 'armor') {
-        armors.push({ slot: key, ...e });
+        armors.push({ ...e, slot: key });
       }
     }
     return armors;

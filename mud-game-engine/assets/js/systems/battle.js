@@ -110,7 +110,10 @@ const Battle = {
       const isMoving = Timeline.continuousActions.some(a => a.actor === 'player' && a.type === 'move');
       const hasIdle = !!this.playerIdleEnd;
       if (isMoving) {
-        this.interruptPlayerMove();
+        if (Timeline.paused) {
+          Timeline.paused = false;
+          Timeline.scheduleNext();
+        }
       } else if (hasIdle) {
         this.cancelPlayerIdle();
         this.triggerPlayerDecision();

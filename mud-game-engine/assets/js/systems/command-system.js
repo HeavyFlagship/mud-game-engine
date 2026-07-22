@@ -305,32 +305,36 @@ const CommandSystem = {
     }
 
     const isMoving = Timeline.continuousActions.some(a => a.actor === 'player' && a.type === 'move');
-    if (isMoving) {
-      // 移动中再次下达 move：中断当前移动，以新目标重新开始
-      Battle.interruptPlayerMove();
-      Battle.setPlayerTask({ type: 'move', target: [targetX, targetY], autoExit });
-    } else {
-      // 解析 -s 标志（非战斗状态同步开火）
-      const syncFire = args.includes('-s');
-      // 检查是否有就绪武器
-      const hasReadyWeapon = Player.getEquippedWeapons().some(w => (Player.weaponCooldowns[w.slot] || 0) <= 0);
-      // 战斗状态：默认提示移动开火（保留原行为）
-      // 非战斗状态：仅当显式 -s 时询问，否则直接移动忽略就绪武器
-      const shouldPromptFire = Battle.combatActive
-        ? (hasReadyWeapon && !Battle.playerFireHint)
-        : (syncFire && hasReadyWeapon && !Battle.playerFireHint);
-      if (shouldPromptFire) {
-        Battle.playerFireHint = { pendingMove: [targetX, targetY], autoExit };
-        const readyNames = Player.getEquippedWeapons()
-          .filter(w => (Player.weaponCooldowns[w.slot] || 0) <= 0)
-          .map(w => w.name);
-        Msg.prompt(`武器已就绪（${readyNames.join('、')}）：输入 fire <目标> 移动开火（开火与移动并行），或再次输入 move 仅移动跳过开火。`);
-        return;
+
+    // 解析 -s 标志（非战斗状态同步开火）
+    const syncFire = args.includes('-s');
+    // 检查是否有就绪武器
+    const hasReadyWeapon = Player.getEquippedWeapons().some(w => (Player.weaponCooldowns[w.slot] || 0) <= 0);
+    // 战斗状态：默认提示移动开火（保留原行为）
+    // 非战斗状态：仅当显式 -s 时询问，否则直接移动忽略就绪武器
+    const shouldPromptFire = Battle.combatActive
+      ? (hasReadyWeapon && !Battle.playerFireHint)
+      : (syncFire && hasReadyWeapon && !Battle.playerFireHint);
+
+    if (shouldPromptFire) {
+      // 移动中切换移动目标：先中断当前移动，再询问是否开火
+      if (isMoving) {
+        Battle.interruptPlayerMove();
       }
-      // 已提示过或无就绪武器或非战斗无 -s：清除提示，执行移动
-      Battle.playerFireHint = null;
-      Battle.setPlayerTask({ type: 'move', target: [targetX, targetY], autoExit });
+      Battle.playerFireHint = { pendingMove: [targetX, targetY], autoExit };
+      const readyNames = Player.getEquippedWeapons()
+        .filter(w => (Player.weaponCooldowns[w.slot] || 0) <= 0)
+        .map(w => w.name);
+      Msg.prompt(`武器已就绪（${readyNames.join('、')}）：输入 fire <目标> 移动开火（开火与移动并行），或再次输入 move 仅移动跳过开火。`);
+      return;
     }
+
+    // 已提示过或无就绪武器或非战斗无 -s：清除提示，执行移动
+    Battle.playerFireHint = null;
+    if (isMoving) {
+      Battle.interruptPlayerMove();
+    }
+    Battle.setPlayerTask({ type: 'move', target: [targetX, targetY], autoExit });
   },
 
   cmdBattleEnter(args) {
