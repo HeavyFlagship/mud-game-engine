@@ -356,7 +356,7 @@ const Battle = {
       this.onPlayerTurn();
     } else if (event.type === 'player_fire') {
       // 执行玩家开火
-      const weapon = Player.equipment[event.slot];
+      const weapon = Player.equipment[event.slot]?.equip;
       this.playerAttack(event.target, event.slot);
       // 调度 weapon_ready 事件（冷却结束时触发）
       if (weapon) {
@@ -365,7 +365,7 @@ const Battle = {
       this.scheduleNext();
     } else if (event.type === 'weapon_ready') {
       // 武器冷却完成，进入就绪列表
-      const weapon = Player.equipment[event.slot];
+      const weapon = Player.equipment[event.slot]?.equip;
       const wName = weapon ? weapon.name : event.slot;
       Msg.info(`🔫 ${wName} 冷却完成，已就绪。`);
       BattleUI.update();
@@ -479,7 +479,7 @@ const Battle = {
       return false;
     }
 
-    const weapon = Player.equipment[slot];
+    const weapon = Player.equipment[slot]?.equip;
     if (!weapon) {
       Msg.error('该武器槽为空。');
       return false;

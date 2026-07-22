@@ -56,8 +56,9 @@ const CommandSystem = {
       case 'status': case '状态':
         this.runQuery(parsed, '机体状态', () => Game.showStatus()); break;
       case 'equip': case '装备': {
-        const equipSlots = ['primary','secondary','armor','ew1','ew2','generator','container1','container2','repairer','coreComputer','corePower','主武器','副武器','装甲','电子战1','电子战2','生成器','容器1','容器2','修复器','核心计算机','核心动力'];
-        if (parsed.args.length >= 2 && equipSlots.includes(parsed.args[parsed.args.length - 1])) {
+        // equip <物品名> [槽位编号]
+        // 槽位编号如 slot_0, slot_1 等
+        if (parsed.args.length >= 2 && parsed.args[parsed.args.length - 1].startsWith('slot_')) {
           const slot = parsed.args.pop();
           Game.equip(parsed.args.join(' '), slot);
         } else {
@@ -250,7 +251,7 @@ const CommandSystem = {
 
       if (enemy) {
         const dist = Battle.getDistance(Player.position, enemy.position);
-        const weapon = Player.equipment.primary;
+        const weapon = Player.getEquippedWeapons()[0];
         const approachDist = weapon ? Math.min(dist - 10, weapon.range * 0.9) : Math.max(dist - 20, 50);
         const ratio = approachDist / dist;
         targetX = Player.position[0] + (enemy.position[0] - Player.position[0]) * ratio;
@@ -303,13 +304,13 @@ const CommandSystem = {
       Battle.setPlayerTask({ type: 'move', target: [targetX, targetY], autoExit });
     } else {
       // 检查是否有就绪武器
-      const hasReadyWeapon = ['primary', 'secondary'].some(s => (Player.weaponCooldowns[s] || 0) <= 0 && Player.equipment[s]);
+      const hasReadyWeapon = Player.getEquippedWeapons().some(w => (Player.weaponCooldowns[w.slot] || 0) <= 0);
       if (hasReadyWeapon && !Battle.playerFireHint) {
         // 有就绪武器且未提示过：记录意图，提示玩家可选移动开火或仅移动跳过开火
         Battle.playerFireHint = { pendingMove: [targetX, targetY], autoExit };
-        const readyNames = ['primary', 'secondary']
-          .filter(s => (Player.weaponCooldowns[s] || 0) <= 0 && Player.equipment[s])
-          .map(s => Player.equipment[s].name);
+        const readyNames = Player.getEquippedWeapons()
+          .filter(w => (Player.weaponCooldowns[w.slot] || 0) <= 0)
+          .map(w => w.name);
         Msg.prompt(`武器已就绪（${readyNames.join('、')}）：输入 fire <目标> 移动开火（开火与移动并行），或再次输入 move 仅移动跳过开火。`);
         return;
       }
@@ -386,7 +387,8 @@ const CommandSystem = {
       let info = '可用目标：\n';
       for (const e of enemies) {
         const dist = Battle.getDistance(Player.position, e.position);
-        const inRange = Player.equipment.primary && dist <= Player.equipment.primary.range;
+        const primaryWeapon = Player.getEquippedWeapons()[0];
+        const inRange = primaryWeapon && dist <= primaryWeapon.range;
         info += `  ${e.instanceId} - ${e.name} (距离${dist.toFixed(0)}m) ${inRange ? '[射程内]' : '[超射程]'}\n`;
       }
       info += '用法：fire <目标编号> [武器槽]\n';
@@ -409,12 +411,11 @@ const CommandSystem = {
     // 确定要开火的武器槽列表
     let slots = [];
     if (slotArg === 'all') {
-      for (const s of ['primary', 'secondary']) {
-        const w = Player.equipment[s];
-        if (w) slots.push(s);
+      for (const w of Player.getEquippedWeapons()) {
+        slots.push(w.slot);
       }
     } else {
-      const w = Player.equipment[slotArg];
+      const w = Player.equipment[slotArg]?.equip;
       if (!w) {
         Msg.error(`武器槽 ${slotArg} 为空或无效。可用: primary/secondary/all`);
         return;
@@ -431,7 +432,7 @@ const CommandSystem = {
     const readySlots = slots.filter(s => (Player.weaponCooldowns[s] || 0) <= 0);
     if (readySlots.length === 0) {
       const cdInfo = slots.map(s => {
-        const w = Player.equipment[s];
+        const w = Player.equipment[s]?.equip;
         return `${w ? w.name : s}:${(Player.weaponCooldowns[s]||0).toFixed(1)}s`;
       }).join(', ');
       Msg.warn(`所有指定武器都在冷却中（${cdInfo}）。`);
@@ -448,18 +449,18 @@ const CommandSystem = {
     const fireDelay = 0.3;
     for (let i = 0; i < readySlots.length; i++) {
       const s = readySlots[i];
-      const weapon = Player.equipment[s];
+      const weapon = Player.equipment[s]?.equip;
       const delay = fireDelay * (i + 1);
       Battle.scheduleEvent({ type: 'player_fire', actor: 'player', target: targetId, slot: s, label: `攻击 ${targetId}` }, delay);
     }
 
     if (pendingMove) {
       // 移动开火：fire 由 move 触发，开火与移动并行执行
-      Msg.info(`移动开火：攻击 ${targetId} (${readySlots.map(s => Player.equipment[s].name).join('/')})，同时继续移动`);
+      Msg.info(`移动开火：攻击 ${targetId} (${readySlots.map(s => Player.equipment[s]?.equip?.name).join('/')})，同时继续移动`);
       Battle.setPlayerTask({ type: 'move', target: [...pendingMove], autoExit });
     } else {
       // 普通开火：解除 paused 让时间轴推进
-      Msg.info(`开火指令已下达：攻击 ${targetId} (${readySlots.map(s => Player.equipment[s].name).join('/')})`);
+      Msg.info(`开火指令已下达：攻击 ${targetId} (${readySlots.map(s => Player.equipment[s]?.equip?.name).join('/')})`);
       if (Battle.paused && Battle.currentActor === 'player') {
         Battle.paused = false;
       }
@@ -480,7 +481,7 @@ const CommandSystem = {
 
       if (enemy) {
         const dist = Battle.getDistance(Player.position, enemy.position);
-        const weapon = Player.equipment.primary;
+        const weapon = Player.getEquippedWeapons()[0];
         let info = `观察目标：${enemy.name}[${enemy.instanceId}]\n`;
         info += `距离：${dist.toFixed(0)}m\n`;
         info += `结构：${enemy.hp}/${enemy.maxHp}  装甲：${enemy.armor}/${enemy.maxArmor}\n`;

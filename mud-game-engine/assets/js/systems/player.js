@@ -21,25 +21,16 @@ const Player = {
   weight: 1200,
   overweightCoeff: 1.5,
 
-  // 装备槽位（兼容旧系统：primary/secondary/armor）
-  equipment: {
-    primary: null,
-    secondary: null,
-    armor: null,
-    ew1: null,
-    ew2: null,
-    generator: null,
-    container1: null,
-    container2: null,
-    repairer: null,
-    coreComputer: null,
-    corePower: null
-  },
+  // 装备槽位：动态生成，基于载具接口
+  // 格式：{ slot_0: { interfaceTypes: ['外部','电源','数据','界面'], equip: null }, ... }
+  equipment: {},
 
-  weaponCooldowns: {
-    primary: 0,
-    secondary: 0
-  },
+  // 核心模块（固定槽位，不占接口）
+  coreComputer: null,
+  corePower: null,
+
+  // 武器冷却映射：slot_key -> cooldown
+  weaponCooldowns: {},
 
   // 资源管理
   resources: {
@@ -81,17 +72,15 @@ const Player = {
   expToNext: 50,
 
   get atk() {
-    let base = 0;
-    if (this.equipment.primary && this.equipment.primary.damage) {
-      base = this.equipment.primary.damage;
-    }
-    return base;
+    const weapons = this.getEquippedWeapons();
+    return weapons.length > 0 ? weapons[0].damage || 0 : 0;
   },
 
   get def() {
     let d = 0;
-    if (this.equipment.armor && this.equipment.armor.armorValue) {
-      d += this.equipment.armor.armorValue;
+    for (const key of Object.keys(this.equipment)) {
+      const e = this.equipment[key].equip;
+      if (e && e.armorValue) d += e.armorValue;
     }
     return d;
   },
@@ -115,6 +104,73 @@ const Player = {
   getChassisType() {
     const v = VehicleDB[this.vehicleId];
     return v ? v.chassis : 'biped';
+  },
+
+  // 根据载具接口定义生成动态槽位
+  initSlots() {
+    const vehicle = VehicleDB[this.vehicleId];
+    if (!vehicle || !vehicle.interfaces) return;
+
+    this.equipment = {};
+    let slotIndex = 0;
+
+    // 新格式：interfaces 是数组 [{ types: ['外部','电源',...], count: 2 }, ...]
+    if (Array.isArray(vehicle.interfaces)) {
+      for (const intf of vehicle.interfaces) {
+        const types = intf.types || [];
+        const count = intf.count || 1;
+        for (let i = 0; i < count; i++) {
+          const slotKey = `slot_${slotIndex}`;
+          this.equipment[slotKey] = {
+            interfaceTypes: [...types],
+            equip: null
+          };
+          slotIndex++;
+        }
+      }
+    } else {
+      // 旧格式兼容：interfaces 是 { external: 4, power: 4, ... }
+      const interfaceMap = {
+        external: '外部', power: '电源', data: '数据',
+        weapon: '武器管道', ammo_pipe: '弹药管道', ion_pipe: '离子管道',
+        fluid_pipe: '流体管道', interface: '界面', internal: '内部'
+      };
+      for (const [intfKey, count] of Object.entries(vehicle.interfaces)) {
+        const intfType = interfaceMap[intfKey] || intfKey;
+        for (let i = 0; i < count; i++) {
+          const slotKey = `slot_${slotIndex}`;
+          this.equipment[slotKey] = {
+            interfaceTypes: [intfType],
+            equip: null
+          };
+          slotIndex++;
+        }
+      }
+    }
+  },
+
+  // 获取载具所有接口类型的统计
+  getInterfaceSummary() {
+    const summary = {};
+    for (const slot of Object.values(this.equipment)) {
+      for (const t of slot.interfaceTypes) {
+        summary[t] = (summary[t] || 0) + 1;
+      }
+    }
+    return summary;
+  },
+
+  // 获取载具空闲接口统计
+  getFreeInterfaceSummary() {
+    const summary = {};
+    for (const slot of Object.values(this.equipment)) {
+      if (!slot.equip) {
+        for (const t of slot.interfaceTypes) {
+          summary[t] = (summary[t] || 0) + 1;
+        }
+      }
+    }
+    return summary;
   },
 
   init() {
@@ -142,26 +198,27 @@ const Player = {
       this.budget.bayMax = vehicle.equipmentBay || 10;
     }
 
-    // 安装默认核心模块（核心模块不占用预算，而是增加预算上限）
+    // 根据载具接口生成槽位
+    this.initSlots();
+
+    // 安装默认核心模块（核心模块不占用接口和预算，而是增加预算上限）
     const coreComputer = EquipmentDB.get('basic_core_computer');
     const corePower = EquipmentDB.get('basic_core_power');
     if (coreComputer) {
-      this.equipment.coreComputer = { ...coreComputer };
+      this.coreComputer = { ...coreComputer };
       this.budget.computeMax += coreComputer.coreOutput || 0;
-      Msg.success(`安装了 ${coreComputer.name}，算力上限+${coreComputer.coreOutput}`);
     }
     if (corePower) {
-      this.equipment.corePower = { ...corePower };
+      this.corePower = { ...corePower };
       this.budget.powerMax += corePower.coreOutput || 0;
-      Msg.success(`安装了 ${corePower.name}，功率上限+${corePower.coreOutput}`);
     }
 
     // 安装默认武器和装甲
     if (vehicle && vehicle.defaultWeapons && vehicle.defaultWeapons[0]) {
-      this.installEquipment(vehicle.defaultWeapons[0], 'primary');
+      this.installEquipment(vehicle.defaultWeapons[0]);
     }
     if (vehicle && vehicle.defaultArmor && vehicle.defaultArmor[0]) {
-      this.installEquipment(vehicle.defaultArmor[0], 'armor');
+      this.installEquipment(vehicle.defaultArmor[0]);
     }
 
     this.inventory.push({ id:'repair_kit_small', count:2 });
@@ -169,42 +226,101 @@ const Player = {
     this.recalcResources();
   },
 
-  // ===== 装备安装系统 =====
+  // ===== 装备安装系统（基于接口匹配） =====
 
-  // 槽位与装备类型的映射
-  slotTypeMap: {
-    primary: 'weapon',
-    secondary: 'weapon',
-    armor: 'armor',
-    ew1: 'ew',
-    ew2: 'ew',
-    generator: 'generator',
-    container1: 'container',
-    container2: 'container',
-    repairer: 'repairer',
-    coreComputer: 'core',
-    corePower: 'core'
+  // 检查装备的接口需求能否被某个槽位满足
+  canFitSlot(equip, slotKey) {
+    const slot = this.equipment[slotKey];
+    if (!slot || slot.equip) return false;
+    const reqs = equip.interfaceReq || [];
+    return reqs.every(req => slot.interfaceTypes.includes(req));
   },
 
-  installEquipment(equipId, slot) {
+  // 找到能安装某装备的空闲槽位
+  findAvailableSlot(equip) {
+    const reqs = equip.interfaceReq || [];
+    if (reqs.length === 0) return null;
+
+    // 优先找接口类型完全匹配的槽位（需求最少浪费）
+    let bestSlot = null;
+    let bestWaste = Infinity;
+
+    for (const [key, slot] of Object.entries(this.equipment)) {
+      if (slot.equip) continue;
+      const canFit = reqs.every(req => slot.interfaceTypes.includes(req));
+      if (canFit) {
+        const waste = slot.interfaceTypes.length - reqs.length;
+        if (waste < bestWaste) {
+          bestWaste = waste;
+          bestSlot = key;
+        }
+      }
+    }
+    return bestSlot;
+  },
+
+  installEquipment(equipId, slotKey) {
     const equip = EquipmentDB.get(equipId);
     if (!equip) {
       Msg.error(`装备 ${equipId} 不存在。`);
       return false;
     }
 
-    // 检查槽位类型匹配
-    const expectedType = this.slotTypeMap[slot];
-    if (!expectedType || equip.category !== expectedType) {
-      if (!(slot === 'primary' || slot === 'secondary') || equip.category !== 'weapon') {
-        Msg.error(`${equip.name} 不能安装到 ${slot} 槽位。`);
-        return false;
+    // 核心模块特殊处理
+    if (equip.category === 'core') {
+      if (equip.coreType === 'computer') {
+        if (this.coreComputer) {
+          Msg.warning(`先卸载当前核心计算机：${this.coreComputer.name}`);
+          return false;
+        }
+        this.coreComputer = { ...equip };
+        this.budget.computeMax += equip.coreOutput || 0;
+        this.recalcBudget();
+        Msg.success(`安装了 ${equip.name}，算力上限+${equip.coreOutput}`);
+        return true;
+      } else if (equip.coreType === 'power') {
+        if (this.corePower) {
+          Msg.warning(`先卸载当前核心动力：${this.corePower.name}`);
+          return false;
+        }
+        this.corePower = { ...equip };
+        this.budget.powerMax += equip.coreOutput || 0;
+        this.recalcBudget();
+        Msg.success(`安装了 ${equip.name}，功率上限+${equip.coreOutput}`);
+        return true;
       }
     }
 
-    // 如果槽位已有装备，先卸载
-    if (this.equipment[slot]) {
-      this.uninstallEquipment(slot, false);
+    // 检查接口需求是否为空
+    if (!equip.interfaceReq || equip.interfaceReq.length === 0) {
+      Msg.error(`${equip.name} 没有接口需求定义，无法安装。`);
+      return false;
+    }
+
+    // 确定安装槽位
+    let targetSlot = slotKey;
+    if (!targetSlot) {
+      targetSlot = this.findAvailableSlot(equip);
+      if (!targetSlot) {
+        Msg.error(`没有空闲接口满足 ${equip.name} 的需求：${equip.interfaceReq.join('、')}`);
+        // 显示当前接口占用情况
+        this.showInterfaceStatus();
+        return false;
+      }
+    } else {
+      // 指定了槽位，验证是否可用
+      if (!this.equipment[targetSlot]) {
+        Msg.error(`槽位 ${slotKey} 不存在。`);
+        return false;
+      }
+      if (this.equipment[targetSlot].equip) {
+        // 槽位已占用，先卸载
+        this.uninstallEquipment(targetSlot, true);
+      }
+      if (!this.canFitSlot(equip, targetSlot)) {
+        Msg.error(`${equip.name} 需要接口：${equip.interfaceReq.join('、')}，该槽位提供：${this.equipment[targetSlot].interfaceTypes.join('、')}`);
+        return false;
+      }
     }
 
     // 检查预算
@@ -215,38 +331,76 @@ const Player = {
     }
 
     // 安装
-    this.equipment[slot] = { ...equip };
-    if (slot === 'primary' || slot === 'secondary') {
-      this.weaponCooldowns[slot] = 0;
+    this.equipment[targetSlot].equip = { ...equip };
+    // 武器冷却初始化
+    if (equip.category === 'weapon') {
+      this.weaponCooldowns[targetSlot] = 0;
     }
     this.recalcBudget();
     this.recalcResources();
-    Msg.success(`安装了 ${equip.name} 到 ${this.getSlotName(slot)} 槽位！`);
+    const slotDesc = this.getSlotDesc(targetSlot);
+    Msg.success(`安装了 ${equip.name} 到 ${slotDesc}！`);
     return true;
   },
 
-  uninstallEquipment(slot, toInventory = true) {
-    const equip = this.equipment[slot];
-    if (!equip) return false;
+  uninstallEquipment(slotKey, toInventory = true) {
+    // 核心模块特殊处理
+    if (slotKey === 'coreComputer' || slotKey === 'core_power') {
+      const core = slotKey === 'coreComputer' ? this.coreComputer : this.corePower;
+      if (!core) return false;
+      if (toInventory) this.addItem(core.id);
+      if (slotKey === 'coreComputer') {
+        this.budget.computeMax -= core.coreOutput || 0;
+        this.coreComputer = null;
+      } else {
+        this.budget.powerMax -= core.coreOutput || 0;
+        this.corePower = null;
+      }
+      this.recalcBudget();
+      Msg.info(`卸载了 ${core.name}。`);
+      return true;
+    }
 
+    const slot = this.equipment[slotKey];
+    if (!slot || !slot.equip) return false;
+
+    const equip = slot.equip;
     if (toInventory) {
       this.addItem(equip.id);
     }
-    this.equipment[slot] = null;
+    slot.equip = null;
+    delete this.weaponCooldowns[slotKey];
     this.recalcBudget();
     this.recalcResources();
-    Msg.info(`从 ${this.getSlotName(slot)} 槽位卸载了 ${equip.name}。`);
+    const slotDesc = this.getSlotDesc(slotKey);
+    Msg.info(`从 ${slotDesc} 卸载了 ${equip.name}。`);
     return true;
   },
 
-  getSlotName(slot) {
-    const names = {
-      primary: '主武器', secondary: '副武器', armor: '装甲',
-      ew1: '电子战1', ew2: '电子战2',
-      generator: '生成器', container1: '容器1', container2: '容器2',
-      repairer: '修复器', coreComputer: '核心计算机', corePower: '核心动力'
-    };
-    return names[slot] || slot;
+  // 获取槽位描述（接口类型 + 编号）
+  getSlotDesc(slotKey) {
+    const slot = this.equipment[slotKey];
+    if (!slot) return slotKey;
+    const types = slot.interfaceTypes.join('+');
+    // 计算同类型槽位的序号
+    let idx = 0;
+    for (const [key, s] of Object.entries(this.equipment)) {
+      if (key === slotKey) break;
+      if (s.interfaceTypes.join('+') === types) idx++;
+    }
+    return `[${types}]#${idx + 1}`;
+  },
+
+  // 显示接口占用状态
+  showInterfaceStatus() {
+    const freeSummary = this.getFreeInterfaceSummary();
+    const allSummary = this.getInterfaceSummary();
+    const parts = [];
+    for (const [type, total] of Object.entries(allSummary)) {
+      const free = freeSummary[type] || 0;
+      parts.push(`${type}:${free}/${total}`);
+    }
+    Msg.info(`接口状态：${parts.join('  ')}`);
   },
 
   checkBudget(equip) {
@@ -262,15 +416,15 @@ const Player = {
       return { ok: false, reason: `算力不足（需要${equip.computeReq}MFlops，剩余${this.budget.computeMax - used.compute}MFlops）` };
     }
     if (newBay > this.budget.bayMax) {
-      return { ok: false, reason: `装备舱不足（需要${equip.bayReq}m³，剩余${this.budget.bayMax - used.bay}m³）` };
+      return { ok: false, reason: `装备舱不足（需要${equip.bayReq}m³，剩余${(this.budget.bayMax - used.bay).toFixed(2)}m³）` };
     }
     return { ok: true };
   },
 
   calcUsedBudget() {
     let power = 0, compute = 0, bay = 0;
-    for (const key of Object.keys(this.equipment)) {
-      const e = this.equipment[key];
+    for (const slot of Object.values(this.equipment)) {
+      const e = slot.equip;
       if (e) {
         power += e.powerReq || 0;
         compute += e.computeReq || 0;
@@ -288,23 +442,18 @@ const Player = {
   },
 
   recalcResources() {
-    // 从载具基础值开始
     const vehicle = VehicleDB[this.vehicleId];
     let maxEnergy = vehicle ? vehicle.energyCapacity : 0;
     let maxIon = 0;
     let maxFuel = 0;
 
     // 叠加容器容量
-    for (const key of ['container1', 'container2']) {
-      const c = this.equipment[key];
+    for (const slot of Object.values(this.equipment)) {
+      const c = slot.equip;
       if (c && c.category === 'container') {
-        if (c.containerType === 'energy' && c.capacity) {
-          maxEnergy += c.capacity;
-        } else if (c.containerType === 'ion' && c.capacity) {
-          maxIon += c.capacity;
-        } else if (c.containerType === 'fuel' && c.capacity) {
-          maxFuel += c.capacity;
-        }
+        if (c.containerType === 'energy' && c.capacity) maxEnergy += c.capacity;
+        else if (c.containerType === 'ion' && c.capacity) maxIon += c.capacity;
+        else if (c.containerType === 'fuel' && c.capacity) maxFuel += c.capacity;
       }
     }
 
@@ -312,8 +461,6 @@ const Player = {
     this.resources.maxIon = maxIon;
     this.resources.maxFuel = maxFuel;
 
-    // 确保当前值不超过最大值
-    // 如果 resources.energy 为0但 this.energy 有值，使用 this.energy（兼容旧系统初始化）
     if (this.resources.energy === 0 && this.energy > 0) {
       this.resources.energy = this.energy;
     }
@@ -321,7 +468,6 @@ const Player = {
     this.resources.ion = Math.min(this.resources.ion, maxIon);
     this.resources.fuel = Math.min(this.resources.fuel, maxFuel);
 
-    // 更新Player的energy字段（兼容旧系统）
     this.maxEnergy = maxEnergy;
     this.energy = this.resources.energy;
   },
@@ -329,10 +475,10 @@ const Player = {
   // 获取已装备武器列表
   getEquippedWeapons() {
     const weapons = [];
-    for (const slot of ['primary', 'secondary']) {
-      const w = this.equipment[slot];
-      if (w && w.category === 'weapon') {
-        weapons.push({ slot, ...w });
+    for (const [key, slot] of Object.entries(this.equipment)) {
+      const e = slot.equip;
+      if (e && e.category === 'weapon') {
+        weapons.push({ slot: key, ...e });
       }
     }
     return weapons;
@@ -341,27 +487,41 @@ const Player = {
   // 获取已装备电子战设备
   getEquippedEW() {
     const devices = [];
-    for (const slot of ['ew1', 'ew2']) {
-      const d = this.equipment[slot];
-      if (d && d.category === 'ew') {
-        devices.push({ slot, ...d });
+    for (const [key, slot] of Object.entries(this.equipment)) {
+      const e = slot.equip;
+      if (e && e.category === 'ew') {
+        devices.push({ slot: key, ...e });
       }
     }
     return devices;
   },
 
+  // 获取已装备的装甲
+  getEquippedArmor() {
+    const armors = [];
+    for (const [key, slot] of Object.entries(this.equipment)) {
+      const e = slot.equip;
+      if (e && e.category === 'armor') {
+        armors.push({ slot: key, ...e });
+      }
+    }
+    return armors;
+  },
+
   // 获取结构抗性
   getResistances() {
     const res = { kinetic: 0, thermal: 0, shock: 0, ion: 0, explosive: 0 };
-    const armor = this.equipment.armor;
-    if (armor) {
-      if (armor.kinResist) res.kinetic += armor.kinResist;
-      if (armor.thermResist) res.thermal += armor.thermResist;
-      if (armor.shockResist) res.shock += armor.shockResist;
-      if (armor.dynamicResist) {
-        const lastDamageType = this.lastDamageType;
-        if (lastDamageType && res[lastDamageType] !== undefined) {
-          res[lastDamageType] += armor.dynamicResist;
+    for (const slot of Object.values(this.equipment)) {
+      const armor = slot.equip;
+      if (armor && armor.category === 'armor') {
+        if (armor.kinResist) res.kinetic += armor.kinResist;
+        if (armor.thermResist) res.thermal += armor.thermResist;
+        if (armor.shockResist) res.shock += armor.shockResist;
+        if (armor.dynamicResist) {
+          const lastDamageType = this.lastDamageType;
+          if (lastDamageType && res[lastDamageType] !== undefined) {
+            res[lastDamageType] += armor.dynamicResist;
+          }
         }
       }
     }
@@ -373,8 +533,8 @@ const Player = {
   // 获取电子战加成
   getEWBonus() {
     const bonus = { vision: 0, scanRange: 0, scanAccuracy: 0, jamResist: 0 };
-    for (const slot of ['ew1', 'ew2']) {
-      const d = this.equipment[slot];
+    for (const slot of Object.values(this.equipment)) {
+      const d = slot.equip;
       if (!d || d.category !== 'ew') continue;
       if (d.visionBonus) bonus.vision += d.visionBonus;
       if (d.scanRange) bonus.scanRange += d.scanRange;
@@ -387,7 +547,6 @@ const Player = {
   // 检查是否有足够弹药
   hasAmmo(weapon) {
     if (!weapon || !weapon.ammoPerShot || weapon.ammoPerShot <= 0) return true;
-    // 简化：根据武器子类别映射弹药类型
     const ammoMap = {
       '火炮': '20mm_ap',
       '电磁炮': 'railgun_slug',
@@ -453,22 +612,12 @@ const Player = {
     return this.inventory.some(i => i.id === id && i.count > 0);
   },
 
-  // 兼容旧接口
-  equipWeapon(weaponId, slot = 'primary') {
-    return this.installEquipment(weaponId, slot);
-  },
-
-  equipArmor(armorId) {
-    return this.installEquipment(armorId, 'armor');
-  },
-
   // ===== 伤害与修复系统 =====
 
   takeDamage(dmg, damageType = 'kinetic') {
     this.lastDamageType = damageType;
     const res = this.getResistances();
     const resist = res[damageType] || 0;
-    // 应用结构抗性减免
     let actualDmg = Math.floor(dmg * (1 - resist));
     actualDmg = Math.max(1, actualDmg);
 
@@ -492,7 +641,6 @@ const Player = {
       remaining = Math.max(0, remaining - armorDmg);
       hpDmg = remaining;
     } else if (damageType === 'ion') {
-      // 离子伤害穿透装甲直接打击结构
       hpDmg = remaining;
     } else if (damageType === 'explosive') {
       armorDmg = Math.min(this.armor, Math.floor(remaining * 0.7));
@@ -522,14 +670,14 @@ const Player = {
   restoreEnergy(amount) {
     const before = this.resources.energy;
     this.resources.energy = Math.min(this.resources.maxEnergy, this.resources.energy + amount);
-    this.energy = this.resources.energy; // 兼容旧系统
+    this.energy = this.resources.energy;
     return this.resources.energy - before;
   },
 
   useEnergy(amount) {
     if (this.resources.energy < amount) return false;
     this.resources.energy -= amount;
-    this.energy = this.resources.energy; // 兼容旧系统
+    this.energy = this.resources.energy;
     return true;
   },
 
@@ -544,6 +692,6 @@ const Player = {
     this.position = [500, 500];
     this.statusEffects = [];
     this.stats.deaths++;
-    this.weaponCooldowns = { primary: 0, secondary: 0 };
+    this.weaponCooldowns = {};
   }
 };

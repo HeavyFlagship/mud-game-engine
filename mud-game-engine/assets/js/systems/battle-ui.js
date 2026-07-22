@@ -64,7 +64,8 @@ const BattleUI = {
       ];
     } else if (target.type === 'enemy') {
       const dist = target.dist;
-      const inRange = Player.equipment.primary && dist <= Player.equipment.primary.range;
+      const primaryWeapon = Player.getEquippedWeapons()[0];
+      const inRange = primaryWeapon && dist <= primaryWeapon.range;
       actions = [
         { label: 'fire 开火', cmd: `fire ${target.id}`, disabled: !inRange || target.dead },
         { label: 'look 查看', cmd: `look ${target.id}`, disabled: target.dead },
@@ -408,7 +409,8 @@ const BattleUI = {
       const hpPct = (enemy.hp / enemy.maxHp * 100).toFixed(0);
       const arPct = enemy.maxArmor > 0 ? (enemy.armor / enemy.maxArmor * 100).toFixed(0) : 0;
       const dead = enemy.hp <= 0;
-      const inRange = Player.equipment.primary && dist <= Player.equipment.primary.range;
+      const primaryWeapon = Player.getEquippedWeapons()[0];
+      const inRange = primaryWeapon && dist <= primaryWeapon.range;
       const nameText = `${enemy.instanceId} ${enemy.name}`;
       const distText = `${dist.toFixed(0)}m ${inRange ? '🎯' : '📏'}`;
       const id = enemy.instanceId;
@@ -461,11 +463,11 @@ const BattleUI = {
         label = enemy ? `${enemy.name}[${evt.actor}]行动` : `敌人[${evt.actor}]行动`;
         color = '#f66';
       } else if (evt.type === 'weapon_ready') {
-        const weapon = Player.equipment[evt.slot];
+        const weapon = Player.equipment[evt.slot]?.equip;
         label = weapon ? `${weapon.name}就绪` : `${evt.slot}就绪`;
         color = '#ff8';
       } else if (evt.type === 'player_fire') {
-        const weapon = Player.equipment[evt.slot];
+        const weapon = Player.equipment[evt.slot]?.equip;
         const wName = weapon ? weapon.name : evt.slot;
         label = `开火(${wName})→${evt.target}`;
         color = '#f80';
@@ -507,7 +509,7 @@ const BattleUI = {
     const readyWeapons = [];
     for (const slot of ['primary', 'secondary']) {
       const cd = Player.weaponCooldowns[slot] || 0;
-      const w = Player.equipment[slot];
+      const w = Player.equipment[slot]?.equip;
       if (cd <= 0 && w) {
         readyWeapons.push({ slot, name: w.name });
       }
