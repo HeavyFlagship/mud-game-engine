@@ -1,4 +1,3 @@
-// ========== 消息系统 ==========
 const Msg = {
   el: null,
   queryEl: null,
@@ -63,3 +62,4 @@ const Msg = {
     }
   }
 };
+

@@ -1,15 +1,10 @@
-// ========== 装甲数据库 ==========
-const ArmorDB = {
-  light_alloy_plate: {
-    id: 'light_alloy_plate',
-    name: '轻型合金装甲板',
-    type: 'armor',
-    armorValue: 80,
-    weight: 80,
-    powerDraw: 0,
-    kinResist: 0,
-    thermResist: 0,
-    shockResist: 0,
-    desc: '标准型轻质合金装甲板，提供基础防护。'
+// ========== 装甲数据库（从 EquipmentDB 导出） ==========
+const ArmorDB = (function() {
+  if (typeof EquipmentDB === 'undefined') return {};
+  const db = {};
+  const armors = EquipmentDB.getByCategory('armor');
+  for (const a of armors) {
+    db[a.id] = a;
   }
-};
+  return db;
+})();

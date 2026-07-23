@@ -1,93 +1,126 @@
-// ========== 战斗 UI 系统 ==========
 const BattleUI = {
   container: null,
-  radarEl: null,
-  statusEl: null,
   timelineEl: null,
-  enemiesEl: null,
+  historyEvents: [],
+  currentActions: [],
+  contextMenuTarget: null,
 
-  render() {
-    const output = document.getElementById('output');
-    if (!output || !output.parentNode) return;
-    const gameArea = output.parentNode;
-
-    let container = document.getElementById('battle-ui');
-    if (!container) {
-      container = document.createElement('div');
-      container.id = 'battle-ui';
-      container.style.cssText = `
-        display: flex;
-        gap: 12px;
-        padding: 12px;
-        background: rgba(0,0,0,0.85);
-        border: 1px solid #444;
-        border-radius: 6px;
-        margin-bottom: 10px;
-        font-size: 13px;
-      `;
-      output.parentNode.insertBefore(container, output);
-    }
-    this.container = container;
-
-    container.innerHTML = '';
-
-    const radar = document.createElement('div');
-    radar.id = 'battle-radar';
-    radar.style.cssText = `
-      flex: 0 0 200px;
-      background: #0a1a0a;
-      border: 1px solid #2d5;
-      border-radius: 4px;
-      padding: 8px;
-      position: relative;
-    `;
-    radar.innerHTML = `<div style="color:#2d5;font-weight:bold;margin-bottom:4px;">📡 雷达 (1000m)</div>
-      <canvas id="radar-canvas" width="184" height="184" style="background:#051005;border-radius:50%;border:1px solid #2d5;"></canvas>`;
-    container.appendChild(radar);
-    this.radarEl = radar;
-
-    const status = document.createElement('div');
-    status.id = 'battle-status';
-    status.style.cssText = `
-      flex: 1;
-      background: #111;
-      border: 1px solid #444;
-      border-radius: 4px;
-      padding: 8px;
-      color: #ddd;
-    `;
-    container.appendChild(status);
-    this.statusEl = status;
-
-    const timeline = document.createElement('div');
-    timeline.id = 'battle-timeline';
-    timeline.style.cssText = `
-      flex: 0 0 200px;
-      background: #111;
-      border: 1px solid #444;
-      border-radius: 4px;
-      padding: 8px;
-      color: #ddd;
-    `;
-    timeline.innerHTML = `<div style="font-weight:bold;color:#fc0;margin-bottom:6px;">⏱ 时间轴</div>
-      <div id="timeline-content" style="font-size:11px;"></div>`;
-    container.appendChild(timeline);
-    this.timelineEl = timeline;
-
-    this.update();
+  init() {
+    this.updateRadar();
+    setInterval(() => this.updateRadar(), 500);
+    this._initContextMenu();
+    this._initRadarClick();
   },
 
-  update() {
-    if (!this.container || !Battle.active || !Battle.battlefield) return;
+  _initRadarClick() {
+    const canvas = document.getElementById('radar-canvas');
+    if (!canvas) return;
+    canvas.style.cursor = 'crosshair';
+    canvas.addEventListener('click', (e) => {
+      if (!Battle.active || !Battle.battlefield) return;
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
+      const w = canvas.width, h = canvas.height;
+      const cx = w / 2, cy = h / 2;
+      const scale = Math.min(w, h) / 1000;
+      let targetX = Math.round((x - cx) / scale + 500);
+      let targetY = Math.round((y - cy) / scale + 500);
+      const [bw, bh] = Battle.battlefield.size;
+      targetX = Math.max(0, Math.min(bw, targetX));
+      targetY = Math.max(0, Math.min(bh, targetY));
+      this.fillInput(`move ${targetX} ${targetY}`);
+    });
+  },
 
-    this.updateRadar();
-    this.updateStatus();
-    this.updateTimeline();
+  _initContextMenu() {
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('unit-context-menu');
+      if (!menu) return;
+      if (!menu.contains(e.target) && !e.target.closest('.unit-card') && !e.target.closest('.enemy-card')) {
+        this.hideContextMenu();
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this.hideContextMenu();
+    });
+  },
+
+  showUnitMenu(target, x, y) {
+    const menu = document.getElementById('unit-context-menu');
+    if (!menu) return;
+    this.contextMenuTarget = target;
+
+    let actions = [];
+    if (target.type === 'npc') {
+      const dist = target.dist;
+      actions = [
+        { label: '-move 移动到', cmd: `move ${target.id}`, disabled: false },
+        { label: '-call 通信', cmd: `call ${target.id}`, disabled: dist > 100 },
+        { label: 'look 查看', cmd: `look ${target.id}`, disabled: false }
+      ];
+    } else if (target.type === 'enemy') {
+      const dist = target.dist;
+      const primaryWeapon = Player.getEquippedWeapons()[0];
+      const inRange = primaryWeapon && dist <= primaryWeapon.range;
+      actions = [
+        { label: 'fire 开火', cmd: `fire ${target.id}`, disabled: !inRange || target.dead },
+        { label: 'look 查看', cmd: `look ${target.id}`, disabled: target.dead },
+        { label: 'move 靠近', cmd: `move ${target.id}`, disabled: target.dead }
+      ];
+    }
+
+    let html = `<div class="unit-context-menu-header">${target.name}</div>`;
+    for (const act of actions) {
+      const cls = act.disabled ? 'unit-context-menu-item disabled' : 'unit-context-menu-item';
+      html += `<div class="${cls}" data-cmd="${act.cmd}">${act.label}</div>`;
+    }
+    menu.innerHTML = html;
+
+    menu.classList.add('active');
+    const menuRect = menu.getBoundingClientRect();
+    let posX = x, posY = y;
+    if (posX + menuRect.width > window.innerWidth) posX = window.innerWidth - menuRect.width - 4;
+    if (posY + menuRect.height > window.innerHeight) posY = window.innerHeight - menuRect.height - 4;
+    menu.style.left = posX + 'px';
+    menu.style.top = posY + 'px';
+
+    const items = menu.querySelectorAll('.unit-context-menu-item:not(.disabled)');
+    items.forEach(item => {
+      item.addEventListener('click', () => {
+        const cmd = item.getAttribute('data-cmd');
+        this.fillInput(cmd);
+        this.hideContextMenu();
+      });
+    });
+  },
+
+  hideContextMenu() {
+    const menu = document.getElementById('unit-context-menu');
+    if (menu) menu.classList.remove('active');
+    this.contextMenuTarget = null;
+  },
+
+  fillInput(cmd) {
+    const input = document.getElementById('input');
+    if (!input) return;
+    input.value = cmd;
+    input.focus();
+    const len = cmd.length;
+    try { input.setSelectionRange(len, len); } catch (e) {}
+  },
+
+  quickDirMove(dir) {
+    if (!Battle.active || !Battle.battlefield) return;
+    CommandSystem.execute(`move ${dir}`);
   },
 
   updateRadar() {
     const canvas = document.getElementById('radar-canvas');
-    if (!canvas || !Battle.battlefield) return;
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
     const cx = w / 2, cy = h / 2;
@@ -95,154 +128,425 @@ const BattleUI = {
 
     ctx.clearRect(0, 0, w, h);
 
-    ctx.strokeStyle = '#1a4a1a';
+    // 方格背景 (10x10)
+    ctx.fillStyle = '#051005';
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.strokeStyle = '#1a3a1a';
     ctx.lineWidth = 0.5;
-    ctx.beginPath();
-    ctx.arc(cx, cy, w / 2 - 2, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(cx, cy, w / 4, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(cx, 0); ctx.lineTo(cx, h);
-    ctx.moveTo(0, cy); ctx.lineTo(w, cy);
-    ctx.stroke();
+    const gridCount = 10;
+    const gridSize = w / gridCount;
+    // 网格固定在世界坐标，不随玩家位置滚动
+    const gridOffsetX = cx - 500 * scale;
+    const gridOffsetY = cy - 500 * scale;
+    for (let i = -2; i <= gridCount + 2; i++) {
+      const x = gridOffsetX + i * gridSize;
+      const y = gridOffsetY + i * gridSize;
+      ctx.beginPath();
+      ctx.moveTo(x, 0); ctx.lineTo(x, h);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, y); ctx.lineTo(w, y);
+      ctx.stroke();
+    }
 
-    const px = cx + (Player.position[0] - 500) * scale;
-    const py = cy + (Player.position[1] - 500) * scale;
-    ctx.fillStyle = '#0ff';
+    // 边框
+    ctx.strokeStyle = '#2d5';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+
+    // 玩家位置
+    let playerX = 500, playerY = 500;
+    if (Battle.active && Battle.battlefield) {
+      playerX = Player.position[0];
+      playerY = Player.position[1];
+    }
+    const px = cx + (playerX - 500) * scale;
+    const py = cy + (playerY - 500) * scale;
+
+    // 玩家视野圈
+    ctx.strokeStyle = 'rgba(0, 255, 136, 0.25)';
+    ctx.fillStyle = 'rgba(0, 255, 136, 0.05)';
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(px, py, 4, 0, Math.PI * 2);
+    ctx.arc(px, py, Player.visionRadius * scale, 0, Math.PI * 2);
     ctx.fill();
+    ctx.stroke();
 
-    if (Battle.battlefield.covers) {
-      ctx.fillStyle = '#555';
-      for (const cover of Battle.battlefield.covers) {
-        const cpx = cx + (cover.pos[0] - 500) * scale;
-        const cpy = cy + (cover.pos[1] - 500) * scale;
-        ctx.fillRect(cpx - 3, cpy - 3, 6, 6);
+    // 显示场景中的NPC
+    if (Battle.active && Battle.battlefield) {
+      const npcs = Battle.battlefield.npcs || [];
+      for (const npcUnit of npcs) {
+        const npcDef = NPCDB[npcUnit.npcId];
+        if (!npcDef) continue;
+        const dist = Battle.getDistance(Player.position, npcUnit.position);
+        const broadcast = npcDef.broadcastPosition === true;
+        if (!broadcast && dist > Player.visionRadius) continue;
+
+        const nx = cx + (npcUnit.position[0] - 500) * scale;
+        const ny = cy + (npcUnit.position[1] - 500) * scale;
+        ctx.fillStyle = '#8cf';
+        ctx.beginPath();
+        ctx.arc(nx, ny, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = `${Math.round(9 * (canvas.width / 200))}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText(npcUnit.instanceId, nx, ny - 7);
+      }
+
+      // 敌人
+      for (const enemy of Battle.battlefield.enemies) {
+        if (enemy.hp <= 0) continue;
+        const dist = Battle.getDistance(Player.position, enemy.position);
+        if (dist > Player.visionRadius * 1.5) continue;
+        const ex = cx + (enemy.position[0] - 500) * scale;
+        const ey = cy + (enemy.position[1] - 500) * scale;
+
+        if (dist <= enemy.attackRange) {
+          ctx.fillStyle = '#f44';
+        } else if (enemy.state === 'pursue' || enemy.state === 'alert') {
+          ctx.fillStyle = '#fa2';
+        } else {
+          ctx.fillStyle = '#fd0';
+        }
+
+        ctx.beginPath();
+        ctx.arc(ex, ey, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#fff';
+        ctx.font = `${Math.round(9 * (canvas.width / 200))}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText(enemy.instanceId, ex, ey - 7);
+      }
+    } else {
+      // 非战斗状态下显示房间NPC（按广播/视野过滤）
+      const room = MapSystem.getRoom(Player.room);
+      if (room && room.npcs && room.npcs.length > 0) {
+        for (let i = 0; i < room.npcs.length; i++) {
+          const npcId = room.npcs[i];
+          const npc = NPCDB[npcId];
+          if (!npc) continue;
+          const nx = cx + (150 + i * 200 - 500) * scale;
+          const ny = cy + (400 - 500) * scale;
+          ctx.fillStyle = '#8cf';
+          ctx.beginPath();
+          ctx.arc(nx, ny, 4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#fff';
+          ctx.font = `${Math.round(9 * (canvas.width / 200))}px monospace`;
+          ctx.textAlign = 'center';
+          ctx.fillText('NPC', nx, ny - 7);
+        }
       }
     }
 
-    for (const enemy of Battle.battlefield.enemies) {
-      if (enemy.hp <= 0) continue;
-      const dist = Battle.getDistance(Player.position, enemy.position);
-      if (dist > Player.visionRadius) continue;
-      const ex = cx + (enemy.position[0] - 500) * scale;
-      const ey = cy + (enemy.position[1] - 500) * scale;
+    // 玩家标记（画在最上层）
+    ctx.fillStyle = '#0ff';
+    ctx.beginPath();
+    ctx.arc(px, py, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#0ff';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(px, py, 9, 0, Math.PI * 2);
+    ctx.stroke();
 
-      if (dist <= enemy.attackRange) {
-        ctx.fillStyle = '#f44';
-      } else if (enemy.state === 'pursue' || enemy.state === 'alert') {
-        ctx.fillStyle = '#fa2';
+    const legendEl = document.getElementById('radar-legend');
+    if (legendEl) {
+      if (Battle.active) {
+        const alive = Battle.battlefield ? Battle.battlefield.enemies.filter(e => e.hp > 0).length : 0;
+        const npcCount = Battle.battlefield ? (Battle.battlefield.npcs || []).length : 0;
+        legendEl.innerHTML = `<span style="color:#0ff;">●</span> 玩家 &nbsp; <span style="color:#8cf;">●</span> NPC &nbsp; <span style="color:#f44;">●</span> 威胁 &nbsp; <span style="color:#fd0;">●</span> 未警觉`;
       } else {
-        ctx.fillStyle = '#fd0';
+        const room = MapSystem.getRoom(Player.room);
+        const npcCount = room && room.npcs ? room.npcs.length : 0;
+        legendEl.innerHTML = `<span style="color:#0ff;">●</span> 玩家 &nbsp; <span style="color:#8cf;">●</span> NPC &nbsp; NPC: ${npcCount}`;
       }
-
-      ctx.beginPath();
-      ctx.moveTo(ex, ey - 5);
-      ctx.lineTo(ex + 4, ey + 3);
-      ctx.lineTo(ex - 4, ey + 3);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.fillStyle = '#fff';
-      ctx.font = '9px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(enemy.instanceId, ex, ey - 7);
     }
   },
 
-  updateStatus() {
-    if (!this.statusEl) return;
-    const room = MapSystem.getRoom(Battle.roomId);
-    const hpPct = (Player.hp / Player.maxHp * 100).toFixed(0);
-    const arPct = Player.maxArmor > 0 ? (Player.armor / Player.maxArmor * 100).toFixed(0) : 0;
-    const enPct = (Player.energy / Player.maxEnergy * 100).toFixed(0);
-
-    const priWep = Player.equipment.primary;
-    const secWep = Player.equipment.secondary;
-
-    let html = `<div style="font-weight:bold;color:#4af;margin-bottom:6px;">` +
-      `🚀 ${Player.name} | ${room ? room.name : ''} | 时间: ${Battle.battlefield.time.toFixed(0)}t</div>`;
-
-    html += `<div style="margin-bottom:4px;">结构值: ${Player.hp}/${Player.maxHp} `;
-    html += `<div style="display:inline-block;width:120px;height:10px;background:#333;border-radius:2px;vertical-align:middle;">`;
-    html += `<div style="width:${hpPct}%;height:100%;background:${hpPct>50?'#4f4':hpPct>25?'#fa2':'#f44'};border-radius:2px;"></div></div></div>`;
-
-    html += `<div style="margin-bottom:4px;">装甲: ${Player.armor}/${Player.maxArmor} `;
-    html += `<div style="display:inline-block;width:120px;height:10px;background:#333;border-radius:2px;vertical-align:middle;">`;
-    html += `<div style="width:${arPct}%;height:100%;background:#88f;border-radius:2px;"></div></div></div>`;
-
-    html += `<div style="margin-bottom:4px;">能量: ${Math.floor(Player.energy)}/${Player.maxEnergy} `;
-    html += `<div style="display:inline-block;width:120px;height:10px;background:#333;border-radius:2px;vertical-align:middle;">`;
-    html += `<div style="width:${enPct}%;height:100%;background:#fd4;border-radius:2px;"></div></div></div>`;
-
-    html += `<div style="margin-top:6px;font-size:11px;">`;
-    html += `速度: ${Player.currentSpeed.toFixed(1)} | 视野: ${Player.visionRadius}m</div>`;
-
-    html += `<div style="margin-top:6px;border-top:1px solid #333;padding-top:4px;">`;
-    html += `<div style="color:#fc0;">武器:</div>`;
-    if (priWep) {
-      const cd = Player.weaponCooldowns.primary;
-      html += `<div>主: ${priWep.name} ${cd > 0 ? `[冷却:${cd.toFixed(1)}]` : '[就绪]'}</div>`;
-    } else {
-      html += `<div>主: 空</div>`;
+  updateUnitList() {
+    const unitEl = document.getElementById('unit-list');
+    if (!unitEl) return;
+    if (!Battle.active || !Battle.battlefield) {
+      unitEl.innerHTML = '<div style="color:var(--muted);font-style:italic;font-size:var(--font-hint);">未在场景中</div>';
+      return;
     }
-    if (secWep) {
-      const cd = Player.weaponCooldowns.secondary;
-      html += `<div>副: ${secWep.name} ${cd > 0 ? `[冷却:${cd.toFixed(1)}]` : '[就绪]'}</div>`;
-    } else {
-      html += `<div>副: 空</div>`;
+    const npcs = Battle.battlefield.npcs || [];
+    if (npcs.length === 0) {
+      unitEl.innerHTML = '<div style="color:var(--muted);font-style:italic;font-size:var(--font-hint);">无可交互单位</div>';
+      return;
     }
-    html += `</div>`;
+    let html = '';
+    for (const npcUnit of npcs) {
+      const npcDef = NPCDB[npcUnit.npcId];
+      if (!npcDef) continue;
+      const dist = Battle.getDistance(Player.position, npcUnit.position);
+      const broadcast = npcDef.broadcastPosition === true;
+      const visible = broadcast || dist <= Player.visionRadius;
+      if (!visible) continue;
+      const inCallRange = dist <= 100;
+      const shopIcon = npcDef.shopItems ? '🛒' : '';
+      const broadcastTag = broadcast ? '📡' : '';
+      const nameText = `${npcUnit.instanceId} ${npcDef.name} ${broadcastTag}${shopIcon}`;
+      const id = npcUnit.instanceId;
+      const callDisabled = inCallRange ? '' : ' disabled';
+      html += `<div class="unit-card">
+        <div class="unit-card-header">
+          <span class="name" style="color:#8cf;" title="${nameText}">${nameText}</span>
+          <span class="dist" style="color:var(--muted);font-size:var(--font-enemy-header);">${dist.toFixed(0)}m ${inCallRange ? '📞' : '📏'}</span>
+        </div>
+        <div class="unit-card-sub" style="color:var(--muted-bright);">${npcDef.title || ''}</div>
+        <div class="unit-quick-actions">
+          <button class="quick-action-btn" onclick="BattleUI.execCmd('move ${id}')" title="移动到附近">移动</button>
+          <button class="quick-action-btn call${callDisabled}" onclick="BattleUI.execCmd('call ${id}')"${callDisabled ? ' disabled' : ''} title="通信">通信</button>
+          <button class="quick-action-btn" onclick="BattleUI.execCmd('look ${id}')" title="查看">查看</button>
+        </div>
+      </div>`;
+    }
+    unitEl.innerHTML = html || '<div style="color:var(--muted);font-style:italic;font-size:var(--font-hint);">视野内无单位</div>';
+  },
 
-    const aliveEnemies = Battle.battlefield.enemies.filter(e => e.hp > 0);
-    html += `<div style="margin-top:6px;border-top:1px solid #333;padding-top:4px;color:#f66;">`;
-    html += `敌人: ${aliveEnemies.length}/${Battle.battlefield.enemies.length}</div>`;
+  execCmd(cmd) {
+    CommandSystem.execute(cmd);
+  },
 
-    this.statusEl.innerHTML = html;
+  render() {
+    this.historyEvents = [];
+    this.currentActions = [];
+    const tlPanel = document.getElementById('timeline-panel');
+    if (tlPanel) tlPanel.classList.add('active');
+    this.update();
+  },
+
+  formatGameTime(seconds, format = 'mm:ss') {
+    const totalSec = Math.floor(Number(seconds) || 0);
+    const h = Math.floor(totalSec / 3600) % 24;
+    const m = Math.floor(totalSec / 60) % 60;
+    const s = totalSec % 60;
+    const pad = n => String(n).padStart(2, '0');
+    if (format === 'mm:ss') return `${pad(m)}:${pad(s)}`;
+    return `${pad(h)}:${pad(m)}:${pad(s)}`;
+  },
+
+  addHistory(text, color = '#aaa', actionType = null) {
+    const time = Timeline.time || 0;
+    const formattedTime = this.formatGameTime(time, 'mm:ss');
+    const displayText = actionType ? `${text}行动：${actionType}` : `${text}`;
+    this.historyEvents.unshift({ time: formattedTime, text: displayText, color });
+    if (this.historyEvents.length > 30) {
+      this.historyEvents.pop();
+    }
+  },
+
+  clearCurrentActions() {
+    // 只清空当前行动，不加入历史记录（addHistory 已在动作开始时记录）
+    this.currentActions = [];
+  },
+
+  removeCurrentAction(text) {
+    // 只从当前行动中移除，不加入历史记录（addHistory 已在动作开始时记录）
+    const index = this.currentActions.findIndex(a => a.text === text);
+    if (index !== -1) {
+      this.currentActions.splice(index, 1);
+    }
+  },
+
+  addCurrentAction(text, color = '#fff') {
+    const time = (Timeline.time || 0).toFixed(0);
+    this.currentActions.push({ time, text, color });
+    // 不再因为溢出就塞进历史记录
+    if (this.currentActions.length > 5) {
+      this.currentActions.shift();
+    }
+    this.updateTimeline();
+  },
+
+  update() {
+    this.updateRadar();
+    if (typeof Game !== 'undefined') {
+      if (Game.updatePlayerInfo) Game.updatePlayerInfo();
+      if (Game.updateEquipInfo) Game.updateEquipInfo();
+    }
+    if (!Battle.active || !Battle.battlefield) {
+      this.clearBattlePanels();
+      return;
+    }
+    this.updateBattleTime();
+    this.updateUnitList();
+    this.updateEnemyList();
+    this.updateTimeline();
+  },
+
+  updateBattleTime() {
+    const el = document.getElementById('battle-time');
+    if (!el) return;
+    el.textContent = this.formatGameTime(Timeline.time || 0, 'hh:mm:ss');
+  },
+
+  clearBattlePanels() {
+    const enemyEl = document.getElementById('enemy-list');
+    if (enemyEl) {
+      enemyEl.innerHTML = '<div style="color:var(--muted);font-style:italic;">未在场景中</div>';
+    }
+    const unitEl = document.getElementById('unit-list');
+    if (unitEl) {
+      unitEl.innerHTML = '<div style="color:var(--muted);font-style:italic;">未在场景中</div>';
+    }
+    const timelineEl = document.getElementById('timeline-content');
+    if (timelineEl) {
+      timelineEl.innerHTML = '<div style="color:var(--muted);font-style:italic;">未在场景中</div>';
+    }
+  },
+
+  updateEnemyList() {
+    const enemyEl = document.getElementById('enemy-list');
+    if (!enemyEl || !Battle.battlefield) return;
+    let html = `<div style="color:var(--muted);font-size:var(--font-enemy-header);margin-bottom:6px;">存活 ${Battle.battlefield.enemies.filter(e => e.hp > 0).length}/${Battle.battlefield.enemies.length}</div>`;
+    for (const enemy of Battle.battlefield.enemies) {
+      const dist = Battle.getDistance(Player.position, enemy.position);
+      const hpPct = (enemy.hp / enemy.maxHp * 100).toFixed(0);
+      const arPct = enemy.maxArmor > 0 ? (enemy.armor / enemy.maxArmor * 100).toFixed(0) : 0;
+      const dead = enemy.hp <= 0;
+      const primaryWeapon = Player.getEquippedWeapons()[0];
+      const inRange = primaryWeapon && dist <= primaryWeapon.range;
+      const nameText = `${enemy.instanceId} ${enemy.name}`;
+      const distText = `${dist.toFixed(0)}m ${inRange ? '🎯' : '📏'}`;
+      const id = enemy.instanceId;
+      const fireDisabled = !inRange || dead ? ' disabled' : '';
+      const disabledStyle = dead ? 'background:#222;opacity:0.5;' : '';
+      html += `<div class="enemy-card" style="${disabledStyle}">
+        <div class="unit-card-header">
+          <span class="name" style="color:${dead ? '#666' : '#f66'};" title="${nameText}">${nameText}</span>
+          <span class="dist" style="color:var(--muted);font-size:var(--font-enemy-header);">${distText}</span>
+        </div>
+        <span class="sub" style="color:var(--muted-bright);">结构: ${enemy.hp}/${enemy.maxHp}
+          <div style="display:inline-block;width:90px;height:7px;background:#333;border-radius:2px;vertical-align:middle;margin-left:4px;">
+          <div style="width:${hpPct}%;height:7px;background:${hpPct>50?'#4f4':hpPct>25?'#fa2':'#f44'};border-radius:2px;"></div></div>
+        </span>
+        <span class="sub" style="color:var(--muted-bright);">装甲: ${enemy.armor}/${enemy.maxArmor}
+          <div style="display:inline-block;width:90px;height:7px;background:#333;border-radius:2px;vertical-align:middle;margin-left:4px;">
+          <div style="width:${arPct}%;height:7px;background:#88f;border-radius:2px;"></div></div>
+        </span>
+        <div class="unit-quick-actions">
+          <button class="quick-action-btn fire${fireDisabled}" onclick="BattleUI.execCmd('fire ${id}')"${fireDisabled ? ' disabled' : ''} title="开火">开火</button>
+          <button class="quick-action-btn" onclick="BattleUI.execCmd('move ${id}')"${dead ? ' disabled' : ''} title="靠近">靠近</button>
+          <button class="quick-action-btn" onclick="BattleUI.execCmd('look ${id}')" title="查看">查看</button>
+        </div>
+      </div>`;
+    }
+    enemyEl.innerHTML = html;
   },
 
   updateTimeline() {
     const content = document.getElementById('timeline-content');
-    if (!content || !Battle.eventQueue) return;
+    if (!content || !Timeline.eventQueue) return;
 
-    const sorted = [...Battle.eventQueue].sort((a, b) => a.time - b.time).slice(0, 8);
     let html = '';
-    for (const evt of sorted) {
-      const timeOffset = (evt.time - Battle.battlefield.time).toFixed(0);
+
+    const upcoming = [...Timeline.eventQueue]
+      .filter(evt => evt.type === 'player_turn' || evt.type === 'enemy_turn' || evt.type === 'weapon_ready' || evt.type === 'player_fire')
+      .sort((a, b) => a.time - b.time)
+      .slice(0, 6);
+    html += '<div class="timeline-section timeline-upcoming">';
+    html += '<div class="timeline-divider">— 即将到来 —</div>';
+    for (const evt of upcoming) {
+      const timeOffset = (evt.time - (Timeline.time || 0)).toFixed(1);
       let label = '';
       let color = '#aaa';
       if (evt.type === 'player_turn') {
         label = '你的行动';
         color = '#0ff';
       } else if (evt.type === 'enemy_turn') {
-        const enemy = Battle.battlefield.enemies.find(e => e.instanceId === evt.actor);
+        const enemy = Battle.battlefield ? Battle.battlefield.enemies.find(e => e.instanceId === evt.actor) : null;
         label = enemy ? `${enemy.name}[${evt.actor}]行动` : `敌人[${evt.actor}]行动`;
         color = '#f66';
-      } else if (evt.type === 'move_complete') {
-        label = evt.actor === 'player' ? '移动完成' : `${evt.actor}移动完成`;
-        color = '#8f8';
-      } else if (evt.type === 'attack_complete') {
-        label = evt.actor === 'player' ? '攻击完成' : `${evt.actor}攻击完成`;
-        color = '#fa4';
+      } else if (evt.type === 'weapon_ready') {
+        const weapon = Player.equipment[evt.slot]?.equip;
+        label = weapon ? `${weapon.name}就绪` : `${evt.slot}就绪`;
+        color = '#ff8';
+      } else if (evt.type === 'player_fire') {
+        const weapon = Player.equipment[evt.slot]?.equip;
+        const wName = weapon ? weapon.name : evt.slot;
+        label = `开火(${wName})→${evt.target}`;
+        color = '#f80';
       }
-      html += `<div style="color:${color};padding:1px 0;">+${timeOffset}t ${label}</div>`;
+      html += `<div class="timeline-item upcoming" style="color:${color};">+${timeOffset}秒 ${label}</div>`;
     }
-    if (sorted.length === 0) {
-      html = '<div style="color:#666;">暂无事件</div>';
+    if (upcoming.length === 0) {
+      html += '<div class="timeline-item upcoming" style="color:#555;">（无）</div>';
     }
+    html += '</div>';
+
+    html += '<div class="timeline-section timeline-current">';
+    html += '<div class="timeline-divider current-divider">▶ 当前行动</div>';
+    for (const act of this.currentActions) {
+      html += `<div class="timeline-item current" style="color:${act.color};">${act.text}</div>`;
+    }
+    if (this.currentActions.length === 0) {
+      html += '<div class="timeline-item current" style="color:#555;">（等待中）</div>';
+    }
+    html += '</div>';
+
+    const continuousActions = Timeline.continuousActions || [];
+    if (continuousActions.length > 0) {
+      html += '<div class="timeline-section timeline-continuous">';
+      html += '<div class="timeline-divider">— 持续动作 —</div>';
+      for (const action of continuousActions) {
+        const remaining = Math.max(0, action.endTime - (Timeline.time || 0)).toFixed(0);
+        const total = action.duration || 1;
+        const elapsed = (Timeline.time || 0) - action.startTime;
+        const pct = Math.max(0, Math.min(100, (elapsed / total) * 100));
+        const typeLabel = action.type === 'move' ? '移动' : action.type;
+        const actorLabel = action.actor === 'player' ? '你' : action.actor;
+        html += `<div class="timeline-item continuous" style="color:#8f8;">${actorLabel} ${typeLabel} (剩余${remaining}秒)</div>`;
+        html += `<div style="width:90%;height:4px;background:#333;border-radius:2px;margin:2px 0 4px 8px;"><div style="width:${pct}%;height:4px;background:#8f8;border-radius:2px;"></div></div>`;
+      }
+      html += '</div>';
+    }
+
+    const readyWeapons = [];
+    for (const [slotKey, slot] of Object.entries(Player.equipment)) {
+      const cd = Player.weaponCooldowns[slotKey] || 0;
+      const w = slot.equip;
+      if (w && w.category === 'weapon' && cd <= 0) {
+        readyWeapons.push({ slot: slotKey, name: w.name });
+      }
+    }
+    html += '<div class="timeline-section timeline-queue">';
+    html += '<div class="timeline-divider">— 就绪列表 —</div>';
+    if (readyWeapons.length > 0) {
+      for (let i = 0; i < readyWeapons.length; i++) {
+        const w = readyWeapons[i];
+        const slotNum = Object.keys(Player.equipment).indexOf(w.slot) + 1;
+        html += `<div class="timeline-item queue" style="color:#2f8;">${i + 1}. 🔫 ${w.name} (#${slotNum})</div>`;
+      }
+    } else {
+      html += '<div class="timeline-item queue" style="color:#555;">（无就绪武器）</div>';
+    }
+    html += '</div>';
+
+    html += '<div class="timeline-section timeline-history">';
+    html += '<div class="timeline-divider">— 历史记录 —</div>';
+    for (const h of this.historyEvents.slice(0, 8)) {
+      html += `<div class="timeline-item history" style="color:${h.color};opacity:0.7;">${h.time} ${h.text}</div>`;
+    }
+    if (this.historyEvents.length === 0) {
+      html += '<div class="timeline-item history" style="color:#555;opacity:0.5;">（无）</div>';
+    }
+    html += '</div>';
+
     content.innerHTML = html;
   },
 
   remove() {
-    if (this.container && this.container.parentNode) {
-      this.container.parentNode.removeChild(this.container);
-    }
-    this.container = null;
-    this.radarEl = null;
-    this.statusEl = null;
-    this.timelineEl = null;
+    this.historyEvents = [];
+    this.currentActions = [];
+    const tlPanel = document.getElementById('timeline-panel');
+    if (tlPanel) tlPanel.classList.remove('active');
+    this.clearBattlePanels();
+    this.updateRadar();
   }
-};
+};

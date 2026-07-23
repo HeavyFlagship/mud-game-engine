@@ -13,6 +13,7 @@
 //   - entryPoints: 各方向入口坐标 { north:[500,50], south:[500,950], east:[950,500], west:[50,500] }
 //   - enemies: 敌人生成点 [{ enemyId, pos:[x,y], pattern:'guard/patrol', path:[[x,y],...] }]
 //   - lootPoints: 战利品/资源点
+//   - isSafeZone: 安全区，不会自动进入战斗模式，可以购物/对话/正常移动
 const MapDB = {
   rooms: {
       // ===== 前哨基地 =====
@@ -21,6 +22,7 @@ const MapDB = {
         desc:'先遣队在织女-7建立的小型前哨基地。穹顶形的建筑内，维护设备嗡嗡运转，空气中飘着臭氧的气味。北面是指挥室，东面是装备库，西面是维修站。',
         exits:{ north:'outpost_command', east:'outpost_arsenal', west:'outpost_repair', south:'outpost_gate' },
         npcs:['commander'],
+        isSafeZone: true,
         enemies:[],
         battlefield: {
           terrain: 'metal_floor',
@@ -39,6 +41,7 @@ const MapDB = {
         desc:'基地的指挥中心，墙上挂满了星球地图和监测数据。指挥官的全息投影终端位于正中央。',
         exits:{ south:'outpost_hub' },
         npcs:['commander'],
+        isSafeZone: true,
         enemies:[],
         battlefield: {
           terrain: 'metal_floor',
@@ -56,6 +59,7 @@ const MapDB = {
         exits:{ west:'outpost_hub' },
         npcs:['quartermaster'],
         enemies:[],
+        isSafeZone: true,
         isShop:true,
         battlefield: {
           terrain: 'metal_floor',
@@ -73,6 +77,7 @@ const MapDB = {
         exits:{ east:'outpost_hub' },
         npcs:['engineer'],
         enemies:[],
+        isSafeZone: true,
         isShop:true,
         battlefield: {
           terrain: 'metal_floor',
@@ -90,6 +95,7 @@ const MapDB = {
         exits:{ north:'outpost_hub', south:'wasteland_north' },
         npcs:[],
         enemies:[],
+        isSafeZone: true,
         battlefield: {
           terrain: 'metal_floor',
           terrainPenalty: { biped: 1.0, wheel: 0.9 },
@@ -100,7 +106,7 @@ const MapDB = {
           lootPoints: []
         }
       },
-
+ 
       // ===== 荒原区域 =====
       wasteland_north: {
         id:'wasteland_north', name:'荒原北部', label:'原', x:2, y:4,
@@ -219,7 +225,7 @@ const MapDB = {
           lootPoints: []
         }
       },
-
+ 
       // ===== 地下矿洞 =====
       mine_entrance: {
         id:'mine_entrance', name:'矿洞入口', label:'洞', x:2, y:7, z:-1,
@@ -310,10 +316,11 @@ const MapDB = {
         }
       }
     },
-
+ 
   areas: [
     { name:'🛰 前哨基地', rooms:['outpost_hub','outpost_command','outpost_arsenal','outpost_repair','outpost_gate'] },
     { name:'🏜 荒原区域', rooms:['wasteland_north','wasteland_east','wasteland_south','crystal_valley','canyon_entrance'] },
     { name:'⛏ 地下矿洞', rooms:['mine_entrance','mine_tunnel','mine_side','mine_chamber'] },
   ]
 };
+
