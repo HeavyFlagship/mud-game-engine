@@ -8,6 +8,7 @@ const Game = {
     MapSystem.init();
     Player.init();
     Player.visitedRooms.add(Player.room);
+    Timeline.init();
     BattleUI.init();
  
     const inputEl = document.getElementById('input');
@@ -123,9 +124,12 @@ const Game = {
       Msg.warning('这个方向无法通行。');
       return;
     }
+    if (Battle.combatActive) {
+      Msg.warn('战斗中无法切换场景！请先撤退（retreat）。');
+      return;
+    }
     if (Battle.active) {
       Battle.end();
-      BattleUI.remove();
     }
     const nextRoomId = room.exits[direction];
     Player.room = nextRoomId;
@@ -133,15 +137,13 @@ const Game = {
     Player.position = [500, 500];
 
     const nextRoom = MapSystem.getRoom(nextRoomId);
-    if (nextRoom && nextRoom.battlefield) {
-      this.look();
-      this.updateUI();
-      Battle.start(nextRoomId, MapSystem.getOppositeDirection(direction));
-      return;
-    }
-
     this.look();
     this.updateUI();
+    if (nextRoom && nextRoom.battlefield) {
+      Battle.start(nextRoomId, MapSystem.getOppositeDirection(direction));
+    } else {
+      BattleUI.remove();
+    }
   },
  
   showBag(showDetail = false) {
@@ -151,39 +153,48 @@ const Game = {
     // 预算信息
     Msg.info(`功率: ${Player.budget.powerUsed.toFixed(1)}/${Player.budget.powerMax}kW  算力: ${Player.budget.computeUsed.toFixed(1)}/${Player.budget.computeMax}MFlops  装备舱: ${Player.budget.bayUsed.toFixed(2)}/${Player.budget.bayMax}m³`);
 
-    // 当前装备（仅显示已安装的）
-    Msg.info('── 当前装备 ──');
-    const equipSlots = [
-      { key:'primary', name:'主武器' },
-      { key:'secondary', name:'副武器' },
-      { key:'armor', name:'装甲' },
-      { key:'ew1', name:'电子战' },
-      { key:'ew2', name:'电子战' },
-      { key:'generator', name:'生成器' },
-      { key:'container1', name:'容器' },
-      { key:'container2', name:'容器' },
-      { key:'repairer', name:'修复器' },
-      { key:'coreComputer', name:'核心计算机' },
-      { key:'corePower', name:'核心动力' }
-    ];
+    // 接口状态
+    Player.showInterfaceStatus();
+    // 接口图例
+    Msg.info(`图例：${Player.getInterfaceLegend()}`);
+
+    // 核心模块
+    Msg.info('── 核心模块 ──');
+    if (Player.coreComputer) {
+      Msg.info(`  核心计算机: <span class="item-tag core">${Player.coreComputer.name}</span> [算力+${Player.coreComputer.coreOutput}]`);
+    } else {
+      Msg.info('  核心计算机: (未安装)');
+    }
+    if (Player.corePower) {
+      Msg.info(`  核心动力: <span class="item-tag core">${Player.corePower.name}</span> [功率+${Player.corePower.coreOutput}]`);
+    } else {
+      Msg.info('  核心动力: (未安装)');
+    }
+
+    // 当前装备（接口槽位）
+    Msg.info('── 接口装备 ──');
     let hasEquip = false;
-    for (const slot of equipSlots) {
-      const item = Player.equipment[slot.key];
-      if (item) {
+    let slotNum = 0;
+    for (const [key, slot] of Object.entries(Player.equipment)) {
+      slotNum++;
+      const desc = Player.getSlotDesc(key);
+      const equip = slot.equip;
+      if (equip) {
         hasEquip = true;
         const stats = [];
-        if (item.damage) stats.push(`伤害${item.damage}`);
-        if (item.armorValue) stats.push(`装甲${item.armorValue}`);
-        if (item.range) stats.push(`射程${item.range}m`);
-        if (item.cooldown) stats.push(`冷却${item.cooldown}s`);
-        if (item.capacity) stats.push(`容量${item.capacity}`);
-        if (item.coreOutput) stats.push(item.coreType === 'computer' ? `算力+${item.coreOutput}` : `功率+${item.coreOutput}`);
+        if (equip.damage) stats.push(`伤害${equip.damage}`);
+        if (equip.armorValue) stats.push(`装甲${equip.armorValue}`);
+        if (equip.range) stats.push(`射程${equip.range}m`);
+        if (equip.cooldown) stats.push(`冷却${equip.cooldown}s`);
+        if (equip.capacity) stats.push(`容量${equip.capacity}`);
         const extra = stats.length ? ` [${stats.join(', ')}]` : '';
-        Msg.info(`  ${slot.name}: <span class="item-tag ${item.type}">${item.name}</span>${extra}`);
+        Msg.info(`  #${slotNum} ${desc}: <span class="item-tag ${equip.type}">${equip.name}</span>${extra}`);
+      } else {
+        Msg.info(`  #${slotNum} ${desc}: (空闲)`);
       }
     }
     if (!hasEquip) {
-      Msg.system('（未装备任何物品）');
+      Msg.system('（接口无装备）');
     }
 
     // 资源信息
@@ -199,26 +210,30 @@ const Game = {
     Msg.info('── 背包物品 ──');
     if (Player.inventory.length === 0) {
       Msg.system('背包是空的。');
-      return;
+    } else {
+      Player.inventory.forEach(({ id, count }, idx) => {
+        const item = ItemDB.get(id);
+        if (item) {
+          const countStr = count > 1 ? ` x${count}` : '';
+          const statsStr = [];
+          if (item.damage) statsStr.push(`伤害${item.damage}`);
+          if (item.armorValue) statsStr.push(`装甲${item.armorValue}`);
+          if (item.healHp) statsStr.push(`修复结构${item.healHp}`);
+          if (item.healArmor) statsStr.push(`修复装甲${item.healArmor}`);
+          if (item.range) statsStr.push(`射程${item.range}m`);
+          if (item.powerReq) statsStr.push(`功率${item.powerReq}kW`);
+          if (item.computeReq) statsStr.push(`算力${item.computeReq}`);
+          if (item.interfaceReq) {
+            const syms = item.interfaceReq.map(t => Player.getInterfaceSymbol(t)).join('');
+            statsStr.push(`[${syms}]`);
+          }
+          const extra = statsStr.length ? ` [${statsStr.join(', ')}]` : '';
+          const desc = showDetail ? ` - ${item.desc}` : '';
+          Msg.info(`  #${idx + 1} <span class="item-tag ${item.type}">${item.name}</span>${countStr}${extra}${desc}`);
+        }
+      });
     }
-    Player.inventory.forEach(({ id, count }) => {
-      const item = ItemDB[id];
-      if (item) {
-        const countStr = count > 1 ? ` x${count}` : '';
-        const statsStr = [];
-        if (item.damage) statsStr.push(`伤害${item.damage}`);
-        if (item.armorValue) statsStr.push(`装甲${item.armorValue}`);
-        if (item.healHp) statsStr.push(`修复结构${item.healHp}`);
-        if (item.healArmor) statsStr.push(`修复装甲${item.healArmor}`);
-        if (item.range) statsStr.push(`射程${item.range}m`);
-        if (item.powerReq) statsStr.push(`功率${item.powerReq}kW`);
-        if (item.computeReq) statsStr.push(`算力${item.computeReq}`);
-        const extra = statsStr.length ? ` [${statsStr.join(', ')}]` : '';
-        const desc = showDetail ? ` - ${item.desc}` : '';
-        Msg.info(`  <span class="item-tag ${item.type}">${item.name}</span>${countStr}${extra}${desc}`);
-      }
-    });
-    if (!showDetail) Msg.system('提示: 输入 bag -d 可查看物品描述详情。');
+    if (!showDetail) Msg.system('提示: 输入 bag -d 可查看物品描述详情。装备: equip <编号|物品名>，卸下: unequip <接口编号>');
   },
  
   showStatus() {
@@ -232,15 +247,20 @@ const Game = {
     Msg.info(`功率: ${Player.budget.powerUsed}/${Player.budget.powerMax}kW  算力: ${Player.budget.computeUsed}/${Player.budget.computeMax}MFlops  装备舱: ${Player.budget.bayUsed}/${Player.budget.bayMax}m³`);
     Msg.info(`经验: ${Player.exp}/${Player.expToNext}`);
 
-    // 显示所有装备
-    const slotLabels = {
-      primary:'主武器', secondary:'副武器', armor:'装甲',
-      ew1:'电子战1', ew2:'电子战2', generator:'生成器',
-      container1:'容器1', container2:'容器2', repairer:'修复器',
-      coreComputer:'核心计算机', corePower:'核心动力'
-    };
-    for (const [slot, label] of Object.entries(slotLabels)) {
-      const e = Player.equipment[slot];
+    // 显示核心模块
+    if (Player.coreComputer) {
+      Msg.info(`  核心计算机: ${Player.coreComputer.name} [算力+${Player.coreComputer.coreOutput}]`);
+    }
+    if (Player.corePower) {
+      Msg.info(`  核心动力: ${Player.corePower.name} [功率+${Player.corePower.coreOutput}]`);
+    }
+
+    // 显示接口装备
+    let statusSlotNum = 0;
+    for (const [key, slot] of Object.entries(Player.equipment)) {
+      statusSlotNum++;
+      const desc = Player.getSlotDesc(key);
+      const e = slot.equip;
       if (e) {
         const stats = [];
         if (e.damage) stats.push(`伤害${e.damage}`);
@@ -249,9 +269,7 @@ const Game = {
         if (e.cooldown) stats.push(`冷却${e.cooldown}s`);
         if (e.capacity) stats.push(`容量${e.capacity}`);
         const extra = stats.length ? ` [${stats.join(' ')}]` : '';
-        Msg.info(`  ${label}: ${e.name}${extra}`);
-      } else {
-        Msg.info(`  ${label}: （空）`);
+        Msg.info(`  #${statusSlotNum} ${desc}: ${e.name}${extra}`);
       }
     }
 
@@ -276,7 +294,7 @@ const Game = {
 
     if (Player.statusEffects.length > 0) {
       const effStr = Player.statusEffects.map(e => {
-        const names = { slow:'减速', poison:'中毒', burn:'灼烧', shock:'电击', corrosion:'腐蚀', stun:'眩晕' };
+        const names = { slow:'减速', poison:'中毒', burn:'灼烧', shock:'电击', corrosion:'腐蚀', stun:'眩晕', ion_disrupt:'EMP干扰' };
         return `${names[e.type] || e.type}(${e.duration.toFixed(0)}秒)`;
       }).join(' ');
       Msg.info(`状态效果: ${effStr}`);
@@ -298,71 +316,158 @@ const Game = {
     }
   },
  
-  equip(itemName, slotName) {
-    if (!itemName) { Msg.warning('请指定要装备的物品。'); return; }
-    const item = this.findItemInBag(itemName);
-    if (!item) { Msg.danger('背包中没有该物品。'); return; }
-    const template = ItemDB[item.id];
+  equip(arg) {
+    if (!arg) { Msg.warning('请指定要装备的物品：equip <编号|物品名>。'); return; }
+    let item = null;
+    const num = parseInt(arg);
+    if (!isNaN(num) && num >= 1) {
+      item = Player.inventory[num - 1];
+      if (!item) { Msg.danger(`背包中没有第 ${num} 件物品。`); return; }
+    } else {
+      item = this.findItemInBag(arg);
+      if (!item) { Msg.danger('背包中没有该物品。'); return; }
+    }
+    const template = ItemDB.get(item.id);
     if (!template) return;
 
-    const cat = template.category || template.type;
-
-    // 自动选择槽位
-    let slot = slotName;
-    if (!slot) {
-      if (cat === 'weapon') {
-        slot = Player.equipment.primary ? 'secondary' : 'primary';
-      } else if (cat === 'armor') {
-        slot = 'armor';
-      } else if (cat === 'ew') {
-        slot = Player.equipment.ew1 ? 'ew2' : 'ew1';
-      } else if (cat === 'generator') {
-        slot = 'generator';
-      } else if (cat === 'container') {
-        slot = Player.equipment.container1 ? 'container2' : 'container1';
-      } else if (cat === 'repairer') {
-        slot = 'repairer';
-      } else if (cat === 'core') {
-        slot = template.coreType === 'computer' ? 'coreComputer' : 'corePower';
-      }
-    }
-
-    // 槽位名称映射
-    const slotMap = {
-      '主武器':'primary', '副武器':'secondary', '装甲':'armor',
-      '电子战1':'ew1', '电子战2':'ew2',
-      '生成器':'generator', '容器1':'container1', '容器2':'container2',
-      '修复器':'repairer', '核心计算机':'coreComputer', '核心动力':'corePower'
-    };
-    if (slotMap[slot]) slot = slotMap[slot];
-
-    if (!slot) {
-      Msg.danger(`无法自动确定 ${template.name} 的安装槽位，请指定槽位。`);
-      return;
-    }
-
-    if (Player.installEquipment(item.id, slot)) {
+    if (Player.installEquipment(item.id, undefined)) {
       Player.removeItem(item.id);
     }
   },
 
-  unequip(slotName) {
-    if (!slotName) {
-      Msg.info('卸下装备用法: unequip 主武器/副武器/装甲/电子战1/电子战2/生成器/容器1/容器2/修复器');
+  unequip(arg) {
+    if (!arg) {
+      Msg.info('卸下装备用法: unequip <接口编号>（如 unequip 1，编号见 bag）');
+      Player.showInterfaceStatus();
       return;
     }
-    const slotMap = {
-      '主武器':'primary', '副武器':'secondary', '装甲':'armor',
-      '电子战1':'ew1', '电子战2':'ew2',
-      '生成器':'generator', '容器1':'container1', '容器2':'container2',
-      '修复器':'repairer', '核心计算机':'coreComputer', '核心动力':'corePower',
-      'primary':'primary', 'secondary':'secondary', 'armor':'armor'
-    };
-    const slot = slotMap[slotName];
-    if (!slot) { Msg.danger('未知装备栏位。'); return; }
-    Player.uninstallEquipment(slot, true);
+    // 支持数字编号（1-based）或 slot_key
+    let slotKey = arg;
+    const num = parseInt(arg);
+    if (!isNaN(num) && num >= 1) {
+      const keys = Object.keys(Player.equipment);
+      slotKey = keys[num - 1];
+      if (!slotKey) { Msg.danger(`没有第 ${num} 个接口。`); return; }
+    }
+    Player.uninstallEquipment(slotKey, true);
   },
- 
+
+  reload(arg) {
+    if (!arg) {
+      Msg.info('装填弹药用法: reload <接口编号>（如 reload 1，编号见 bag）');
+      Player.showInterfaceStatus();
+      return;
+    }
+    let slotKey = arg;
+    const num = parseInt(arg);
+    if (!isNaN(num) && num >= 1) {
+      const keys = Object.keys(Player.equipment);
+      slotKey = keys[num - 1];
+      if (!slotKey) { Msg.danger(`没有第 ${num} 个接口。`); return; }
+    }
+    Player.reload(slotKey);
+  },
+
+  reload(arg) {
+    if (!arg) {
+      Msg.info('装填弹药用法: reload <接口编号>（如 reload 1，编号见 bag）');
+      Player.showInterfaceStatus();
+      return;
+    }
+    let slotKey = arg;
+    const num = parseInt(arg);
+    if (!isNaN(num) && num >= 1) {
+      const keys = Object.keys(Player.equipment);
+      slotKey = keys[num - 1];
+      if (!slotKey) { Msg.danger(`没有第 ${num} 个接口。`); return; }
+    }
+    Player.reload(slotKey);
+  },
+
+  showHangar() {
+    Msg.divider();
+    Msg.add('🏭 机库', 'info');
+    if (Player.hangar.length === 0) {
+      Msg.system('机库是空的。');
+      return;
+    }
+    Player.hangar.forEach((v, idx) => {
+      const vehicle = VehicleDB[v.vehicleId];
+      const isCurrent = v.vehicleId === Player.vehicleId;
+      const status = isCurrent ? ' ✅[当前使用]' : '';
+      if (vehicle) {
+        const equipCount = Object.values(v.equipment || {}).filter(s => s && s.equip).length;
+        Msg.info(`  #${idx + 1} <span class="item-tag core">${vehicle.name}</span> - HP${vehicle.maxHp} 装甲${vehicle.maxArmor} 接口${equipCount}装备${status}`);
+      } else {
+        Msg.info(`  #${idx + 1} ${v.vehicleId}${status}`);
+      }
+    });
+    Msg.system('提示: 在基地内输入 switch <编号> 切换机体');
+  },
+
+  switchVehicle(arg) {
+    if (!arg) {
+      Msg.info('切换机体用法: switch <编号>（如 switch 1，编号见 hangar）');
+      return;
+    }
+    const num = parseInt(arg);
+    if (isNaN(num) || num < 1) {
+      Msg.error('请输入有效的编号。');
+      return;
+    }
+    const entry = Player.hangar[num - 1];
+    if (!entry) {
+      Msg.error(`没有第 ${num} 号机体。`);
+      return;
+    }
+    Player.switchVehicle(entry.vehicleId);
+  },
+
+  showWarehouse() {
+    Msg.divider();
+    Msg.add('📦 基地仓库', 'info');
+    if (Player.warehouse.length === 0) {
+      Msg.system('仓库是空的。');
+      return;
+    }
+    Player.warehouse.forEach((entry, idx) => {
+      const item = ItemDB.get(entry.id);
+      if (item) {
+        const countStr = entry.count > 1 ? ` x${entry.count}` : '';
+        const typeTag = item.type ? `class="item-tag ${item.type}"` : '';
+        Msg.info(`  #${idx + 1} <span ${typeTag}>${item.name}</span>${countStr}`);
+      }
+    });
+    Msg.system('提示: export <背包编号> [数量] 存入仓库, import <仓库编号> [数量] 取回, wequip <编号> 直接装备');
+  },
+
+  depositToWarehouse(itemName, count = 1) {
+    const room = MapSystem.getRoom(Player.room);
+    if (!room || !room.isSafeZone) {
+      Msg.error('只能在基地内存取物品。');
+      return;
+    }
+    Player.depositToWarehouse(itemName, count);
+  },
+
+  withdrawFromWarehouse(itemName, count = 1) {
+    const room = MapSystem.getRoom(Player.room);
+    if (!room || !room.isSafeZone) {
+      Msg.error('只能在基地内存取物品。');
+      return;
+    }
+    Player.withdrawFromWarehouse(itemName, count);
+  },
+
+  equipFromWarehouse(itemName) {
+    const room = MapSystem.getRoom(Player.room);
+    if (!room || !room.isSafeZone) {
+      Msg.error('只能在基地内装备物品。');
+      return;
+    }
+    Player.equipFromWarehouse(itemName);
+  },
+
   useItem(itemName) {
     if (!itemName) { Msg.warning('请指定要使用的物品。'); return; }
     const item = this.findItemInBag(itemName);
@@ -525,7 +630,7 @@ const Game = {
         itemList = EquipmentDB.getAll();
       }
     } else {
-      itemList = shopNpc.shopItems.map(id => ItemDB[id]).filter(Boolean);
+      itemList = shopNpc.shopItems.map(id => ItemDB.get(id)).filter(Boolean);
     }
 
     if (action === 'list' || !action || showAll) {
@@ -535,17 +640,32 @@ const Game = {
         Msg.system('暂无商品。');
       } else {
         itemList.forEach((item, idx) => {
-          const stats = [];
-          if (item.damage) stats.push(`伤害${item.damage}`);
-          if (item.armorValue) stats.push(`装甲${item.armorValue}`);
-          if (item.healHp) stats.push(`修复结构${item.healHp}`);
-          if (item.healArmor) stats.push(`修复装甲${item.healArmor}`);
-          if (item.range) stats.push(`射程${item.range}m`);
-          if (item.powerReq) stats.push(`功率${item.powerReq}kW`);
-          if (item.computeReq) stats.push(`算力${item.computeReq}`);
-          const extra = stats.length ? ` [${stats.join(',')}]` : '';
-          const catTag = item.category ? `[${item.category}] ` : '';
-          Msg.info(`  ${idx+1}. ${catTag}<span class="item-tag ${item.type}">${item.name}</span>${extra} - ${item.price}G`);
+          // 检查是否是载具
+          if (item.category === 'vehicle' || VehicleDB[item.id]) {
+            const vehicle = VehicleDB[item.id];
+            if (vehicle) {
+              const stats = [];
+              if (vehicle.maxHp) stats.push(`HP${vehicle.maxHp}`);
+              if (vehicle.maxArmor) stats.push(`装甲${vehicle.maxArmor}`);
+              if (vehicle.maxSpeed) stats.push(`速度${vehicle.maxSpeed}`);
+              const extra = stats.length ? ` [${stats.join(',')}]` : '';
+              const owned = Player.hangar.some(v => v.vehicleId === item.id);
+              const ownTag = owned ? ' ✅已拥有' : '';
+              Msg.info(`  ${idx+1}. [机体] <span class="item-tag core">${vehicle.name}</span>${extra} - ${vehicle.price || 0}G${ownTag}`);
+            }
+          } else {
+            const stats = [];
+            if (item.damage) stats.push(`伤害${item.damage}`);
+            if (item.armorValue) stats.push(`装甲${item.armorValue}`);
+            if (item.healHp) stats.push(`修复结构${item.healHp}`);
+            if (item.healArmor) stats.push(`修复装甲${item.healArmor}`);
+            if (item.range) stats.push(`射程${item.range}m`);
+            if (item.powerReq) stats.push(`功率${item.powerReq}kW`);
+            if (item.computeReq) stats.push(`算力${item.computeReq}`);
+            const extra = stats.length ? ` [${stats.join(',')}]` : '';
+            const catTag = item.category ? `[${item.category}] ` : '';
+            Msg.info(`  ${idx+1}. ${catTag}<span class="item-tag ${item.type}">${item.name}</span>${extra} - ${item.price}G`);
+          }
         });
       }
       Msg.info('购买: shop/buy 物品名 或 buy 序号');
@@ -564,10 +684,37 @@ const Game = {
         Msg.info('输入 shop all 查看全部装备。');
         return;
       }
-      if (Player.gold < targetItem.price) { Msg.danger('资金不足！'); return; }
-      Player.gold -= targetItem.price;
-      Player.addItem(targetItem.id);
-      Msg.success(`💰 购买了 <span class="item-tag ${targetItem.type}">${targetItem.name}</span>，花费 ${targetItem.price}G`);
+      // 检查是否是载具
+      if (targetItem.category === 'vehicle' || VehicleDB[targetItem.id]) {
+        const vehicle = VehicleDB[targetItem.id];
+        if (!vehicle) {
+          Msg.danger('载具数据错误。');
+          return;
+        }
+        if (Player.hangar.some(v => v.vehicleId === targetItem.id)) {
+          Msg.warning('你已经拥有该机体了。');
+          return;
+        }
+        if (Player.gold < (vehicle.price || 0)) {
+          Msg.danger('资金不足！');
+          return;
+        }
+        Player.gold -= vehicle.price || 0;
+        Player.hangar.push({
+          vehicleId: targetItem.id,
+          equipment: {},
+          coreComputer: null,
+          corePower: null,
+          magazines: {}
+        });
+        Msg.success(`💰 购买了机体 <span class="item-tag core">${vehicle.name}</span>，花费 ${vehicle.price || 0}G`);
+        Msg.info('输入 hangar 查看机库，switch <编号> 切换机体。');
+      } else {
+        if (Player.gold < targetItem.price) { Msg.danger('资金不足！'); return; }
+        Player.gold -= targetItem.price;
+        Player.addItem(targetItem.id);
+        Msg.success(`💰 购买了 <span class="item-tag ${targetItem.type}">${targetItem.name}</span>，花费 ${targetItem.price}G`);
+      }
     }
   },
  
@@ -718,6 +865,11 @@ const Game = {
       position: Player.position,
       inventory: Player.inventory,
       equipment: Player.equipment,
+      hangar: Player.hangar,
+      warehouse: Player.warehouse,
+      magazines: Player.magazines,
+      coreComputer: Player.coreComputer,
+      corePower: Player.corePower,
       skills: Player.skills,
       visitedRooms: [...Player.visitedRooms],
       killCount: Player.killCount,
@@ -750,9 +902,15 @@ const Game = {
         energy: data.energy, maxEnergy: data.maxEnergy,
         gold: data.gold, room: data.room,
         position: data.position || [500, 500],
-        inventory: data.inventory, equipment: data.equipment,
-        skills: data.skills,
-        visitedRooms: new Set(data.visitedRooms),
+        inventory: data.inventory || [],
+        equipment: data.equipment || {},
+        hangar: data.hangar || [],
+        warehouse: data.warehouse || [],
+        magazines: data.magazines || {},
+        coreComputer: data.coreComputer || null,
+        corePower: data.corePower || null,
+        skills: data.skills || [],
+        visitedRooms: new Set(data.visitedRooms || []),
         killCount: data.killCount || {},
         stats: data.stats || { totalDmg:0, totalHeal:0, monstersKilled:0, deaths:0 }
       });
@@ -771,9 +929,13 @@ const Game = {
   },
  
   findItemInBag(name) {
+    const lower = String(name).toLowerCase();
     return Player.inventory.find(i => {
-      const item = ItemDB[i.id];
-      return item && (item.name === name || i.id === name);
+      const item = ItemDB.get(i.id);
+      if (!item) return false;
+      return item.name.toLowerCase() === lower ||
+             i.id.toLowerCase() === lower ||
+             item.name.toLowerCase().includes(lower);
     });
   },
  
@@ -818,42 +980,51 @@ const Game = {
 
     let html = '';
 
-    const equipSlots = ['primary', 'secondary', 'armor', 'ew1', 'ew2', 'generator', 'container1', 'container2', 'repairer'];
-    const slotLabels = {
-      primary: '主武器', secondary: '副武器', armor: '装甲',
-      ew1: '电子战', ew2: '电子战', generator: '生成器',
-      container1: '容器', container2: '容器', repairer: '修复器'
-    };
+    // 显示当前载具型号
+    const vehicle = VehicleDB[Player.vehicleId];
+    if (vehicle) {
+      html += `<div class="equip-item" style="border-bottom: 1px solid var(--border);padding-bottom:0.5rem;margin-bottom:0.5rem;">`;
+      html += `<div class="equip-slot">`;
+      html += `<span class="equip-slot-name">机体</span>`;
+      html += `<span class="equip-slot-item" style="color:var(--accent);font-weight:bold;">${vehicle.name}</span>`;
+      html += `</div></div>`;
+    }
 
-    for (const slot of equipSlots) {
-      const item = Player.equipment[slot];
+    // 接口装备
+    const slotKeys = Object.keys(Player.equipment);
+    for (let i = 0; i < slotKeys.length; i++) {
+      const key = slotKeys[i];
+      const slot = Player.equipment[key];
+      const item = slot.equip;
       if (!item) continue;
 
+      const slotNum = i + 1;
       let extraHtml = '';
 
-      if (slot === 'primary' || slot === 'secondary') {
+      if (item.category === 'weapon') {
         const ammoMap = {
-          '火炮': { type: '20mm_ap', name: '20mm弹', max: item.magazine || 0 },
-          '电磁炮': { type: 'railgun_slug', name: '轨道弹', max: item.magazine || 0 },
-          '离子炮': { type: 'ion_charge', name: '离子', max: item.magazine || 0 },
-          '导弹': { type: 'missile_he', name: '导弹', max: item.launchBay || 0 },
+          '火炮': { type: '20mm_ap', name: '20mm弹' },
+          '电磁炮': { type: 'railgun_slug', name: '轨道弹' },
+          '离子炮': { type: 'ion_charge', name: '离子' },
+          '导弹': { type: 'missile_he', name: '导弹' },
           '激光炮': null,
           '近战': null
         };
         const ammoInfo = ammoMap[item.subCategory];
         if (ammoInfo) {
-          const current = Player.ammo[ammoInfo.type] || 0;
-          const total = current + (Player.ammo[ammoInfo.type + '_bag'] || 0);
-          const max = ammoInfo.max || total;
-          const pct = max > 0 ? (total / max * 100) : 100;
+          const magCurrent = Player.magazines[key] || 0;
+          const magMax = item.magazine || 0;
+          const reserve = Player.ammo[ammoInfo.type] || 0;
+          const pct = magMax > 0 ? (magCurrent / magMax * 100) : (reserve > 0 ? 100 : 0);
+          const magDisplay = magMax > 0 ? `${magCurrent}/${magMax}` : `${magCurrent}`;
           extraHtml += `
             <div class="weapon-ammo">
               <div class="weapon-ammo-bar"><div class="weapon-ammo-fill" style="width:${Math.min(100, pct)}%"></div></div>
-              <div class="weapon-ammo-text">${ammoInfo.name}: ${total}${max > 0 ? `/${max}` : ''}</div>
+              <div class="weapon-ammo-text">${ammoInfo.name}: ${magDisplay}${reserve > 0 ? ` (+${reserve}备弹)` : ''}</div>
             </div>`;
         }
 
-        const cd = Player.weaponCooldowns[slot] || 0;
+        const cd = Player.weaponCooldowns[key] || 0;
         const maxCd = item.cooldown || 1;
         const isReady = cd <= 0;
         const pct = isReady ? 100 : Math.max(0, Math.min(100, (1 - cd / maxCd) * 100));
@@ -869,7 +1040,7 @@ const Game = {
 
       html += `<div class="equip-item">`;
       html += `<div class="equip-slot">`;
-      html += `<span class="equip-slot-name">${slotLabels[slot]}</span>`;
+      html += `<span class="equip-slot-name">#${slotNum}</span>`;
       html += `<span class="equip-slot-item">${item.name}</span>`;
       html += `</div>`;
       html += `${extraHtml}`;

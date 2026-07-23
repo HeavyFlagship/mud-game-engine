@@ -64,7 +64,8 @@ const BattleUI = {
       ];
     } else if (target.type === 'enemy') {
       const dist = target.dist;
-      const inRange = Player.equipment.primary && dist <= Player.equipment.primary.range;
+      const primaryWeapon = Player.getEquippedWeapons()[0];
+      const inRange = primaryWeapon && dist <= primaryWeapon.range;
       actions = [
         { label: 'fire 开火', cmd: `fire ${target.id}`, disabled: !inRange || target.dead },
         { label: 'look 查看', cmd: `look ${target.id}`, disabled: target.dead },
@@ -135,8 +136,9 @@ const BattleUI = {
     ctx.lineWidth = 0.5;
     const gridCount = 10;
     const gridSize = w / gridCount;
-    const gridOffsetX = cx - (Player.position[0] - 500) * scale;
-    const gridOffsetY = cy - (Player.position[1] - 500) * scale;
+    // 网格固定在世界坐标，不随玩家位置滚动
+    const gridOffsetX = cx - 500 * scale;
+    const gridOffsetY = cy - 500 * scale;
     for (let i = -2; i <= gridCount + 2; i++) {
       const x = gridOffsetX + i * gridSize;
       const y = gridOffsetY + i * gridSize;
@@ -330,7 +332,7 @@ const BattleUI = {
   },
 
   addHistory(text, color = '#aaa', actionType = null) {
-    const time = Battle.battlefield ? Battle.battlefield.time : 0;
+    const time = Timeline.time || 0;
     const formattedTime = this.formatGameTime(time, 'mm:ss');
     const displayText = actionType ? `${text}行动：${actionType}` : `${text}`;
     this.historyEvents.unshift({ time: formattedTime, text: displayText, color });
@@ -353,7 +355,7 @@ const BattleUI = {
   },
 
   addCurrentAction(text, color = '#fff') {
-    const time = Battle.battlefield ? Battle.battlefield.time.toFixed(0) : '?';
+    const time = (Timeline.time || 0).toFixed(0);
     this.currentActions.push({ time, text, color });
     // 不再因为溢出就塞进历史记录
     if (this.currentActions.length > 5) {
@@ -380,8 +382,8 @@ const BattleUI = {
 
   updateBattleTime() {
     const el = document.getElementById('battle-time');
-    if (!el || !Battle.battlefield) return;
-    el.textContent = this.formatGameTime(Battle.battlefield.time, 'hh:mm:ss');
+    if (!el) return;
+    el.textContent = this.formatGameTime(Timeline.time || 0, 'hh:mm:ss');
   },
 
   clearBattlePanels() {
@@ -408,7 +410,8 @@ const BattleUI = {
       const hpPct = (enemy.hp / enemy.maxHp * 100).toFixed(0);
       const arPct = enemy.maxArmor > 0 ? (enemy.armor / enemy.maxArmor * 100).toFixed(0) : 0;
       const dead = enemy.hp <= 0;
-      const inRange = Player.equipment.primary && dist <= Player.equipment.primary.range;
+      const primaryWeapon = Player.getEquippedWeapons()[0];
+      const inRange = primaryWeapon && dist <= primaryWeapon.range;
       const nameText = `${enemy.instanceId} ${enemy.name}`;
       const distText = `${dist.toFixed(0)}m ${inRange ? '🎯' : '📏'}`;
       const id = enemy.instanceId;
@@ -439,33 +442,33 @@ const BattleUI = {
 
   updateTimeline() {
     const content = document.getElementById('timeline-content');
-    if (!content || !Battle.eventQueue || !Battle.battlefield) return;
+    if (!content || !Timeline.eventQueue) return;
 
     let html = '';
 
-    const upcoming = [...Battle.eventQueue]
+    const upcoming = [...Timeline.eventQueue]
       .filter(evt => evt.type === 'player_turn' || evt.type === 'enemy_turn' || evt.type === 'weapon_ready' || evt.type === 'player_fire')
       .sort((a, b) => a.time - b.time)
       .slice(0, 6);
     html += '<div class="timeline-section timeline-upcoming">';
     html += '<div class="timeline-divider">— 即将到来 —</div>';
     for (const evt of upcoming) {
-      const timeOffset = (evt.time - Battle.battlefield.time).toFixed(1);
+      const timeOffset = (evt.time - (Timeline.time || 0)).toFixed(1);
       let label = '';
       let color = '#aaa';
       if (evt.type === 'player_turn') {
         label = '你的行动';
         color = '#0ff';
       } else if (evt.type === 'enemy_turn') {
-        const enemy = Battle.battlefield.enemies.find(e => e.instanceId === evt.actor);
+        const enemy = Battle.battlefield ? Battle.battlefield.enemies.find(e => e.instanceId === evt.actor) : null;
         label = enemy ? `${enemy.name}[${evt.actor}]行动` : `敌人[${evt.actor}]行动`;
         color = '#f66';
       } else if (evt.type === 'weapon_ready') {
-        const weapon = Player.equipment[evt.slot];
+        const weapon = Player.equipment[evt.slot]?.equip;
         label = weapon ? `${weapon.name}就绪` : `${evt.slot}就绪`;
         color = '#ff8';
       } else if (evt.type === 'player_fire') {
-        const weapon = Player.equipment[evt.slot];
+        const weapon = Player.equipment[evt.slot]?.equip;
         const wName = weapon ? weapon.name : evt.slot;
         label = `开火(${wName})→${evt.target}`;
         color = '#f80';
@@ -487,14 +490,14 @@ const BattleUI = {
     }
     html += '</div>';
 
-    const continuousActions = Battle.continuousActions || [];
+    const continuousActions = Timeline.continuousActions || [];
     if (continuousActions.length > 0) {
       html += '<div class="timeline-section timeline-continuous">';
       html += '<div class="timeline-divider">— 持续动作 —</div>';
       for (const action of continuousActions) {
-        const remaining = Math.max(0, action.endTime - Battle.battlefield.time).toFixed(0);
+        const remaining = Math.max(0, action.endTime - (Timeline.time || 0)).toFixed(0);
         const total = action.duration || 1;
-        const elapsed = Battle.battlefield.time - action.startTime;
+        const elapsed = (Timeline.time || 0) - action.startTime;
         const pct = Math.max(0, Math.min(100, (elapsed / total) * 100));
         const typeLabel = action.type === 'move' ? '移动' : action.type;
         const actorLabel = action.actor === 'player' ? '你' : action.actor;
@@ -505,11 +508,11 @@ const BattleUI = {
     }
 
     const readyWeapons = [];
-    for (const slot of ['primary', 'secondary']) {
-      const cd = Player.weaponCooldowns[slot] || 0;
-      const w = Player.equipment[slot];
-      if (cd <= 0 && w) {
-        readyWeapons.push({ slot, name: w.name });
+    for (const [slotKey, slot] of Object.entries(Player.equipment)) {
+      const cd = Player.weaponCooldowns[slotKey] || 0;
+      const w = slot.equip;
+      if (w && w.category === 'weapon' && cd <= 0) {
+        readyWeapons.push({ slot: slotKey, name: w.name });
       }
     }
     html += '<div class="timeline-section timeline-queue">';
@@ -517,7 +520,8 @@ const BattleUI = {
     if (readyWeapons.length > 0) {
       for (let i = 0; i < readyWeapons.length; i++) {
         const w = readyWeapons[i];
-        html += `<div class="timeline-item queue" style="color:#2f8;">${i + 1}. 🔫 ${w.name} (${w.slot})</div>`;
+        const slotNum = Object.keys(Player.equipment).indexOf(w.slot) + 1;
+        html += `<div class="timeline-item queue" style="color:#2f8;">${i + 1}. 🔫 ${w.name} (#${slotNum})</div>`;
       }
     } else {
       html += '<div class="timeline-item queue" style="color:#555;">（无就绪武器）</div>';

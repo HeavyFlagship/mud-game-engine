@@ -21,10 +21,10 @@ const NPCDB = {
     id:'quartermaster', name:'军械士·张薇', title:'装备库管理员',
     broadcastPosition: true,
     dialog: {
-      default: ['装备库的物资还算充足，需要什么尽管说。记住，弹药和能量是你的生命线。'],
+      default: ['装备库的物资还算充足，需要什么尽管说。记住，弹药和能量是你的生命线。', '需要新机体？看看机库里的存货。'],
       shop: 'shop'
     },
-    shopItems: ['auto_cannon_mk1','pulse_laser_mk1','light_alloy_plate','repair_kit_small','armor_patch']
+    shopItems: ['assault','striker','stealth','auto_cannon_mk1','pulse_laser_mk1','light_alloy_plate','repair_kit_small','armor_patch']
   },
   engineer: {
     id:'engineer', name:'维修师·王磊', title:'维修站技师',

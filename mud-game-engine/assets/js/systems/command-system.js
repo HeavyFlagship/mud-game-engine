@@ -12,6 +12,7 @@ const CommandSystem = {
     sk:'skills',
     sh:'shop', buy:'shop',
     call:'call', 通信:'call', hailing:'call',
+    对话:'talk',
     p:'pick', g:'get',
     d:'drop',
     sc:'score', st:'stats',
@@ -19,8 +20,15 @@ const CommandSystem = {
     fi:'fire', shoot:'fire', atk:'fire',
     ent:'enter', 进入:'enter',
     tm:'timeline', tl_b:'timeline',
-    re:'retreat', rt:'retreat'
+    re:'retreat', rt:'retreat',
+    rl:'reload',
+    hg:'hangar', wh:'warehouse'
   },
+
+  // 战场专用指令（仅当 Battle.active 时由 handleBattleCmd 处理）
+  battleOnlyCmds: ['move','go','enter','进入','fire','shoot','attack','攻击',
+                   'retreat','flee','撤退','timeline','wait','等待','idle','待机',
+                   'call','通信','hailing','look','查看'],
  
   parse(input) {
     input = input.trim().toLowerCase();
@@ -39,12 +47,15 @@ const CommandSystem = {
     const parsed = this.parse(input);
     if (!parsed) return;
     Msg.cmd(`> ${parsed.raw}`);
- 
-    if (Battle.active) {
+
+    // 战场专用指令：仅当 Battle.active 时由 handleBattleCmd 处理
+    // 其余指令（shop/equip/unequip/talk/方向移动等）在任何状态下均可使用
+    if (Battle.active && this.battleOnlyCmds.includes(parsed.cmd)) {
       this.handleBattleCmd(parsed);
+      Game.updateUI();
       return;
     }
- 
+
     switch (parsed.cmd) {
       case 'north': case 'south': case 'east': case 'west':
       case 'up': case 'down': case '上': case '下':
@@ -55,18 +66,24 @@ const CommandSystem = {
         this.runQuery(parsed, '背包', () => Game.showBag(parsed.args.includes('-d'))); break;
       case 'status': case '状态':
         this.runQuery(parsed, '机体状态', () => Game.showStatus()); break;
-      case 'equip': case '装备': {
-        const equipSlots = ['primary','secondary','armor','ew1','ew2','generator','container1','container2','repairer','coreComputer','corePower','主武器','副武器','装甲','电子战1','电子战2','生成器','容器1','容器2','修复器','核心计算机','核心动力'];
-        if (parsed.args.length >= 2 && equipSlots.includes(parsed.args[parsed.args.length - 1])) {
-          const slot = parsed.args.pop();
-          Game.equip(parsed.args.join(' '), slot);
-        } else {
-          Game.equip(parsed.args.join(' '));
-        }
-        break;
-      }
+      case 'equip': case '装备':
+        Game.equip(parsed.args.join(' ')); break;
       case 'unequip': case '卸下':
-        Game.unequip(parsed.args.join(' ')); break;
+        Game.unequip(parsed.args[0] || ''); break;
+      case 'reload': case '装填':
+        Game.reload(parsed.args[0] || ''); break;
+      case 'hangar': case '机库':
+        Game.showHangar(); break;
+      case 'switch': case '切换':
+        Game.switchVehicle(parsed.args[0] || ''); break;
+      case 'warehouse': case '仓库':
+        Game.showWarehouse(); break;
+      case 'deposit': case 'export': case '存入': case '存仓':
+        Game.depositToWarehouse(parsed.args[0] || '', parseInt(parsed.args[1]) || 1); break;
+      case 'withdraw': case 'import': case '取出': case '取回':
+        Game.withdrawFromWarehouse(parsed.args[0] || '', parseInt(parsed.args[1]) || 1); break;
+      case 'wequip': case '仓装':
+        Game.equipFromWarehouse(parsed.args[0] || ''); break;
       case 'use': case '使用': case 'drink': case '喝':
         Game.useItem(parsed.args.join(' ')); break;
       case 'skills': case '技能':
@@ -75,7 +92,7 @@ const CommandSystem = {
         Game.pickItem(parsed.args.join(' ')); break;
       case 'drop': case '丢弃':
         Game.dropItem(parsed.args.join(' ')); break;
-      case 'talk': case '对话': case 'call': case '通信':
+      case 'talk': case '对话':
         Game.talk(parsed.args.join(' ')); break;
       case 'shop': case '商店': case 'buy': case '购买':
         Game.shop(parsed.args[0] || 'list'); break;
@@ -109,30 +126,21 @@ const CommandSystem = {
         this.cmdBattleEnter(parsed.args); break;
       case 'fire': case 'shoot': case 'attack': case '攻击':
         this.cmdBattleFire(parsed.args); break;
-      case 'call': case 'talk': case '对话': case '通信':
+      case 'call': case '通信': case 'hailing':
         this.cmdBattleCall(parsed.args); break;
       case 'retreat': case 'flee': case '撤退':
         Battle.retreat(); break;
       case 'timeline':
         this.cmdTimeline(); break;
-      case 'status': case '状态':
-        this.runQuery(parsed, '机体状态', () => Game.showStatus()); break;
-      case 'bag': case '背包':
-        this.runQuery(parsed, '背包', () => Game.showBag(parsed.args.includes('-d'))); break;
-      case 'use': case '使用':
-        Game.useItem(parsed.args.join(' '));
-        break;
       case 'look': case '查看':
         this.cmdBattleLook(parsed.args); break;
-      case 'help': case '帮助':
-        this.runQuery(parsed, '战斗指令帮助', () => this.showBattleHelp()); break;
       case 'wait': case '等待':
         Battle.setPlayerTask({ type: 'wait' });
         break;
       case 'idle': case '待机':
         this.cmdBattleIdle(parsed.args); break;
       default:
-        Msg.warning('场景中可用指令：move/fire/call/idle/status/use/look/retreat/help/wait');
+        Msg.warning('场景中可用指令：move/fire/call/idle/look/retreat/timeline/wait');
     }
   },
 
@@ -250,7 +258,7 @@ const CommandSystem = {
 
       if (enemy) {
         const dist = Battle.getDistance(Player.position, enemy.position);
-        const weapon = Player.equipment.primary;
+        const weapon = Player.getEquippedWeapons()[0];
         const approachDist = weapon ? Math.min(dist - 10, weapon.range * 0.9) : Math.max(dist - 20, 50);
         const ratio = approachDist / dist;
         targetX = Player.position[0] + (enemy.position[0] - Player.position[0]) * ratio;
@@ -296,27 +304,37 @@ const CommandSystem = {
       return;
     }
 
-    const isMoving = Battle.continuousActions.some(a => a.actor === 'player' && a.type === 'move');
-    if (isMoving) {
-      // 移动中再次下达 move：中断当前移动，以新目标重新开始
-      Battle.interruptPlayerMove();
-      Battle.setPlayerTask({ type: 'move', target: [targetX, targetY], autoExit });
-    } else {
-      // 检查是否有就绪武器
-      const hasReadyWeapon = ['primary', 'secondary'].some(s => (Player.weaponCooldowns[s] || 0) <= 0 && Player.equipment[s]);
-      if (hasReadyWeapon && !Battle.playerFireHint) {
-        // 有就绪武器且未提示过：记录意图，提示玩家可选移动开火或仅移动跳过开火
-        Battle.playerFireHint = { pendingMove: [targetX, targetY], autoExit };
-        const readyNames = ['primary', 'secondary']
-          .filter(s => (Player.weaponCooldowns[s] || 0) <= 0 && Player.equipment[s])
-          .map(s => Player.equipment[s].name);
-        Msg.prompt(`武器已就绪（${readyNames.join('、')}）：输入 fire <目标> 移动开火（开火与移动并行），或再次输入 move 仅移动跳过开火。`);
-        return;
+    const isMoving = Timeline.continuousActions.some(a => a.actor === 'player' && a.type === 'move');
+
+    // 解析 -s 标志（非战斗状态同步开火）
+    const syncFire = args.includes('-s');
+    // 检查是否有就绪武器
+    const hasReadyWeapon = Player.getEquippedWeapons().some(w => (Player.weaponCooldowns[w.slot] || 0) <= 0);
+    // 战斗状态：默认提示移动开火（保留原行为）
+    // 非战斗状态：仅当显式 -s 时询问，否则直接移动忽略就绪武器
+    const shouldPromptFire = Battle.combatActive
+      ? (hasReadyWeapon && !Battle.playerFireHint)
+      : (syncFire && hasReadyWeapon && !Battle.playerFireHint);
+
+    if (shouldPromptFire) {
+      // 移动中切换移动目标：先中断当前移动，再询问是否开火
+      if (isMoving) {
+        Battle.interruptPlayerMove();
       }
-      // 已提示过或无就绪武器：清除提示，执行移动
-      Battle.playerFireHint = null;
-      Battle.setPlayerTask({ type: 'move', target: [targetX, targetY], autoExit });
+      Battle.playerFireHint = { pendingMove: [targetX, targetY], autoExit };
+      const readyNames = Player.getEquippedWeapons()
+        .filter(w => (Player.weaponCooldowns[w.slot] || 0) <= 0)
+        .map(w => w.name);
+      Msg.prompt(`武器已就绪（${readyNames.join('、')}）：输入 fire <目标> 移动开火（开火与移动并行），或再次输入 move 仅移动跳过开火。`);
+      return;
     }
+
+    // 已提示过或无就绪武器或非战斗无 -s：清除提示，执行移动
+    Battle.playerFireHint = null;
+    if (isMoving) {
+      Battle.interruptPlayerMove();
+    }
+    Battle.setPlayerTask({ type: 'move', target: [targetX, targetY], autoExit });
   },
 
   cmdBattleEnter(args) {
@@ -386,11 +404,12 @@ const CommandSystem = {
       let info = '可用目标：\n';
       for (const e of enemies) {
         const dist = Battle.getDistance(Player.position, e.position);
-        const inRange = Player.equipment.primary && dist <= Player.equipment.primary.range;
+        const primaryWeapon = Player.getEquippedWeapons()[0];
+        const inRange = primaryWeapon && dist <= primaryWeapon.range;
         info += `  ${e.instanceId} - ${e.name} (距离${dist.toFixed(0)}m) ${inRange ? '[射程内]' : '[超射程]'}\n`;
       }
       info += '用法：fire <目标编号> [武器槽]\n';
-      info += '  武器槽: primary/secondary/all (默认all, 所有就绪武器开火)';
+      info += '  武器槽: all(默认) 或接口编号（见 bag），默认所有就绪武器开火';
       Msg.info(info);
       return;
     }
@@ -409,17 +428,23 @@ const CommandSystem = {
     // 确定要开火的武器槽列表
     let slots = [];
     if (slotArg === 'all') {
-      for (const s of ['primary', 'secondary']) {
-        const w = Player.equipment[s];
-        if (w) slots.push(s);
+      for (const w of Player.getEquippedWeapons()) {
+        slots.push(w.slot);
       }
     } else {
-      const w = Player.equipment[slotArg];
+      // 支持数字编号（1-based）或 slot_key
+      let slotKey = slotArg;
+      const num = parseInt(slotArg);
+      if (!isNaN(num) && num >= 1) {
+        const keys = Object.keys(Player.equipment);
+        slotKey = keys[num - 1];
+      }
+      const w = Player.equipment[slotKey]?.equip;
       if (!w) {
-        Msg.error(`武器槽 ${slotArg} 为空或无效。可用: primary/secondary/all`);
+        Msg.error(`武器槽 ${slotArg} 为空或无效。可用: all 或接口编号（见 bag）`);
         return;
       }
-      slots.push(slotArg);
+      slots.push(slotKey);
     }
 
     if (slots.length === 0) {
@@ -431,7 +456,7 @@ const CommandSystem = {
     const readySlots = slots.filter(s => (Player.weaponCooldowns[s] || 0) <= 0);
     if (readySlots.length === 0) {
       const cdInfo = slots.map(s => {
-        const w = Player.equipment[s];
+        const w = Player.equipment[s]?.equip;
         return `${w ? w.name : s}:${(Player.weaponCooldowns[s]||0).toFixed(1)}s`;
       }).join(', ');
       Msg.warn(`所有指定武器都在冷却中（${cdInfo}）。`);
@@ -448,22 +473,22 @@ const CommandSystem = {
     const fireDelay = 0.3;
     for (let i = 0; i < readySlots.length; i++) {
       const s = readySlots[i];
-      const weapon = Player.equipment[s];
+      const weapon = Player.equipment[s]?.equip;
       const delay = fireDelay * (i + 1);
-      Battle.scheduleEvent({ type: 'player_fire', actor: 'player', target: targetId, slot: s, label: `攻击 ${targetId}` }, delay);
+      Timeline.scheduleEvent({ type: 'player_fire', actor: 'player', target: targetId, slot: s, label: `攻击 ${targetId}` }, delay);
     }
 
     if (pendingMove) {
       // 移动开火：fire 由 move 触发，开火与移动并行执行
-      Msg.info(`移动开火：攻击 ${targetId} (${readySlots.map(s => Player.equipment[s].name).join('/')})，同时继续移动`);
+      Msg.info(`移动开火：攻击 ${targetId} (${readySlots.map(s => Player.equipment[s]?.equip?.name).join('/')})，同时继续移动`);
       Battle.setPlayerTask({ type: 'move', target: [...pendingMove], autoExit });
     } else {
       // 普通开火：解除 paused 让时间轴推进
-      Msg.info(`开火指令已下达：攻击 ${targetId} (${readySlots.map(s => Player.equipment[s].name).join('/')})`);
-      if (Battle.paused && Battle.currentActor === 'player') {
-        Battle.paused = false;
+      Msg.info(`开火指令已下达：攻击 ${targetId} (${readySlots.map(s => Player.equipment[s]?.equip?.name).join('/')})`);
+      if (Timeline.paused && Battle.currentActor === 'player') {
+        Timeline.paused = false;
       }
-      Battle.scheduleNext();
+      Timeline.scheduleNext();
     }
   },
  
@@ -480,7 +505,7 @@ const CommandSystem = {
 
       if (enemy) {
         const dist = Battle.getDistance(Player.position, enemy.position);
-        const weapon = Player.equipment.primary;
+        const weapon = Player.getEquippedWeapons()[0];
         let info = `观察目标：${enemy.name}[${enemy.instanceId}]\n`;
         info += `距离：${dist.toFixed(0)}m\n`;
         info += `结构：${enemy.hp}/${enemy.maxHp}  装甲：${enemy.armor}/${enemy.maxArmor}\n`;
@@ -515,11 +540,13 @@ const CommandSystem = {
       return;
     }
 
-    // 无参数：查看战场全貌
-    let info = `战场：${MapSystem.getRoom(Battle.roomId)?.name || '未知区域'}\n`;
+    // 无参数：先显示房间信息，再附加战场全貌
+    Game.look();
+    let info = `\n战场：${MapSystem.getRoom(Battle.roomId)?.name || '未知区域'}\n`;
     info += `地形：${MapSystem.getTerrainName(bf.terrain)}\n`;
     info += `你的位置：(${Math.round(Player.position[0])}, ${Math.round(Player.position[1])})\n`;
-    info += `敌人 (${bf.enemies.filter(e=>e.hp>0).length}/${bf.enemies.length})：\n`;
+    const aliveEnemies = bf.enemies.filter(e=>e.hp>0);
+    info += `敌人 (${aliveEnemies.length}/${bf.enemies.length})：\n`;
     for (const e of bf.enemies) {
       if (e.hp <= 0) continue;
       const dist = Battle.getDistance(Player.position, e.position);
@@ -527,6 +554,9 @@ const CommandSystem = {
         const state = this.getStateName(e.state);
         info += `  ${e.instanceId} ${e.name} - ${dist.toFixed(0)}m - HP${e.hp}/${e.maxHp} - ${state}\n`;
       }
+    }
+    if (aliveEnemies.length === 0) {
+      info += '  （无敌对信号）\n';
     }
     if (bf.covers && bf.covers.length > 0) {
       info += `掩体：${bf.covers.length}处\n`;
@@ -547,11 +577,14 @@ const CommandSystem = {
   },
  
   cmdTimeline() {
-    if (!Battle.active || !Battle.eventQueue) return;
-    const sorted = [...Battle.eventQueue].sort((a,b) => a.time - b.time).slice(0, 10);
+    if (!Timeline.eventQueue || Timeline.eventQueue.length === 0) {
+      Msg.info('时间轴当前为空。');
+      return;
+    }
+    const sorted = [...Timeline.eventQueue].sort((a,b) => a.time - b.time).slice(0, 10);
     let info = '时间轴（接下来10个事件）：\n';
     for (const evt of sorted) {
-      const offset = (evt.time - Battle.battlefield.time).toFixed(0);
+      const offset = (evt.time - (Timeline.time || 0)).toFixed(0);
       let label = '';
       if (evt.type === 'player_turn') label = '你的行动';
       else if (evt.type === 'enemy_turn') label = `${evt.actor}行动`;
