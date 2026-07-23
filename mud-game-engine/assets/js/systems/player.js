@@ -21,6 +21,18 @@ const Player = {
   weight: 1200,
   overweightCoeff: 1.5,
 
+  // 接口类型符号映射
+  interfaceSymbols: {
+    '外部': { symbol: '◎', color: '#fff' },
+    '内部': { symbol: '◉', color: '#ccc' },
+    '电源': { symbol: '⚡', color: '#ff0' },
+    '数据': { symbol: '🔗', color: '#0cf' },
+    '弹药管道': { symbol: '⩎', color: '#f84' },
+    '离子管道': { symbol: '⩎', color: '#0ff' },
+    '流体管道': { symbol: '⩎', color: '#4af' },
+    '界面': { symbol: '📥', color: '#8f8' },
+  },
+
   // 装备槽位：动态生成，基于载具接口
   equipment: {},
 
