@@ -563,23 +563,23 @@ const Player = {
     if (!targetSlot) {
       targetSlot = this.findAvailableSlot(equip);
       if (!targetSlot) {
-        Msg.error(`没有空闲接口满足 ${equip.name} 的需求：${equip.interfaceReq.join('、')}`);
-        // 显示当前接口占用情况
+        const reqSyms = equip.interfaceReq.map(t => this.getInterfaceSymbol(t)).join('');
+        Msg.error(`没有空闲接口满足 ${equip.name} 的需求 [${reqSyms}]`);
         this.showInterfaceStatus();
         return false;
       }
     } else {
-      // 指定了槽位，验证是否可用
       if (!this.equipment[targetSlot]) {
         Msg.error(`槽位 ${slotKey} 不存在。`);
         return false;
       }
       if (this.equipment[targetSlot].equip) {
-        // 槽位已占用，先卸载
         this.uninstallEquipment(targetSlot, true);
       }
       if (!this.canFitSlot(equip, targetSlot)) {
-        Msg.error(`${equip.name} 需要接口：${equip.interfaceReq.join('、')}，该槽位提供：${this.equipment[targetSlot].interfaceTypes.join('、')}`);
+        const reqSyms = equip.interfaceReq.map(t => this.getInterfaceSymbol(t)).join('');
+        const haveSyms = this.equipment[targetSlot].interfaceTypes.map(t => this.getInterfaceSymbol(t)).join('');
+        Msg.error(`${equip.name} 需要 [${reqSyms}]，该槽位提供 [${haveSyms}]`);
         return false;
       }
     }
@@ -659,24 +659,71 @@ const Player = {
     return true;
   },
 
-  // 获取槽位描述（仅接口类型）
+  // 接口类型 → 符号映射
+  interfaceSymbols: {
+    '外部': '◎',
+    '内部': '◉',
+    '电源': '⚡',
+    '数据': '🔗',
+    '界面': '📥',
+    '弹药管道': '⩎',
+    '离子管道': '⩎',
+    '流体管道': '⩎',
+    '武器管道': '⩎',
+  },
+
+  // 管道类型 → 颜色映射
+  pipeColors: {
+    '弹药管道': '#f84',
+    '离子管道': '#8af',
+    '流体管道': '#4f8',
+    '武器管道': '#f48',
+  },
+
+  // 获取接口类型的符号表示
+  getInterfaceSymbol(type) {
+    const sym = this.interfaceSymbols[type] || '?';
+    const color = this.pipeColors[type];
+    if (color) {
+      return `<span style="color:${color}">${sym}</span>`;
+    }
+    return sym;
+  },
+
+  // 获取槽位描述（符号缩写形式）
   getSlotDesc(slotKey) {
     const slot = this.equipment[slotKey];
     if (!slot) return slotKey;
-    const types = slot.interfaceTypes.join('+');
-    return `[${types}]`;
+    const syms = slot.interfaceTypes.map(t => this.getInterfaceSymbol(t)).join('');
+    return `[${syms}]`;
   },
 
-  // 显示接口占用状态
+  // 获取接口图例文本（纯文字说明）
+  getInterfaceLegend() {
+    const items = [];
+    const seen = new Set();
+    for (const [type, sym] of Object.entries(this.interfaceSymbols)) {
+      const color = this.pipeColors[type];
+      const display = color ? `<span style="color:${color}">${sym}</span>` : sym;
+      if (!seen.has(sym + (color || ''))) {
+        items.push(`${display}=${type}`);
+        seen.add(sym + (color || ''));
+      }
+    }
+    return items.join('  ');
+  },
+
+  // 显示接口占用状态（符号形式）
   showInterfaceStatus() {
     const freeSummary = this.getFreeInterfaceSummary();
     const allSummary = this.getInterfaceSummary();
     const parts = [];
     for (const [type, total] of Object.entries(allSummary)) {
       const free = freeSummary[type] || 0;
-      parts.push(`${type}:${free}/${total}`);
+      const sym = this.getInterfaceSymbol(type);
+      parts.push(`${sym}${free}/${total}`);
     }
-    Msg.info(`接口状态：${parts.join('  ')}`);
+    Msg.info(`接口：${parts.join('  ')}`);
   },
 
   checkBudget(equip) {

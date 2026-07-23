@@ -155,6 +155,8 @@ const Game = {
 
     // 接口状态
     Player.showInterfaceStatus();
+    // 接口图例
+    Msg.info(`图例：${Player.getInterfaceLegend()}`);
 
     // 核心模块
     Msg.info('── 核心模块 ──');
@@ -221,7 +223,10 @@ const Game = {
           if (item.range) statsStr.push(`射程${item.range}m`);
           if (item.powerReq) statsStr.push(`功率${item.powerReq}kW`);
           if (item.computeReq) statsStr.push(`算力${item.computeReq}`);
-          if (item.interfaceReq) statsStr.push(`接口:${item.interfaceReq.join('+')}`);
+          if (item.interfaceReq) {
+            const syms = item.interfaceReq.map(t => Player.getInterfaceSymbol(t)).join('');
+            statsStr.push(`[${syms}]`);
+          }
           const extra = statsStr.length ? ` [${statsStr.join(', ')}]` : '';
           const desc = showDetail ? ` - ${item.desc}` : '';
           Msg.info(`  #${idx + 1} <span class="item-tag ${item.type}">${item.name}</span>${countStr}${extra}${desc}`);
@@ -986,11 +991,14 @@ const Game = {
     }
 
     // 接口装备
-    for (const [key, slot] of Object.entries(Player.equipment)) {
+    const slotKeys = Object.keys(Player.equipment);
+    for (let i = 0; i < slotKeys.length; i++) {
+      const key = slotKeys[i];
+      const slot = Player.equipment[key];
       const item = slot.equip;
       if (!item) continue;
 
-      const desc = Player.getSlotDesc(key);
+      const slotNum = i + 1;
       let extraHtml = '';
 
       if (item.category === 'weapon') {
@@ -1032,7 +1040,7 @@ const Game = {
 
       html += `<div class="equip-item">`;
       html += `<div class="equip-slot">`;
-      html += `<span class="equip-slot-name">${desc}</span>`;
+      html += `<span class="equip-slot-name">#${slotNum}</span>`;
       html += `<span class="equip-slot-item">${item.name}</span>`;
       html += `</div>`;
       html += `${extraHtml}`;
