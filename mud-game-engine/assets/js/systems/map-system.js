@@ -123,9 +123,9 @@ const MapSystem = {
       } else if (entryDir === 'south') {
         entryPos = [Utils.clamp(prevPos[0], margin, bw - margin), bh - margin];
       } else if (entryDir === 'east') {
-        entryPos = [margin, Utils.clamp(prevPos[1], margin, bh - margin)];
-      } else if (entryDir === 'west') {
         entryPos = [bw - margin, Utils.clamp(prevPos[1], margin, bh - margin)];
+      } else if (entryDir === 'west') {
+        entryPos = [margin, Utils.clamp(prevPos[1], margin, bh - margin)];
       }
     } else if (entryDir && bf.entryPoints && bf.entryPoints[entryDir]) {
       entryPos = [...bf.entryPoints[entryDir]];
