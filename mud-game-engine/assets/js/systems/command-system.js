@@ -133,14 +133,7 @@ const CommandSystem = {
       case 'look': case '查看':
         this.cmdBattleLook(parsed.args); break;
       case 'wait': case '等待':
-        if (Battle.playerFireHint && Battle.playerFireHint.pendingMove) {
-          const hint = Battle.playerFireHint;
-          Battle.playerFireHint = null;
-          Battle.setPlayerTask({ type: 'move', target: hint.pendingMove, autoExit: hint.autoExit });
-        } else {
-          Battle.setPlayerTask({ type: 'wait' });
-        }
-        break;
+        this.cmdBattleWait(parsed.args); break;
       case 'idle': case '待机':
         this.cmdBattleIdle(parsed.args); break;
       case 'continue': case 'cont':
@@ -148,25 +141,72 @@ const CommandSystem = {
       case 'use': case '使用':
         Game.useItem(parsed.args); break;
       default:
-        Msg.warning('场景中可用指令：move/fire/call/idle/continue/look/retreat/timeline/wait/use');
+        Msg.warning('场景中可用指令：move/fire/call/wait/continue/look/retreat/timeline/use');
     }
   },
 
   cmdBattleIdle(args) {
+    Msg.warning('idle 指令已暂时禁用，将在队友系统上线后重新设计。');
+  },
+
+  cmdBattleWait(args) {
     if (!Battle.active || !Battle.battlefield) return;
-    let seconds = parseInt(args[0]);
-    if (!seconds || seconds < 1) {
-      Msg.info('用法：idle <秒数>  - 待机指定秒数，期间时间轴继续推进');
-      Msg.info('示例：idle 10  - 等待10秒后再次决策；期间被攻击将立即进入行动阶段');
+    if (!Timeline.paused || Battle.currentActor !== 'player') {
+      Msg.warning('当前没有需要等待的行动阶段。');
       return;
     }
-    if (seconds > 300) {
-      Msg.warning('待机时间过长，已限制为300秒。');
-      seconds = 300;
-    }
+
     // 清除开火提示
     Battle.playerFireHint = null;
-    Battle.playerIdle(seconds);
+    // 中断当前移动
+    if (Timeline.continuousActions.some(a => a.actor === 'player' && a.type === 'move')) {
+      Battle.interruptPlayerMove();
+    }
+
+    // 取消当前玩家回合事件
+    Timeline.cancelEvents(e => e.type === 'player_turn' && e.actor === 'player');
+    Timeline.cancelEventsByType('player_idle_end');
+    Battle.playerIdleEnd = null;
+    Battle.playerTask = null;
+    BattleUI.clearCurrentActions();
+
+    let waitTime;
+    if (args.length >= 1) {
+      waitTime = parseInt(args[0]);
+      if (isNaN(waitTime) || waitTime <= 0) {
+        Msg.error('等待时间必须是正整数秒。');
+        return;
+      }
+      if (waitTime > 300) {
+        Msg.warning('等待时间过长，已限制为300秒。');
+        waitTime = 300;
+      }
+      Msg.info(`打断所有行动，等待 ${waitTime} 秒...`);
+    } else {
+      // 无参数：等待到下一个即将到来的事件
+      const nextEvent = [...Timeline.eventQueue]
+        .sort((a, b) => a.time - b.time)[0];
+      if (!nextEvent) {
+        Msg.warning('事件队列为空，无法自动等待。');
+        return;
+      }
+      waitTime = Math.max(0.1, nextEvent.time - Timeline.time);
+      let label = '事件';
+      if (nextEvent.type === 'weapon_ready') {
+        const weapon = Player.equipment[nextEvent.slot]?.equip;
+        label = weapon ? `${weapon.name}冷却完成` : '武器冷却完成';
+      } else if (nextEvent.type === 'enemy_turn') {
+        const enemy = Battle.battlefield ? Battle.battlefield.enemies.find(e => e.instanceId === nextEvent.actor) : null;
+        label = enemy ? `${enemy.name}[${nextEvent.actor}]行动` : '敌人行动';
+      } else if (nextEvent.type === 'move_complete') {
+        label = nextEvent.actor === 'player' ? '移动完成' : `${nextEvent.actor}移动完成`;
+      }
+      Msg.info(`打断所有行动，等待至 [${label}]（约${waitTime.toFixed(1)}秒后）...`);
+    }
+
+    Timeline.scheduleEvent({ type: 'player_turn', actor: 'player' }, waitTime);
+    Timeline.paused = false;
+    Timeline.scheduleNext();
   },
 
   cmdBattleContinue() {
@@ -175,17 +215,38 @@ const CommandSystem = {
       Msg.warning('当前没有需要跳过的行动阶段。');
       return;
     }
-    // 取消当前玩家回合事件，清除待处理任务
+
+    // 移动中开火提示：清除提示，执行移动跳过开火
+    if (Battle.playerFireHint && Battle.playerFireHint.pendingMove) {
+      const hint = Battle.playerFireHint;
+      Battle.playerFireHint = null;
+      Battle.setPlayerTask({ type: 'move', target: hint.pendingMove, autoExit: hint.autoExit });
+      return;
+    }
+
+    // 查找下一个武器冷却完成事件
+    const nextWeaponReady = [...Timeline.eventQueue]
+      .filter(e => e.type === 'weapon_ready')
+      .sort((a, b) => a.time - b.time)[0];
+
+    if (!nextWeaponReady) {
+      Msg.warning('没有正在冷却的武器，continue 指令无效。');
+      return;
+    }
+
+    // 取消当前玩家回合，但不中断持续动作（如移动）
     Timeline.cancelEvents(e => e.type === 'player_turn' && e.actor === 'player');
-    Timeline.cancelEventsByType('player_idle_end');
-    Battle.playerIdleEnd = null;
     Battle.playerTask = null;
     Battle.playerFireHint = null;
     BattleUI.clearCurrentActions();
-    // 安排下一个玩家回合，并显式取消暂停让时间轴继续推进
+
+    const waitTime = Math.max(0.1, nextWeaponReady.time - Timeline.time);
+    const weapon = Player.equipment[nextWeaponReady.slot]?.equip;
+    const wName = weapon ? weapon.name : nextWeaponReady.slot;
+    Timeline.scheduleEvent({ type: 'player_turn', actor: 'player' }, waitTime);
     Timeline.paused = false;
-    Battle.scheduleNextPlayerTurn();
-    Msg.info('已跳过当前行动阶段，时间轴继续推进。');
+    Timeline.scheduleNext();
+    Msg.info(`时间轴推进至 ${wName} 冷却完成（约${waitTime.toFixed(1)}秒后），不打断当前动作。`);
   },
  
   cmdBattleCall(args) {
@@ -419,7 +480,7 @@ const CommandSystem = {
       const readyNames = Player.getEquippedWeapons()
         .filter(w => (Player.weaponCooldowns[w.slot] || 0) <= 0)
         .map(w => w.name);
-      Msg.prompt(`武器已就绪（${readyNames.join('、')}）：输入 fire <目标> 移动开火（开火与移动并行），或输入 wait 仅移动跳过开火。`);
+      Msg.prompt(`武器已就绪（${readyNames.join('、')}）：输入 fire <目标> 移动开火（开火与移动并行），或输入 continue 仅移动跳过开火。`);
       return;
     }
 
@@ -698,16 +759,16 @@ move <目标编号>   - 移动到敌人/NPC附近
 enter <方向>     - 切换相邻场景（需位于该方向边界 10m 内）
 fire <目标> [槽] - 攻击目标 (目标如A1，槽:#1/#2/all，默认all所有就绪武器)
 call <目标>      - 与 NPC 通信（需距离 ≤ 100m）
-idle <秒数>      - 待机指定秒数（期间时间轴推进，被攻击立即行动）
+wait [秒数]      - 打断所有行动，等待指定秒数；无参数则等待至下一个事件
+continue/cont    - 不打断当前动作，等待下一个武器冷却完成；移动中可跳过开火
 use <物品>       - 使用物品（如修复装甲）
 reload <槽>      - 手动装填弹药（槽:#1/#2，见bag）
 look [目标]      - 查看战场或指定目标（如 look N1）
 timeline         - 查看时间轴
-wait             - 等待一回合
 retreat          - 撤退
 status / bag     - 查看状态/背包
 help             - 查看帮助
-cont/continue    - 跳过当前行动阶段`;
+movepredict/mp   - 预测移动时间`;
     Msg.info(help);
   }
 };
