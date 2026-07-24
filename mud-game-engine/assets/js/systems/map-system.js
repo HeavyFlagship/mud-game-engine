@@ -119,9 +119,9 @@ const MapSystem = {
     if (prevPos && entryDir) {
       const margin = 50;
       if (entryDir === 'north') {
-        entryPos = [Utils.clamp(prevPos[0], margin, bw - margin), bh - margin];
-      } else if (entryDir === 'south') {
         entryPos = [Utils.clamp(prevPos[0], margin, bw - margin), margin];
+      } else if (entryDir === 'south') {
+        entryPos = [Utils.clamp(prevPos[0], margin, bw - margin), bh - margin];
       } else if (entryDir === 'east') {
         entryPos = [margin, Utils.clamp(prevPos[1], margin, bh - margin)];
       } else if (entryDir === 'west') {

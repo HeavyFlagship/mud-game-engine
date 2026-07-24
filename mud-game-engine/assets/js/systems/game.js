@@ -137,8 +137,6 @@ const Game = {
     Player.visitedRooms.add(Player.room);
 
     const nextRoom = MapSystem.getRoom(nextRoomId);
-    this.look();
-    this.updateUI();
     if (nextRoom && nextRoom.battlefield) {
       Battle.start(nextRoomId, MapSystem.getOppositeDirection(direction), prevPos);
     } else {
@@ -158,6 +156,8 @@ const Game = {
       Player.position = entryPos;
       BattleUI.remove();
     }
+    this.look();
+    this.updateUI();
   },
  
   showBag(showDetail = false) {
@@ -1141,7 +1141,7 @@ const Game = {
     const el = document.getElementById('location-info');
     if (room && el) {
       const exits = Object.keys(room.exits || {}).map(d => MapSystem.getDirectionName(d)).join('、');
-      el.innerHTML = `<div style="color:var(--accent);font-weight:600;margin-bottom:0.3rem">${room.name}</div><div>高度: ${MapSystem.getLevelName(room.z || 0)}</div><div>出口: ${exits}</div>`;
+      el.innerHTML = `<div style="color:var(--accent);font-weight:600;margin-bottom:0.3rem">${room.name}</div><div>高度: ${MapSystem.getLevelName(room.z || 0)}</div><div>位置: (${Math.round(Player.position[0])}, ${Math.round(Player.position[1])})</div><div>出口: ${exits}</div>`;
     }
   }
 };
