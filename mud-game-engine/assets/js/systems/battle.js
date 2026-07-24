@@ -330,8 +330,11 @@ const Battle = {
 
     const task = this.playerTask;
     if (task.type === 'move') {
+      this._moveAutoExit = task.autoExit || null;
+      this.playerTask = null;
       this.startPlayerMove(task.target);
     } else if (task.type === 'call') {
+      this.playerTask = null;
       BattleUI.addHistory('你', '#8cf', '通信');
       BattleUI.addCurrentAction('通信中...', '#8cf');
       Timeline.scheduleEvent({ type: 'npc_call', actor: 'player', npcId: task.npcId }, 5);
@@ -369,10 +372,9 @@ const Battle = {
 
   onPlayerMoveComplete() {
     this.currentActor = null;
-    const autoExit = this.playerTask && this.playerTask.autoExit;
-    if (this.playerTask && this.playerTask.type === 'move') {
-      this.playerTask = null;
-    }
+    const autoExit = this._moveAutoExit;
+    this._moveAutoExit = null;
+    this.playerTask = null;
     if (autoExit && !this.combatActive) {
       const room = MapSystem.getRoom(Player.room);
       if (room && room.exits && room.exits[autoExit]) {
