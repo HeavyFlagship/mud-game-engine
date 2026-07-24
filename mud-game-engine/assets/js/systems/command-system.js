@@ -133,7 +133,13 @@ const CommandSystem = {
       case 'look': case '查看':
         this.cmdBattleLook(parsed.args); break;
       case 'wait': case '等待':
-        Battle.setPlayerTask({ type: 'wait' });
+        if (Battle.playerFireHint && Battle.playerFireHint.pendingMove) {
+          const hint = Battle.playerFireHint;
+          Battle.playerFireHint = null;
+          Battle.setPlayerTask({ type: 'move', target: hint.pendingMove, autoExit: hint.autoExit });
+        } else {
+          Battle.setPlayerTask({ type: 'wait' });
+        }
         break;
       case 'idle': case '待机':
         this.cmdBattleIdle(parsed.args); break;
@@ -176,7 +182,8 @@ const CommandSystem = {
     Battle.playerTask = null;
     Battle.playerFireHint = null;
     BattleUI.clearCurrentActions();
-    // 安排下一个玩家回合
+    // 安排下一个玩家回合，并显式取消暂停让时间轴继续推进
+    Timeline.paused = false;
     Battle.scheduleNextPlayerTurn();
     Msg.info('已跳过当前行动阶段，时间轴继续推进。');
   },
@@ -412,7 +419,7 @@ const CommandSystem = {
       const readyNames = Player.getEquippedWeapons()
         .filter(w => (Player.weaponCooldowns[w.slot] || 0) <= 0)
         .map(w => w.name);
-      Msg.prompt(`武器已就绪（${readyNames.join('、')}）：输入 fire <目标> 移动开火（开火与移动并行），或再次输入 move 仅移动跳过开火。`);
+      Msg.prompt(`武器已就绪（${readyNames.join('、')}）：输入 fire <目标> 移动开火（开火与移动并行），或输入 wait 仅移动跳过开火。`);
       return;
     }
 
