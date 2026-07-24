@@ -24,7 +24,7 @@ const CommandSystem = {
   // 战场专用指令（仅当 Battle.active 时由 handleBattleCmd 处理）
   battleOnlyCmds: ['move','go','enter','进入','fire','shoot','attack','攻击',
                    'retreat','flee','撤退','timeline','wait','等待','idle','待机',
-                   'call','通信','hailing','look','查看','movepredict','mp'],
+                   'call','通信','hailing','look','查看','movepredict','mp','continue','cont'],
  
   parse(input) {
     input = input.trim().toLowerCase();
@@ -137,10 +137,12 @@ const CommandSystem = {
         break;
       case 'idle': case '待机':
         this.cmdBattleIdle(parsed.args); break;
+      case 'continue': case 'cont':
+        this.cmdBattleContinue(); break;
       case 'use': case '使用':
         Game.useItem(parsed.args); break;
       default:
-        Msg.warning('场景中可用指令：move/fire/call/idle/look/retreat/timeline/wait/use');
+        Msg.warning('场景中可用指令：move/fire/call/idle/continue/look/retreat/timeline/wait/use');
     }
   },
 
@@ -159,6 +161,24 @@ const CommandSystem = {
     // 清除开火提示
     Battle.playerFireHint = null;
     Battle.playerIdle(seconds);
+  },
+
+  cmdBattleContinue() {
+    if (!Battle.active || !Battle.battlefield) return;
+    if (!Timeline.paused || Battle.currentActor !== 'player') {
+      Msg.warning('当前没有需要跳过的行动阶段。');
+      return;
+    }
+    // 取消当前玩家回合事件，清除待处理任务
+    Timeline.cancelEvents(e => e.type === 'player_turn' && e.actor === 'player');
+    Timeline.cancelEventsByType('player_idle_end');
+    Battle.playerIdleEnd = null;
+    Battle.playerTask = null;
+    Battle.playerFireHint = null;
+    BattleUI.clearCurrentActions();
+    // 安排下一个玩家回合
+    Battle.scheduleNextPlayerTurn();
+    Msg.info('已跳过当前行动阶段，时间轴继续推进。');
   },
  
   cmdBattleCall(args) {
@@ -679,7 +699,8 @@ timeline         - 查看时间轴
 wait             - 等待一回合
 retreat          - 撤退
 status / bag     - 查看状态/背包
-help             - 查看帮助`;
+help             - 查看帮助
+cont/continue    - 跳过当前行动阶段`;
     Msg.info(help);
   }
 };
