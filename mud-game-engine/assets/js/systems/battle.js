@@ -218,6 +218,8 @@ const Battle = {
     BattleUI.clearCurrentActions();
     BattleUI.addCurrentAction('你的行动', '#0ff');
     Timeline.paused = true;
+    // 移动已完成，开火提示不再适用
+    this.playerFireHint = null;
     const hint = this.combatActive
       ? '> 战斗中（输入 move/fire/look/use/status/retreat 等）'
       : '> 场景中（输入 move/call/fire/status/look 等）';

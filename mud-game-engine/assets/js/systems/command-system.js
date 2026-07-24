@@ -220,8 +220,9 @@ const CommandSystem = {
 
     // 移动中开火提示
     if (Battle.playerFireHint && Battle.playerFireHint.pendingMove) {
+      const hint = Battle.playerFireHint;
       if (args.length >= 1) {
-        // continue <秒数>：保留开火提示，等待指定秒数后重新询问
+        // continue <秒数>：开始移动，保留开火提示，N秒后重新询问
         waitTime = parseInt(args[0]);
         if (isNaN(waitTime) || waitTime <= 0) {
           Msg.error('等待时间必须是正整数秒。');
@@ -231,18 +232,16 @@ const CommandSystem = {
           Msg.warning('等待时间过长，已限制为300秒。');
           waitTime = 300;
         }
-        // 取消当前回合，保留 playerFireHint 以便下次回合重新询问
-        Timeline.cancelEvents(e => e.type === 'player_turn' && e.actor === 'player');
-        Battle.playerTask = null;
-        BattleUI.clearCurrentActions();
+        // 先开始移动（setPlayerTask 会取消当前回合并启动移动）
+        Battle.setPlayerTask({ type: 'move', target: hint.pendingMove, autoExit: hint.autoExit });
+        // 调度 N 秒后重新询问开火
         Timeline.scheduleEvent({ type: 'player_turn', actor: 'player' }, waitTime);
         Timeline.paused = false;
         Timeline.scheduleNext();
-        Msg.info(`等待 ${waitTime} 秒后重新询问开火...`);
+        Msg.info(`移动中，${waitTime} 秒后重新询问开火...`);
         return;
       }
       // continue 无参数：跳过开火，仅执行移动
-      const hint = Battle.playerFireHint;
       Battle.playerFireHint = null;
       Battle.setPlayerTask({ type: 'move', target: hint.pendingMove, autoExit: hint.autoExit });
       return;
