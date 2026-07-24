@@ -377,6 +377,7 @@ const BattleUI = {
     this.updateBattleTime();
     this.updateUnitList();
     this.updateEnemyList();
+    this.updateReadyList();
     this.updateTimeline();
   },
 
@@ -398,6 +399,10 @@ const BattleUI = {
     const timelineEl = document.getElementById('timeline-content');
     if (timelineEl) {
       timelineEl.innerHTML = '<div style="color:var(--muted);font-style:italic;">未在场景中</div>';
+    }
+    const readyEl = document.getElementById('ready-list');
+    if (readyEl) {
+      readyEl.innerHTML = '<div class="sidebar-title">🔫 就绪武器</div><div class="ready-item" style="color:var(--muted);font-style:italic;">（未在场景中）</div>';
     }
   },
 
@@ -440,6 +445,32 @@ const BattleUI = {
     enemyEl.innerHTML = html;
   },
 
+  updateReadyList() {
+    const el = document.getElementById('ready-list');
+    if (!el) return;
+
+    const readyWeapons = [];
+    for (const [slotKey, slot] of Object.entries(Player.equipment)) {
+      const cd = Player.weaponCooldowns[slotKey] || 0;
+      const w = slot.equip;
+      if (w && w.category === 'weapon' && cd <= 0) {
+        readyWeapons.push({ slot: slotKey, name: w.name });
+      }
+    }
+
+    let html = '<div class="sidebar-title">🔫 就绪武器</div>';
+    if (readyWeapons.length > 0) {
+      for (let i = 0; i < readyWeapons.length; i++) {
+        const w = readyWeapons[i];
+        const slotNum = Object.keys(Player.equipment).indexOf(w.slot) + 1;
+        html += `<div class="ready-item" style="color:var(--accent4);">${i + 1}. ${w.name} <span style="color:var(--muted);font-size:var(--font-hint);">(#${slotNum})</span></div>`;
+      }
+    } else {
+      html += '<div class="ready-item" style="color:var(--muted);font-style:italic;">（无就绪武器）</div>';
+    }
+    el.innerHTML = html;
+  },
+
   updateTimeline() {
     const content = document.getElementById('timeline-content');
     if (!content || !Timeline.eventQueue) return;
@@ -448,7 +479,7 @@ const BattleUI = {
 
     const upcoming = [...Timeline.eventQueue]
       .filter(evt => evt.type === 'player_turn' || evt.type === 'enemy_turn' || evt.type === 'weapon_ready' || evt.type === 'player_fire')
-      .sort((a, b) => a.time - b.time)
+      .sort((a, b) => b.time - a.time)
       .slice(0, 6);
     html += '<div class="timeline-section timeline-upcoming">';
     html += '<div class="timeline-divider">— 即将到来 —</div>';
@@ -481,7 +512,11 @@ const BattleUI = {
     html += '</div>';
 
     html += '<div class="timeline-section timeline-current">';
-    html += '<div class="timeline-divider current-divider">▶ 当前行动</div>';
+    html += '<div class="timeline-divider current-divider">▶ 当前行动';
+    if (Battle.active && Timeline.paused && Battle.currentActor === 'player') {
+      html += ' <button class="skip-action-btn" onclick="BattleUI.execCmd(\'continue\')" title="跳过当前行动阶段">跳过</button>';
+    }
+    html += '</div>';
     for (const act of this.currentActions) {
       html += `<div class="timeline-item current" style="color:${act.color};">${act.text}</div>`;
     }
@@ -506,27 +541,6 @@ const BattleUI = {
       }
       html += '</div>';
     }
-
-    const readyWeapons = [];
-    for (const [slotKey, slot] of Object.entries(Player.equipment)) {
-      const cd = Player.weaponCooldowns[slotKey] || 0;
-      const w = slot.equip;
-      if (w && w.category === 'weapon' && cd <= 0) {
-        readyWeapons.push({ slot: slotKey, name: w.name });
-      }
-    }
-    html += '<div class="timeline-section timeline-queue">';
-    html += '<div class="timeline-divider">— 就绪列表 —</div>';
-    if (readyWeapons.length > 0) {
-      for (let i = 0; i < readyWeapons.length; i++) {
-        const w = readyWeapons[i];
-        const slotNum = Object.keys(Player.equipment).indexOf(w.slot) + 1;
-        html += `<div class="timeline-item queue" style="color:#2f8;">${i + 1}. 🔫 ${w.name} (#${slotNum})</div>`;
-      }
-    } else {
-      html += '<div class="timeline-item queue" style="color:#555;">（无就绪武器）</div>';
-    }
-    html += '</div>';
 
     html += '<div class="timeline-section timeline-history">';
     html += '<div class="timeline-divider">— 历史记录 —</div>';

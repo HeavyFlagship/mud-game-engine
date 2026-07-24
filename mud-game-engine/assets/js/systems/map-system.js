@@ -91,18 +91,19 @@ const MapSystem = {
     return map[dir] || 'south';
   },
  
-  initBattlefield(roomId, entryDir) {
+  initBattlefield(roomId, entryDir, prevPos = null) {
     const room = this.getRoom(roomId);
     if (!room || !room.battlefield) return null;
- 
+
     if (this.battlefieldState[roomId]) {
       return this.battlefieldState[roomId];
     }
- 
+
     const bf = room.battlefield;
+    const [bw, bh] = bf.size || [1000, 1000];
     const state = {
       roomId,
-      size: bf.size || [1000, 1000],
+      size: [bw, bh],
       terrain: bf.terrain,
       terrainPenalty: bf.terrainPenalty || {},
       covers: JSON.parse(JSON.stringify(bf.covers || [])),
@@ -115,7 +116,18 @@ const MapSystem = {
     };
 
     let entryPos = [500, 500];
-    if (entryDir && bf.entryPoints && bf.entryPoints[entryDir]) {
+    if (prevPos && entryDir) {
+      const margin = 50;
+      if (entryDir === 'north') {
+        entryPos = [Utils.clamp(prevPos[0], margin, bw - margin), margin];
+      } else if (entryDir === 'south') {
+        entryPos = [Utils.clamp(prevPos[0], margin, bw - margin), bh - margin];
+      } else if (entryDir === 'east') {
+        entryPos = [bw - margin, Utils.clamp(prevPos[1], margin, bh - margin)];
+      } else if (entryDir === 'west') {
+        entryPos = [margin, Utils.clamp(prevPos[1], margin, bh - margin)];
+      }
+    } else if (entryDir && bf.entryPoints && bf.entryPoints[entryDir]) {
       entryPos = [...bf.entryPoints[entryDir]];
     }
     state.entryPos = entryPos;

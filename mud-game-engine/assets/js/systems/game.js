@@ -132,18 +132,32 @@ const Game = {
       Battle.end();
     }
     const nextRoomId = room.exits[direction];
+    const prevPos = [...Player.position];
     Player.room = nextRoomId;
     Player.visitedRooms.add(Player.room);
-    Player.position = [500, 500];
 
     const nextRoom = MapSystem.getRoom(nextRoomId);
-    this.look();
-    this.updateUI();
     if (nextRoom && nextRoom.battlefield) {
-      Battle.start(nextRoomId, MapSystem.getOppositeDirection(direction));
+      Battle.start(nextRoomId, MapSystem.getOppositeDirection(direction), prevPos);
     } else {
+      const entryDir = MapSystem.getOppositeDirection(direction);
+      const margin = 50;
+      const nextSize = [1000, 1000];
+      let entryPos = [500, 500];
+      if (entryDir === 'north') {
+        entryPos = [Utils.clamp(prevPos[0], margin, nextSize[0] - margin), margin];
+      } else if (entryDir === 'south') {
+        entryPos = [Utils.clamp(prevPos[0], margin, nextSize[0] - margin), nextSize[1] - margin];
+      } else if (entryDir === 'east') {
+        entryPos = [nextSize[0] - margin, Utils.clamp(prevPos[1], margin, nextSize[1] - margin)];
+      } else if (entryDir === 'west') {
+        entryPos = [margin, Utils.clamp(prevPos[1], margin, nextSize[1] - margin)];
+      }
+      Player.position = entryPos;
       BattleUI.remove();
     }
+    this.look();
+    this.updateUI();
   },
  
   showBag(showDetail = false) {
@@ -350,22 +364,6 @@ const Game = {
       if (!slotKey) { Msg.danger(`没有第 ${num} 个接口。`); return; }
     }
     Player.uninstallEquipment(slotKey, true);
-  },
-
-  reload(arg) {
-    if (!arg) {
-      Msg.info('装填弹药用法: reload <接口编号>（如 reload 1，编号见 bag）');
-      Player.showInterfaceStatus();
-      return;
-    }
-    let slotKey = arg;
-    const num = parseInt(arg);
-    if (!isNaN(num) && num >= 1) {
-      const keys = Object.keys(Player.equipment);
-      slotKey = keys[num - 1];
-      if (!slotKey) { Msg.danger(`没有第 ${num} 个接口。`); return; }
-    }
-    Player.reload(slotKey);
   },
 
   reload(arg) {
@@ -759,7 +757,10 @@ const Game = {
  
   showMap() {
     Msg.divider();
-    Msg.add('🗺 区域地图', 'info');
+    const timeStr = Timeline.time >= 3600
+      ? `${Math.floor(Timeline.time / 3600)}小时${Math.floor((Timeline.time % 3600) / 60)}分${Math.floor(Timeline.time % 60)}秒`
+      : `${Math.floor(Timeline.time / 60)}分${Math.floor(Timeline.time % 60)}秒`;
+    Msg.add(`🗺 区域地图 <span style="color:var(--muted);font-weight:normal;font-size:0.8em;">[世界时间: ${timeStr}]</span>`, 'info');
     MapSystem.areas.forEach(area => {
       const visited = area.rooms.filter(r => Player.visitedRooms.has(r));
       const total = area.rooms.length;
@@ -776,6 +777,10 @@ const Game = {
       movement: {
         title: '🗺 移动指令',
         items: [
+          ['move <x> <y>', '移动到指定坐标'],
+          ['move <方向> [距离]', '向方向移动(n/s/e/w/ne/nw/se/sw)'],
+          ['move <方向>', '主方向移动到边界并切换场景'],
+          ['enter <方向>', '切换相邻场景'],
           ['north/south/east/west (或 n/s/e/w)', '向对应方向移动'],
           ['up/down (或 上/下)', '通过通道上下移动'],
         ]
@@ -784,9 +789,8 @@ const Game = {
         title: '📋 基础指令',
         items: [
           ['look (l)', '查看当前区域'],
-          ['bag (inv/i)', '查看背包'],
+          ['bag (inv/i)', '查看背包和装备'],
           ['status (sta)', '查看机体状态'],
-          ['skills (sk)', '查看已习得技能'],
           ['map', '查看区域地图'],
           ['score/stats', '查看任务统计'],
           ['clear', '清空屏幕'],
@@ -796,22 +800,38 @@ const Game = {
         title: '⚔ 战斗指令',
         items: [
           ['move <方向/坐标>', '移动机体'],
-          ['fire <目标>', '攻击敌人（开火后进入战斗状态）'],
+          ['movepredict <x> <y>', '预测移动时间（mp）'],
+          ['fire <目标> [槽]', '攻击目标（槽:#1/#2/all，默认all）'],
+          ['reload <槽>', '手动装填弹药'],
+          ['use <物品>', '使用物品（如修复装甲）'],
+          ['wait [秒数]', '打断行动等待；无参数等待至下一事件'],
+          ['cont/continue', '不打断动作等待冷却完成；移动中跳过开火'],
           ['look [目标]', '查看战场或指定目标'],
-          ['call <目标>', '与 NPC 通信（需接近）'],
+          ['call <目标>', '与 NPC 通信（需距离≤100m）'],
           ['timeline', '查看时间轴'],
-          ['wait', '等待'],
           ['retreat', '撤退'],
+          ['status / bag', '查看状态/背包'],
         ]
       },
       items: {
         title: '🎒 物品指令',
         items: [
-          ['pick/get [物品名]', '拾取地面物品(不填=全部)'],
-          ['drop [物品名]', '丢弃物品'],
           ['use [物品名]', '使用物品'],
-          ['equip [物品名]', '装备武器/装甲'],
-          ['unequip [栏位]', '卸下装备'],
+          ['equip [物品名] [槽]', '装备武器/装甲'],
+          ['unequip [槽]', '卸下装备'],
+          ['reload [槽]', '手动装填弹药'],
+          ['sell [物品名]', '出售物品(半价)'],
+        ]
+      },
+      base: {
+        title: '🏭 基地指令',
+        items: [
+          ['hangar (hg)', '查看机库'],
+          ['switch <编号>', '切换载具（需在安全区）'],
+          ['warehouse (wh)', '查看仓库'],
+          ['export [物品]', '存入仓库'],
+          ['import [物品]', '取出仓库'],
+          ['wequip [物品]', '从仓库直接装备'],
         ]
       },
       npc: {
@@ -819,7 +839,6 @@ const Game = {
         items: [
           ['call [NPC名]', '与NPC通信（需接近）'],
           ['shop/buy', '查看/购买装备'],
-          ['sell [物品名]', '出售物品(半价)'],
         ]
       },
       system: {
@@ -827,7 +846,7 @@ const Game = {
         items: [
           ['save', '保存游戏进度'],
           ['load', '读取游戏存档'],
-          ['help [分类]', '查看帮助(移动/基础/战斗/物品/NPC)'],
+          ['help [分类]', '查看帮助(movement/basic/combat/items/base/npc)'],
         ]
       }
     };
@@ -1123,7 +1142,7 @@ const Game = {
     const el = document.getElementById('location-info');
     if (room && el) {
       const exits = Object.keys(room.exits || {}).map(d => MapSystem.getDirectionName(d)).join('、');
-      el.innerHTML = `<div style="color:var(--accent);font-weight:600;margin-bottom:0.3rem">${room.name}</div><div>高度: ${MapSystem.getLevelName(room.z || 0)}</div><div>出口: ${exits}</div>`;
+      el.innerHTML = `<div style="color:var(--accent);font-weight:600;margin-bottom:0.3rem">${room.name}</div><div>高度: ${MapSystem.getLevelName(room.z || 0)}</div><div>位置: (${Math.round(Player.position[0])}, ${Math.round(Player.position[1])})</div><div>出口: ${exits}</div>`;
     }
   }
 };

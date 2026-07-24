@@ -12,7 +12,7 @@ const Battle = {
   isProcessing: false,
   playerFireHint: null,
 
-  start(roomId, entryDir = 'south') {
+  start(roomId, entryDir = 'south', prevPos = null) {
     const room = MapSystem.getRoom(roomId);
     if (!room || !room.battlefield) {
       this.active = false;
@@ -22,7 +22,7 @@ const Battle = {
 
     this.roomId = roomId;
     MapSystem.resetBattlefield(roomId);
-    this.battlefield = MapSystem.initBattlefield(roomId, entryDir);
+    this.battlefield = MapSystem.initBattlefield(roomId, entryDir, prevPos);
 
     if (this.battlefield.entryPos) {
       Player.position = [...this.battlefield.entryPos];
@@ -37,7 +37,7 @@ const Battle = {
     this.playerFireHint = null;
 
     // 启动时间轴并注册战斗系统的事件处理器与更新器
-    Timeline.start(0);
+    Timeline.start(Timeline.time);
     this.registerHandlers();
     this.registerUpdaters();
     Timeline.onTickEnd = () => { BattleUI.update(); };
@@ -218,6 +218,8 @@ const Battle = {
     BattleUI.clearCurrentActions();
     BattleUI.addCurrentAction('你的行动', '#0ff');
     Timeline.paused = true;
+    // 移动已完成，开火提示不再适用
+    this.playerFireHint = null;
     const hint = this.combatActive
       ? '> 战斗中（输入 move/fire/look/use/status/retreat 等）'
       : '> 场景中（输入 move/call/fire/status/look 等）';
@@ -295,6 +297,18 @@ const Battle = {
       this.executePlayerTask();
     } else {
       Timeline.paused = true;
+      // 保留的开火提示：重新询问
+      if (this.playerFireHint && this.playerFireHint.pendingMove) {
+        const readyNames = Player.getEquippedWeapons()
+          .filter(w => (Player.weaponCooldowns[w.slot] || 0) <= 0)
+          .map(w => w.name);
+        if (readyNames.length > 0) {
+          Msg.prompt(`武器已就绪（${readyNames.join('、')}）：输入 fire <目标> 移动开火，或 continue 跳过开火，或 continue <秒数> 延迟后重新询问。`);
+          return;
+        }
+        // 武器已全部冷却中，清除提示
+        this.playerFireHint = null;
+      }
       const hint = this.combatActive
         ? '> 战斗中（输入 move/fire/look/use/status/retreat 等）'
         : '> 场景中（输入 move/call/fire/status/look 等）';
@@ -316,8 +330,11 @@ const Battle = {
 
     const task = this.playerTask;
     if (task.type === 'move') {
+      this._moveAutoExit = task.autoExit || null;
+      this.playerTask = null;
       this.startPlayerMove(task.target);
     } else if (task.type === 'call') {
+      this.playerTask = null;
       BattleUI.addHistory('你', '#8cf', '通信');
       BattleUI.addCurrentAction('通信中...', '#8cf');
       Timeline.scheduleEvent({ type: 'npc_call', actor: 'player', npcId: task.npcId }, 5);
@@ -355,10 +372,9 @@ const Battle = {
 
   onPlayerMoveComplete() {
     this.currentActor = null;
-    const autoExit = this.playerTask && this.playerTask.autoExit;
-    if (this.playerTask && this.playerTask.type === 'move') {
-      this.playerTask = null;
-    }
+    const autoExit = this._moveAutoExit;
+    this._moveAutoExit = null;
+    this.playerTask = null;
     if (autoExit && !this.combatActive) {
       const room = MapSystem.getRoom(Player.room);
       if (room && room.exits && room.exits[autoExit]) {
