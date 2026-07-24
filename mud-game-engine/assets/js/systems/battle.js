@@ -295,6 +295,18 @@ const Battle = {
       this.executePlayerTask();
     } else {
       Timeline.paused = true;
+      // 保留的开火提示：重新询问
+      if (this.playerFireHint && this.playerFireHint.pendingMove) {
+        const readyNames = Player.getEquippedWeapons()
+          .filter(w => (Player.weaponCooldowns[w.slot] || 0) <= 0)
+          .map(w => w.name);
+        if (readyNames.length > 0) {
+          Msg.prompt(`武器已就绪（${readyNames.join('、')}）：输入 fire <目标> 移动开火，或 continue 跳过开火，或 continue <秒数> 延迟后重新询问。`);
+          return;
+        }
+        // 武器已全部冷却中，清除提示
+        this.playerFireHint = null;
+      }
       const hint = this.combatActive
         ? '> 战斗中（输入 move/fire/look/use/status/retreat 等）'
         : '> 场景中（输入 move/call/fire/status/look 等）';

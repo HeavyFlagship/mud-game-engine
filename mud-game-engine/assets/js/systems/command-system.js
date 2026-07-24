@@ -216,15 +216,37 @@ const CommandSystem = {
       return;
     }
 
-    // 移动中开火提示：清除提示，执行移动跳过开火
+    let waitTime;
+
+    // 移动中开火提示
     if (Battle.playerFireHint && Battle.playerFireHint.pendingMove) {
+      if (args.length >= 1) {
+        // continue <秒数>：保留开火提示，等待指定秒数后重新询问
+        waitTime = parseInt(args[0]);
+        if (isNaN(waitTime) || waitTime <= 0) {
+          Msg.error('等待时间必须是正整数秒。');
+          return;
+        }
+        if (waitTime > 300) {
+          Msg.warning('等待时间过长，已限制为300秒。');
+          waitTime = 300;
+        }
+        // 取消当前回合，保留 playerFireHint 以便下次回合重新询问
+        Timeline.cancelEvents(e => e.type === 'player_turn' && e.actor === 'player');
+        Battle.playerTask = null;
+        BattleUI.clearCurrentActions();
+        Timeline.scheduleEvent({ type: 'player_turn', actor: 'player' }, waitTime);
+        Timeline.paused = false;
+        Timeline.scheduleNext();
+        Msg.info(`等待 ${waitTime} 秒后重新询问开火...`);
+        return;
+      }
+      // continue 无参数：跳过开火，仅执行移动
       const hint = Battle.playerFireHint;
       Battle.playerFireHint = null;
       Battle.setPlayerTask({ type: 'move', target: hint.pendingMove, autoExit: hint.autoExit });
       return;
     }
-
-    let waitTime;
 
     // 带秒数参数：不打断持续操作，等待指定秒数
     if (args.length >= 1) {
@@ -237,7 +259,6 @@ const CommandSystem = {
         Msg.warning('等待时间过长，已限制为300秒。');
         waitTime = 300;
       }
-      // 取消当前玩家回合，但不中断持续动作（如移动）
       Timeline.cancelEvents(e => e.type === 'player_turn' && e.actor === 'player');
       Battle.playerTask = null;
       Battle.playerFireHint = null;
@@ -259,7 +280,6 @@ const CommandSystem = {
       return;
     }
 
-    // 取消当前玩家回合，但不中断持续动作（如移动）
     Timeline.cancelEvents(e => e.type === 'player_turn' && e.actor === 'player');
     Battle.playerTask = null;
     Battle.playerFireHint = null;
@@ -505,7 +525,7 @@ const CommandSystem = {
       const readyNames = Player.getEquippedWeapons()
         .filter(w => (Player.weaponCooldowns[w.slot] || 0) <= 0)
         .map(w => w.name);
-      Msg.prompt(`武器已就绪（${readyNames.join('、')}）：输入 fire <目标> 移动开火（开火与移动并行），或输入 continue 仅移动跳过开火。`);
+      Msg.prompt(`武器已就绪（${readyNames.join('、')}）：输入 fire <目标> 移动开火（开火与移动并行），或 continue 跳过开火，或 continue <秒数> 延迟后重新询问。`);
       return;
     }
 
@@ -785,7 +805,7 @@ enter <方向>     - 切换相邻场景（需位于该方向边界 10m 内）
 fire <目标> [槽] - 攻击目标 (目标如A1，槽:#1/#2/all，默认all所有就绪武器)
 call <目标>      - 与 NPC 通信（需距离 ≤ 100m）
 wait [秒数]      - 打断所有行动，等待指定秒数；无参数则等待至下一个事件
-continue/cont    - 不打断当前动作，等待下一个武器冷却完成；移动中可跳过开火
+continue/cont    - 不打断当前动作，等待N秒或下一个武器冷却；移动中跳过开火
 use <物品>       - 使用物品（如修复装甲）
 reload <槽>      - 手动装填弹药（槽:#1/#2，见bag）
 look [目标]      - 查看战场或指定目标（如 look N1）
