@@ -147,13 +147,13 @@ const Game = {
       const nextSize = [1000, 1000];
       let entryPos = [500, 500];
       if (entryDir === 'north') {
-        entryPos = [Utils.clamp(prevPos[0], margin, nextSize[0] - margin), nextSize[1] - margin];
-      } else if (entryDir === 'south') {
         entryPos = [Utils.clamp(prevPos[0], margin, nextSize[0] - margin), margin];
+      } else if (entryDir === 'south') {
+        entryPos = [Utils.clamp(prevPos[0], margin, nextSize[0] - margin), nextSize[1] - margin];
       } else if (entryDir === 'east') {
-        entryPos = [margin, Utils.clamp(prevPos[1], margin, nextSize[1] - margin)];
-      } else if (entryDir === 'west') {
         entryPos = [nextSize[0] - margin, Utils.clamp(prevPos[1], margin, nextSize[1] - margin)];
+      } else if (entryDir === 'west') {
+        entryPos = [margin, Utils.clamp(prevPos[1], margin, nextSize[1] - margin)];
       }
       Player.position = entryPos;
       BattleUI.remove();
