@@ -318,6 +318,7 @@ const BattleUI = {
     this.currentActions = [];
     const tlPanel = document.getElementById('timeline-panel');
     if (tlPanel) tlPanel.classList.add('active');
+    this.updateReadyPanel();
     this.update();
   },
 
@@ -372,11 +373,13 @@ const BattleUI = {
     }
     if (!Battle.active || !Battle.battlefield) {
       this.clearBattlePanels();
+      this.updateReadyPanel();
       return;
     }
     this.updateBattleTime();
     this.updateUnitList();
     this.updateEnemyList();
+    this.updateReadyPanel();
     this.updateTimeline();
   },
 
@@ -398,6 +401,10 @@ const BattleUI = {
     const timelineEl = document.getElementById('timeline-content');
     if (timelineEl) {
       timelineEl.innerHTML = '<div style="color:var(--muted);font-style:italic;">未在场景中</div>';
+    }
+    const readyEl = document.getElementById('ready-panel');
+    if (readyEl) {
+      readyEl.innerHTML = '';
     }
   },
 
@@ -446,6 +453,9 @@ const BattleUI = {
 
     let html = '';
 
+    const now = Timeline.time || 0;
+
+    // 即将到来的事件：按绝对时间升序，显示绝对时间
     const upcoming = [...Timeline.eventQueue]
       .filter(evt => evt.type === 'player_turn' || evt.type === 'enemy_turn' || evt.type === 'weapon_ready' || evt.type === 'player_fire')
       .sort((a, b) => a.time - b.time)
@@ -453,7 +463,7 @@ const BattleUI = {
     html += '<div class="timeline-section timeline-upcoming">';
     html += '<div class="timeline-divider">— 即将到来 —</div>';
     for (const evt of upcoming) {
-      const timeOffset = (evt.time - (Timeline.time || 0)).toFixed(1);
+      const timeStr = this.formatGameTime(evt.time, 'hh:mm:ss');
       let label = '';
       let color = '#aaa';
       if (evt.type === 'player_turn') {
@@ -473,7 +483,7 @@ const BattleUI = {
         label = `开火(${wName})→${evt.target}`;
         color = '#f80';
       }
-      html += `<div class="timeline-item upcoming" style="color:${color};">+${timeOffset}秒 ${label}</div>`;
+      html += `<div class="timeline-item upcoming" style="color:${color};">${timeStr} ${label}</div>`;
     }
     if (upcoming.length === 0) {
       html += '<div class="timeline-item upcoming" style="color:#555;">（无）</div>';
@@ -495,9 +505,9 @@ const BattleUI = {
       html += '<div class="timeline-section timeline-continuous">';
       html += '<div class="timeline-divider">— 持续动作 —</div>';
       for (const action of continuousActions) {
-        const remaining = Math.max(0, action.endTime - (Timeline.time || 0)).toFixed(0);
+        const remaining = Math.max(0, action.endTime - now).toFixed(0);
         const total = action.duration || 1;
-        const elapsed = (Timeline.time || 0) - action.startTime;
+        const elapsed = now - action.startTime;
         const pct = Math.max(0, Math.min(100, (elapsed / total) * 100));
         const typeLabel = action.type === 'move' ? '移动' : action.type;
         const actorLabel = action.actor === 'player' ? '你' : action.actor;
@@ -507,27 +517,7 @@ const BattleUI = {
       html += '</div>';
     }
 
-    const readyWeapons = [];
-    for (const [slotKey, slot] of Object.entries(Player.equipment)) {
-      const cd = Player.weaponCooldowns[slotKey] || 0;
-      const w = slot.equip;
-      if (w && w.category === 'weapon' && cd <= 0) {
-        readyWeapons.push({ slot: slotKey, name: w.name });
-      }
-    }
-    html += '<div class="timeline-section timeline-queue">';
-    html += '<div class="timeline-divider">— 就绪列表 —</div>';
-    if (readyWeapons.length > 0) {
-      for (let i = 0; i < readyWeapons.length; i++) {
-        const w = readyWeapons[i];
-        const slotNum = Object.keys(Player.equipment).indexOf(w.slot) + 1;
-        html += `<div class="timeline-item queue" style="color:#2f8;">${i + 1}. 🔫 ${w.name} (#${slotNum})</div>`;
-      }
-    } else {
-      html += '<div class="timeline-item queue" style="color:#555;">（无就绪武器）</div>';
-    }
-    html += '</div>';
-
+    // 历史记录
     html += '<div class="timeline-section timeline-history">';
     html += '<div class="timeline-divider">— 历史记录 —</div>';
     for (const h of this.historyEvents.slice(0, 8)) {
@@ -539,6 +529,35 @@ const BattleUI = {
     html += '</div>';
 
     content.innerHTML = html;
+  },
+
+  updateReadyPanel() {
+    const panel = document.getElementById('ready-panel');
+    if (!panel || !Battle.active) {
+      if (panel) panel.innerHTML = '';
+      return;
+    }
+
+    const readyWeapons = [];
+    for (const [slotKey, slot] of Object.entries(Player.equipment)) {
+      const cd = Player.weaponCooldowns[slotKey] || 0;
+      const w = slot.equip;
+      if (w && w.category === 'weapon' && cd <= 0) {
+        readyWeapons.push({ slot: slotKey, name: w.name });
+      }
+    }
+
+    let html = '<div class="ready-panel-header">🔫 就绪武器</div>';
+    if (readyWeapons.length > 0) {
+      for (let i = 0; i < readyWeapons.length; i++) {
+        const w = readyWeapons[i];
+        const slotNum = Object.keys(Player.equipment).indexOf(w.slot) + 1;
+        html += `<div class="ready-item">${i + 1}. ${w.name} <span style="color:var(--muted);">(#${slotNum})</span></div>`;
+      }
+    } else {
+      html += '<div class="ready-item" style="color:#555;">（无就绪武器）</div>';
+    }
+    panel.innerHTML = html;
   },
 
   remove() {
