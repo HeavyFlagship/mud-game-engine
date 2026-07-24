@@ -5,19 +5,15 @@ const CommandSystem = {
     l:'look', '?':'help', h:'help',
     inv:'bag', i:'bag',
     sta:'status',
-    k:'kill', atk:'fire',
-    u:'use', dr:'drink',
+    k:'fire', atk:'fire',
+    u:'use',
     eq:'equip', wp:'equip',
     ue:'unequip', rm:'unequip',
-    sk:'skills',
     sh:'shop', buy:'shop',
     call:'call', 通信:'call', hailing:'call',
-    对话:'talk',
-    p:'pick', g:'get',
-    d:'drop',
     sc:'score', st:'stats',
     mv:'move', go:'move',
-    fi:'fire', shoot:'fire', atk:'fire',
+    fi:'fire', shoot:'fire',
     ent:'enter', 进入:'enter',
     tm:'timeline', tl_b:'timeline',
     re:'retreat', rt:'retreat',
@@ -139,8 +135,10 @@ const CommandSystem = {
         break;
       case 'idle': case '待机':
         this.cmdBattleIdle(parsed.args); break;
+      case 'use': case '使用':
+        Game.useItem(parsed.args); break;
       default:
-        Msg.warning('场景中可用指令：move/fire/call/idle/look/retreat/timeline/wait');
+        Msg.warning('场景中可用指令：move/fire/call/idle/look/retreat/timeline/wait/use');
     }
   },
 
@@ -596,22 +594,23 @@ const CommandSystem = {
   },
  
   showBattleHelp() {
-    const help = `场景指令：
-  move <x> <y>     - 移动到指定坐标（点击雷达图自动填充）
-  move <方向> <距离> - 向方向移动指定距离 (n/s/e/w/ne/nw/se/sw)
-  move <方向>      - 主方向(n/s/e/w)：移动到边界并切换场景
-  move <目标编号>   - 移动到敌人/NPC附近
-  enter <方向>     - 切换相邻场景（需位于该方向边界 10m 内）
-  fire <目标> [槽] - 攻击目标 (目标如A1，槽:primary/secondary/all，默认all所有就绪武器)
-  call <目标>      - 与 NPC 通信（需距离 ≤ 100m）
-  idle <秒数>      - 待机指定秒数（期间时间轴推进，被攻击立即行动）
-  use <物品>       - 使用物品
-  status / bag     - 查看状态/背包
-  look [目标]      - 查看战场或指定目标（如 look N1）
-  timeline         - 查看时间轴
-  wait             - 等待一回合
-  retreat          - 撤退
-  help             - 查看帮助`;
+    const help = `🚀 战场指令帮助：
+move <x> <y>     - 移动到指定坐标（点击雷达图自动填充）
+move <方向> <距离> - 向方向移动指定距离 (n/s/e/w/ne/nw/se/sw)
+move <方向>      - 主方向(n/s/e/w)：移动到边界并切换场景
+move <目标编号>   - 移动到敌人/NPC附近
+enter <方向>     - 切换相邻场景（需位于该方向边界 10m 内）
+fire <目标> [槽] - 攻击目标 (目标如A1，槽:#1/#2/all，默认all所有就绪武器)
+call <目标>      - 与 NPC 通信（需距离 ≤ 100m）
+idle <秒数>      - 待机指定秒数（期间时间轴推进，被攻击立即行动）
+use <物品>       - 使用物品（如修复装甲）
+reload <槽>      - 手动装填弹药（槽:#1/#2，见bag）
+look [目标]      - 查看战场或指定目标（如 look N1）
+timeline         - 查看时间轴
+wait             - 等待一回合
+retreat          - 撤退
+status / bag     - 查看状态/背包
+help             - 查看帮助`;
     Msg.info(help);
   }
 };
