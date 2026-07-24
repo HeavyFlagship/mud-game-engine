@@ -12,7 +12,7 @@ const Battle = {
   isProcessing: false,
   playerFireHint: null,
 
-  start(roomId, entryDir = 'south') {
+  start(roomId, entryDir = 'south', prevPos = null) {
     const room = MapSystem.getRoom(roomId);
     if (!room || !room.battlefield) {
       this.active = false;
@@ -22,7 +22,7 @@ const Battle = {
 
     this.roomId = roomId;
     MapSystem.resetBattlefield(roomId);
-    this.battlefield = MapSystem.initBattlefield(roomId, entryDir);
+    this.battlefield = MapSystem.initBattlefield(roomId, entryDir, prevPos);
 
     if (this.battlefield.entryPos) {
       Player.position = [...this.battlefield.entryPos];
@@ -37,7 +37,7 @@ const Battle = {
     this.playerFireHint = null;
 
     // 启动时间轴并注册战斗系统的事件处理器与更新器
-    Timeline.start(0);
+    Timeline.start(Timeline.time);
     this.registerHandlers();
     this.registerUpdaters();
     Timeline.onTickEnd = () => { BattleUI.update(); };

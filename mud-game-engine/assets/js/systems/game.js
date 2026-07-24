@@ -132,16 +132,30 @@ const Game = {
       Battle.end();
     }
     const nextRoomId = room.exits[direction];
+    const prevPos = [...Player.position];
     Player.room = nextRoomId;
     Player.visitedRooms.add(Player.room);
-    Player.position = [500, 500];
 
     const nextRoom = MapSystem.getRoom(nextRoomId);
     this.look();
     this.updateUI();
     if (nextRoom && nextRoom.battlefield) {
-      Battle.start(nextRoomId, MapSystem.getOppositeDirection(direction));
+      Battle.start(nextRoomId, MapSystem.getOppositeDirection(direction), prevPos);
     } else {
+      const entryDir = MapSystem.getOppositeDirection(direction);
+      const margin = 50;
+      const nextSize = [1000, 1000];
+      let entryPos = [500, 500];
+      if (entryDir === 'north') {
+        entryPos = [Utils.clamp(prevPos[0], margin, nextSize[0] - margin), nextSize[1] - margin];
+      } else if (entryDir === 'south') {
+        entryPos = [Utils.clamp(prevPos[0], margin, nextSize[0] - margin), margin];
+      } else if (entryDir === 'east') {
+        entryPos = [margin, Utils.clamp(prevPos[1], margin, nextSize[1] - margin)];
+      } else if (entryDir === 'west') {
+        entryPos = [nextSize[0] - margin, Utils.clamp(prevPos[1], margin, nextSize[1] - margin)];
+      }
+      Player.position = entryPos;
       BattleUI.remove();
     }
   },
@@ -743,7 +757,10 @@ const Game = {
  
   showMap() {
     Msg.divider();
-    Msg.add('🗺 区域地图', 'info');
+    const timeStr = Timeline.time >= 3600
+      ? `${Math.floor(Timeline.time / 3600)}小时${Math.floor((Timeline.time % 3600) / 60)}分${Math.floor(Timeline.time % 60)}秒`
+      : `${Math.floor(Timeline.time / 60)}分${Math.floor(Timeline.time % 60)}秒`;
+    Msg.add(`🗺 区域地图 <span style="color:var(--muted);font-weight:normal;font-size:0.8em;">[世界时间: ${timeStr}]</span>`, 'info');
     MapSystem.areas.forEach(area => {
       const visited = area.rooms.filter(r => Player.visitedRooms.has(r));
       const total = area.rooms.length;

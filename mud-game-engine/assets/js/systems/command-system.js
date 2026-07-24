@@ -24,7 +24,7 @@ const CommandSystem = {
   // 战场专用指令（仅当 Battle.active 时由 handleBattleCmd 处理）
   battleOnlyCmds: ['move','go','enter','进入','fire','shoot','attack','攻击',
                    'retreat','flee','撤退','timeline','wait','等待','idle','待机',
-                   'call','通信','hailing','look','查看'],
+                   'call','通信','hailing','look','查看','movepredict','mp'],
  
   parse(input) {
     input = input.trim().toLowerCase();
@@ -118,6 +118,8 @@ const CommandSystem = {
     switch (parsed.cmd) {
       case 'move': case 'go':
         this.cmdBattleMove(parsed.args); break;
+      case 'movepredict': case 'mp':
+        this.cmdBattleMovePredict(parsed.args); break;
       case 'enter': case '进入':
         this.cmdBattleEnter(parsed.args); break;
       case 'fire': case 'shoot': case 'attack': case '攻击':
@@ -190,6 +192,73 @@ const CommandSystem = {
       return;
     }
     Battle.setPlayerTask({ type: 'call', npcId: npc.npcId });
+  },
+
+  cmdBattleMovePredict(args) {
+    if (!Battle.active || !Battle.battlefield) return;
+    if (args.length < 1) {
+      Msg.info('用法：');
+      Msg.info('  movepredict <x> <y>  - 预测移动到指定坐标的时间');
+      Msg.info('  movepredict <方向> <距离> - 预测向指定方向移动的时间');
+      Msg.info('方向：n/s/e/w/ne/nw/se/sw');
+      return;
+    }
+
+    let targetX, targetY;
+    const first = args[0];
+
+    if (/^\d+$/.test(first) && args.length >= 2 && /^\d+$/.test(args[1])) {
+      targetX = parseInt(first);
+      targetY = parseInt(args[1]);
+    } else if (/^[nsew]$/.test(first.toLowerCase()) || /^(ne|nw|se|sw)$/.test(first.toLowerCase())) {
+      const dir = first.toLowerCase();
+      const dirMap = {
+        n:[0,-1], s:[0,1], e:[1,0], w:[-1,0],
+        ne:[0.707,-0.707], nw:[-0.707,-0.707], se:[0.707,0.707], sw:[-0.707,0.707]
+      };
+      const d = dirMap[dir];
+      if (!d) {
+        Msg.error('方向无效。使用 n/s/e/w/ne/nw/se/sw');
+        return;
+      }
+      if (args.length >= 2) {
+        const dist = parseInt(args[1]);
+        if (isNaN(dist) || dist <= 0) {
+          Msg.error('距离必须是正整数。');
+          return;
+        }
+        targetX = Player.position[0] + d[0] * dist;
+        targetY = Player.position[1] + d[1] * dist;
+      } else {
+        const dist = 50;
+        targetX = Player.position[0] + d[0] * dist;
+        targetY = Player.position[1] + d[1] * dist;
+      }
+    } else {
+      Msg.error('用法：movepredict <x> <y> 或 movepredict <方向> <距离>');
+      return;
+    }
+
+    const [bw, bh] = Battle.battlefield.size;
+    targetX = Math.max(10, Math.min(bw - 10, targetX));
+    targetY = Math.max(10, Math.min(bh - 10, targetY));
+
+    const dx = targetX - Player.position[0];
+    const dy = targetY - Player.position[1];
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const speed = Player.currentSpeed;
+    const time = dist / speed;
+
+    const terrainName = MapSystem.getTerrainName(Battle.battlefield.terrain);
+    const terrainPenalty = Battle.battlefield.terrainPenalty || {};
+    const chassis = Player.getChassisType();
+    const penalty = terrainPenalty[chassis] !== undefined ? terrainPenalty[chassis] : 1.0;
+
+    Msg.info(`📍 预测移动到 (${Math.round(targetX)}, ${Math.round(targetY)})`);
+    Msg.info(`   距离: ${dist.toFixed(0)}m`);
+    Msg.info(`   当前速度: ${speed.toFixed(1)}m/s (基础${Player.speed}m/s × 地形${penalty.toFixed(2)})`);
+    Msg.info(`   地形: ${terrainName}`);
+    Msg.info(`   ⏱ 预估时间: ${time.toFixed(1)}秒`);
   },
 
   cmdBattleMove(args) {
