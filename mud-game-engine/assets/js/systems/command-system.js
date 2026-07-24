@@ -137,7 +137,7 @@ const CommandSystem = {
       case 'idle': case '待机':
         this.cmdBattleIdle(parsed.args); break;
       case 'continue': case 'cont':
-        this.cmdBattleContinue(); break;
+        this.cmdBattleContinue(parsed.args); break;
       case 'use': case '使用':
         Game.useItem(parsed.args); break;
       default:
@@ -209,7 +209,7 @@ const CommandSystem = {
     Timeline.scheduleNext();
   },
 
-  cmdBattleContinue() {
+  cmdBattleContinue(args) {
     if (!Battle.active || !Battle.battlefield) return;
     if (!Timeline.paused || Battle.currentActor !== 'player') {
       Msg.warning('当前没有需要跳过的行动阶段。');
@@ -224,7 +224,32 @@ const CommandSystem = {
       return;
     }
 
-    // 查找下一个武器冷却完成事件
+    let waitTime;
+
+    // 带秒数参数：不打断持续操作，等待指定秒数
+    if (args.length >= 1) {
+      waitTime = parseInt(args[0]);
+      if (isNaN(waitTime) || waitTime <= 0) {
+        Msg.error('等待时间必须是正整数秒。');
+        return;
+      }
+      if (waitTime > 300) {
+        Msg.warning('等待时间过长，已限制为300秒。');
+        waitTime = 300;
+      }
+      // 取消当前玩家回合，但不中断持续动作（如移动）
+      Timeline.cancelEvents(e => e.type === 'player_turn' && e.actor === 'player');
+      Battle.playerTask = null;
+      Battle.playerFireHint = null;
+      BattleUI.clearCurrentActions();
+      Timeline.scheduleEvent({ type: 'player_turn', actor: 'player' }, waitTime);
+      Timeline.paused = false;
+      Timeline.scheduleNext();
+      Msg.info(`时间轴推进 ${waitTime} 秒，不打断当前动作。`);
+      return;
+    }
+
+    // 无参数：等待下一个武器冷却完成
     const nextWeaponReady = [...Timeline.eventQueue]
       .filter(e => e.type === 'weapon_ready')
       .sort((a, b) => a.time - b.time)[0];
@@ -240,7 +265,7 @@ const CommandSystem = {
     Battle.playerFireHint = null;
     BattleUI.clearCurrentActions();
 
-    const waitTime = Math.max(0.1, nextWeaponReady.time - Timeline.time);
+    waitTime = Math.max(0.1, nextWeaponReady.time - Timeline.time);
     const weapon = Player.equipment[nextWeaponReady.slot]?.equip;
     const wName = weapon ? weapon.name : nextWeaponReady.slot;
     Timeline.scheduleEvent({ type: 'player_turn', actor: 'player' }, waitTime);
