@@ -375,7 +375,7 @@ const Battle = {
     const autoExit = this._moveAutoExit;
     this._moveAutoExit = null;
     this.playerTask = null;
-    if (autoExit && !this.combatActive) {
+    if (autoExit) {
       const room = MapSystem.getRoom(Player.room);
       if (room && room.exits && room.exits[autoExit]) {
         Msg.info(`已到达${MapSystem.getDirectionName(autoExit)}边界，切换场景...`);
