@@ -116,16 +116,15 @@ const Game = {
     if (room.isShop) {
       Msg.info('🏪 这里是装备库。输入 <span class="help-cmd">shop</span> 查看商品。');
     }
+    if (room.id === 'outpost_repair') {
+      Msg.info('🔧 维修站提供改装服务。输入 <span class="help-cmd">upgrade</span> 升级核心计算机或核心动力。');
+    }
   },
  
   move(direction) {
     const room = MapSystem.getRoom(Player.room);
     if (!room || !room.exits || !room.exits[direction]) {
       Msg.warning('这个方向无法通行。');
-      return;
-    }
-    if (Battle.combatActive) {
-      Msg.warn('战斗中无法切换场景！请先撤退（retreat）。');
       return;
     }
     if (Battle.active) {
@@ -727,7 +726,148 @@ const Game = {
     Player.gold += sellPrice;
     Msg.success(`💰 出售了 <span class="item-tag ${template.type}">${template.name}</span>，获得 ${sellPrice}G`);
   },
- 
+
+  upgrade(action) {
+    const room = MapSystem.getRoom(Player.room);
+    if (!room || room.id !== 'outpost_repair') {
+      Msg.warning('改装服务仅在维修站可用。');
+      return;
+    }
+
+    const vehicle = VehicleDB[Player.vehicleId];
+    const vehicleName = vehicle ? vehicle.name : '未知机体';
+
+    let compatibleComputers = [];
+    let compatiblePowers = [];
+    let allComputers = [];
+    let allPowers = [];
+
+    if (typeof EquipmentDB !== 'undefined') {
+      for (const equip of EquipmentDB.getAll()) {
+        if (equip.coreType === 'computer') {
+          allComputers.push(equip);
+        } else if (equip.coreType === 'power') {
+          allPowers.push(equip);
+        }
+      }
+    }
+
+    if (vehicle && vehicle.compatibleComputers) {
+      compatibleComputers = vehicle.compatibleComputers
+        .map(id => EquipmentDB.get(id))
+        .filter(Boolean);
+    } else {
+      compatibleComputers = allComputers;
+    }
+
+    if (vehicle && vehicle.compatiblePowers) {
+      compatiblePowers = vehicle.compatiblePowers
+        .map(id => EquipmentDB.get(id))
+        .filter(Boolean);
+    } else {
+      compatiblePowers = allPowers;
+    }
+
+    const currentComputer = Player.coreComputer;
+    const currentPower = Player.corePower;
+
+    if (!action) {
+      Msg.divider();
+      Msg.add(`🔧 ${vehicleName} 改装服务`, 'info');
+      Msg.info(`当前资金：${Player.gold}G`);
+      Msg.divider();
+      Msg.add('💻 核心计算机', 'info');
+      if (currentComputer) {
+        Msg.info(`  当前：<span class="item-tag core">${currentComputer.name}</span>（算力+${currentComputer.coreOutput} MFlops）`);
+      } else {
+        Msg.info('  当前：未安装');
+      }
+      if (compatibleComputers.length > 0) {
+        compatibleComputers.forEach((comp, idx) => {
+          const owned = currentComputer && currentComputer.id === comp.id;
+          const upgradeTag = owned ? ' ✅已装备' : '';
+          const canAfford = Player.gold >= comp.price ? '' : ' 🔒';
+          Msg.info(`  ${idx+1}. <span class="item-tag core">${comp.name}</span> - 算力+${comp.coreOutput} MFlops - ${comp.price}G${upgradeTag}${canAfford}`);
+        });
+      } else {
+        Msg.info('  暂无可用升级选项');
+      }
+      Msg.divider();
+      Msg.add('⚡ 核心动力', 'info');
+      if (currentPower) {
+        Msg.info(`  当前：<span class="item-tag core">${currentPower.name}</span>（功率+${currentPower.coreOutput} kW）`);
+      } else {
+        Msg.info('  当前：未安装');
+      }
+      if (compatiblePowers.length > 0) {
+        compatiblePowers.forEach((power, idx) => {
+          const owned = currentPower && currentPower.id === power.id;
+          const upgradeTag = owned ? ' ✅已装备' : '';
+          const canAfford = Player.gold >= power.price ? '' : ' 🔒';
+          Msg.info(`  ${idx+1}. <span class="item-tag core">${power.name}</span> - 功率+${power.coreOutput} kW - ${power.price}G${upgradeTag}${canAfford}`);
+        });
+      } else {
+        Msg.info('  暂无可用升级选项');
+      }
+      Msg.divider();
+      Msg.info('使用方法：upgrade computer <编号> 或 upgrade power <编号>');
+      Msg.info('示例：upgrade computer 2 （升级到第2个计算机）');
+      return;
+    }
+
+    const parts = action.split(' ');
+    const type = parts[0];
+    const num = parseInt(parts[1]);
+
+    if (type === 'computer' || type === '计算机') {
+      if (isNaN(num) || num < 1 || num > compatibleComputers.length) {
+        Msg.error('无效的编号。输入 upgrade 查看可用选项。');
+        return;
+      }
+      const target = compatibleComputers[num - 1];
+      if (currentComputer && currentComputer.id === target.id) {
+        Msg.warning('已经装备了该核心计算机。');
+        return;
+      }
+      if (Player.gold < target.price) {
+        Msg.danger(`资金不足！需要 ${target.price}G，当前 ${Player.gold}G`);
+        return;
+      }
+      if (currentComputer) {
+        Player.budget.computeMax -= currentComputer.coreOutput || 0;
+      }
+      Player.gold -= target.price;
+      Player.coreComputer = { ...target };
+      Player.budget.computeMax += target.coreOutput || 0;
+      Msg.success(`💰 改装完成！安装了 <span class="item-tag core">${target.name}</span>，算力+${target.coreOutput} MFlops，花费 ${target.price}G`);
+      Msg.info(`当前算力上限：${Player.budget.computeMax} MFlops`);
+    } else if (type === 'power' || type === '动力') {
+      if (isNaN(num) || num < 1 || num > compatiblePowers.length) {
+        Msg.error('无效的编号。输入 upgrade 查看可用选项。');
+        return;
+      }
+      const target = compatiblePowers[num - 1];
+      if (currentPower && currentPower.id === target.id) {
+        Msg.warning('已经装备了该核心动力。');
+        return;
+      }
+      if (Player.gold < target.price) {
+        Msg.danger(`资金不足！需要 ${target.price}G，当前 ${Player.gold}G`);
+        return;
+      }
+      if (currentPower) {
+        Player.budget.powerMax -= currentPower.coreOutput || 0;
+      }
+      Player.gold -= target.price;
+      Player.corePower = { ...target };
+      Player.budget.powerMax += target.coreOutput || 0;
+      Msg.success(`💰 改装完成！安装了 <span class="item-tag core">${target.name}</span>，功率+${target.coreOutput} kW，花费 ${target.price}G`);
+      Msg.info(`当前功率上限：${Player.budget.powerMax} kW`);
+    } else {
+      Msg.error('无效的改装类型。使用 upgrade computer 或 upgrade power。');
+    }
+  },
+
   castOutside(skillName) {
     if (!skillName) { this.showSkills(); return; }
     let skill = null;
@@ -832,6 +972,7 @@ const Game = {
           ['export [物品]', '存入仓库'],
           ['import [物品]', '取出仓库'],
           ['wequip [物品]', '从仓库直接装备'],
+          ['upgrade', '改装核心计算机/核心动力（维修站）'],
         ]
       },
       npc: {

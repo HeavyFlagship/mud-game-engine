@@ -49,7 +49,7 @@ const Player = {
   statusEffects: [],
   killCount: {},
   stats: { totalDmg:0, totalHeal:0, monstersKilled:0, deaths:0 },
-  gold: 10000,
+  gold: 100000,
   level: 1,
   exp: 0,
   expToNext: 50,
@@ -191,16 +191,14 @@ const Player = {
       this.visionRadius = vehicle.visionRadius;
       this.signalRadius = vehicle.signalRadius;
       this.targetRadius = vehicle.targetRadius;
-      this.power = vehicle.power;
-      this.compute = vehicle.compute;
       this.weight = vehicle.weight;
       this.overweightCoeff = vehicle.overweightCoeff;
       this.maxEnergy = vehicle.energyCapacity;
       this.energy = vehicle.energyCapacity;
       this.energyRegen = vehicle.energyRegen;
-      // 设置预算基准
-      this.budget.powerMax = vehicle.power;
-      this.budget.computeMax = vehicle.compute;
+      // 设置预算基准：功率和算力完全由核心装备提供
+      this.budget.powerMax = 0;
+      this.budget.computeMax = 0;
       this.budget.bayMax = vehicle.equipmentBay || 10;
     }
 
@@ -208,8 +206,10 @@ const Player = {
     this.initSlots();
 
     // 安装默认核心模块（核心模块不占用接口和预算，而是增加预算上限）
-    const coreComputer = EquipmentDB.get('basic_core_computer');
-    const corePower = EquipmentDB.get('basic_core_power');
+    const defaultCompId = vehicle && vehicle.defaultCoreComputer || 'basic_core_computer';
+    const defaultPowerId = vehicle && vehicle.defaultCorePower || 'basic_core_power';
+    const coreComputer = EquipmentDB.get(defaultCompId);
+    const corePower = EquipmentDB.get(defaultPowerId);
     if (coreComputer) {
       this.coreComputer = { ...coreComputer };
       this.budget.computeMax += coreComputer.coreOutput || 0;
@@ -292,7 +292,7 @@ const Player = {
       Msg.error('只能在基地内切换机体。');
       return false;
     }
-    if (Battle.active || Battle.combatActive) {
+    if (Battle.combatActive) {
       Msg.error('战斗中无法切换机体。');
       return false;
     }
@@ -334,15 +334,13 @@ const Player = {
     this.visionRadius = vehicle.visionRadius;
     this.signalRadius = vehicle.signalRadius;
     this.targetRadius = vehicle.targetRadius;
-    this.power = vehicle.power;
-    this.compute = vehicle.compute;
     this.weight = vehicle.weight;
     this.overweightCoeff = vehicle.overweightCoeff;
     this.maxEnergy = vehicle.energyCapacity;
     this.energy = vehicle.energyCapacity;
     this.energyRegen = vehicle.energyRegen;
-    this.budget.powerMax = vehicle.power;
-    this.budget.computeMax = vehicle.compute;
+    this.budget.powerMax = 0;
+    this.budget.computeMax = 0;
     this.budget.bayMax = vehicle.equipmentBay || 10;
 
     // 清空并重建装备槽位

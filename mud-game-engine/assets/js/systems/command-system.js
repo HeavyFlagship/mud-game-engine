@@ -44,9 +44,9 @@ const CommandSystem = {
     if (!parsed) return;
     Msg.cmd(`> ${parsed.raw}`);
 
-    // 战场专用指令：仅当 Battle.active 时由 handleBattleCmd 处理
+    // 战场/场景指令：当场景有战场时由 handleBattleCmd 处理
     // 其余指令（shop/equip/unequip/talk/方向移动等）在任何状态下均可使用
-    if (Battle.active && this.battleOnlyCmds.includes(parsed.cmd)) {
+    if ((Battle.active || Battle.battlefield) && this.battleOnlyCmds.includes(parsed.cmd)) {
       this.handleBattleCmd(parsed);
       Game.updateUI();
       return;
@@ -94,6 +94,8 @@ const CommandSystem = {
         Game.shop(parsed.args[0] || 'list'); break;
       case 'sell': case '出售':
         Game.sell(parsed.args.join(' ')); break;
+      case 'upgrade': case '改装':
+        Game.upgrade(parsed.args.join(' ')); break;
       case 'score': case 'stats': case '统计':
         this.runQuery(parsed, '任务统计', () => Game.showStats()); break;
       case 'help': case '帮助':
@@ -150,7 +152,7 @@ const CommandSystem = {
   },
 
   cmdBattleWait(args) {
-    if (!Battle.active || !Battle.battlefield) return;
+    if (!Battle.battlefield) return;
     if (!Timeline.paused || Battle.currentActor !== 'player') {
       Msg.warning('当前没有需要等待的行动阶段。');
       return;
@@ -210,7 +212,7 @@ const CommandSystem = {
   },
 
   cmdBattleContinue(args) {
-    if (!Battle.active || !Battle.battlefield) return;
+    if (!Battle.battlefield) return;
     if (!Timeline.paused || Battle.currentActor !== 'player') {
       Msg.warning('当前没有需要跳过的行动阶段。');
       return;
@@ -294,7 +296,7 @@ const CommandSystem = {
   },
  
   cmdBattleCall(args) {
-    if (!Battle.active || !Battle.battlefield) return;
+    if (!Battle.battlefield) return;
     if (!args[0]) {
       const npcs = Battle.battlefield.npcs || [];
       if (npcs.length === 0) {
@@ -327,7 +329,7 @@ const CommandSystem = {
   },
 
   cmdBattleMovePredict(args) {
-    if (!Battle.active || !Battle.battlefield) return;
+    if (!Battle.battlefield) return;
     if (args.length < 1) {
       Msg.info('用法：');
       Msg.info('  movepredict <x> <y>  - 预测移动到指定坐标的时间');
@@ -394,7 +396,7 @@ const CommandSystem = {
   },
 
   cmdBattleMove(args) {
-    if (!Battle.active || !Battle.battlefield) return;
+    if (!Battle.battlefield) return;
     if (args.length < 1) {
       Msg.info('用法：');
       Msg.info('  move <x> <y>  - 移动到指定坐标');
@@ -485,10 +487,6 @@ const CommandSystem = {
     // 仅当目标超出边界（非 autoExit 模式）才尝试立即切换场景
     const [bw, bh] = Battle.battlefield.size;
     if (!autoExit && (targetX < 0 || targetX > bw || targetY < 0 || targetY > bh)) {
-      if (Battle.combatActive) {
-        Msg.warn('战斗中无法离开当前场景！');
-        return;
-      }
       const room = MapSystem.getRoom(Player.room);
       if (!room || !room.exits) {
         Msg.warning('这个方向无法通行。');
@@ -555,7 +553,7 @@ const CommandSystem = {
   },
 
   cmdBattleEnter(args) {
-    if (!Battle.active || !Battle.battlefield) return;
+    if (!Battle.battlefield) return;
     if (args.length < 1) {
       Msg.info('用法：enter <方向>');
       Msg.info('  专用于切换相邻场景，需位于当前场景该方向边界 10m 内');
@@ -566,10 +564,6 @@ const CommandSystem = {
     const dir = dirMap[args[0].toLowerCase()] || args[0].toLowerCase();
     if (!['north','south','east','west'].includes(dir)) {
       Msg.error('方向无效。使用 n/s/e/w 或 north/south/east/west');
-      return;
-    }
-    if (Battle.combatActive) {
-      Msg.warn('战斗中无法切换场景！');
       return;
     }
     const room = MapSystem.getRoom(Player.room);
@@ -611,7 +605,7 @@ const CommandSystem = {
   },
  
   cmdBattleFire(args) {
-    if (!Battle.active || !Battle.battlefield) return;
+    if (!Battle.battlefield) return;
     if (args.length < 1) {
       const enemies = Battle.battlefield.enemies.filter(e => e.hp > 0);
       if (enemies.length === 0) {
@@ -710,7 +704,7 @@ const CommandSystem = {
   },
  
   cmdBattleLook(args) {
-    if (!Battle.active || !Battle.battlefield) return;
+    if (!Battle.battlefield) return;
     const bf = Battle.battlefield;
 
     // 带参数：查看指定单位（敌人或NPC）
