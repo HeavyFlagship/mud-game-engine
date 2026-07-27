@@ -27,6 +27,10 @@ const VehicleDB = {
     energyCapacity: 200,
     energyRegen: 5,
     price: 0,
+    compatibleComputers: ['basic_core_computer', 'standard_core_computer'],
+    compatiblePowers: ['basic_core_power', 'standard_core_power'],
+    defaultCoreComputer: 'basic_core_computer',
+    defaultCorePower: 'basic_core_power',
     desc: '标准型先遣侦察机体，双足结构，机动性良好，适合复杂地形作业。'
   },
   assault: {
@@ -56,6 +60,10 @@ const VehicleDB = {
     energyCapacity: 280,
     energyRegen: 6,
     price: 8000,
+    compatibleComputers: ['basic_core_computer', 'standard_core_computer', 'advanced_core_computer'],
+    compatiblePowers: ['basic_core_power', 'standard_core_power', 'advanced_core_power'],
+    defaultCoreComputer: 'basic_core_computer',
+    defaultCorePower: 'basic_core_power',
     desc: '重型突击机体，装甲更厚，武器接口更多，适合正面作战。'
   },
   striker: {
@@ -85,6 +93,10 @@ const VehicleDB = {
     energyCapacity: 350,
     energyRegen: 7,
     price: 15000,
+    compatibleComputers: ['basic_core_computer', 'standard_core_computer', 'advanced_core_computer', 'elite_core_computer'],
+    compatiblePowers: ['basic_core_power', 'standard_core_power', 'advanced_core_power', 'elite_core_power'],
+    defaultCoreComputer: 'standard_core_computer',
+    defaultCorePower: 'standard_core_power',
     desc: '四足重装机体，火力与防护并重，适合攻坚战和阵地战。'
   },
   stealth: {
@@ -114,6 +126,10 @@ const VehicleDB = {
     energyCapacity: 180,
     energyRegen: 8,
     price: 12000,
+    compatibleComputers: ['standard_core_computer', 'advanced_core_computer', 'elite_core_computer'],
+    compatiblePowers: ['basic_core_power', 'standard_core_power', 'advanced_core_power'],
+    defaultCoreComputer: 'standard_core_computer',
+    defaultCorePower: 'basic_core_power',
     desc: '轻型隐匿机体，机动性极佳，电子战接口丰富，适合侦察与骚扰。'
   }
 };

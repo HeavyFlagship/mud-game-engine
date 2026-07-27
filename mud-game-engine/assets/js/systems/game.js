@@ -734,16 +734,38 @@ const Game = {
       return;
     }
 
-    const computers = [];
-    const powerUnits = [];
+    const vehicle = VehicleDB[Player.vehicleId];
+    const vehicleName = vehicle ? vehicle.name : '未知机体';
+
+    let compatibleComputers = [];
+    let compatiblePowers = [];
+    let allComputers = [];
+    let allPowers = [];
+
     if (typeof EquipmentDB !== 'undefined') {
       for (const equip of EquipmentDB.getAll()) {
         if (equip.coreType === 'computer') {
-          computers.push(equip);
+          allComputers.push(equip);
         } else if (equip.coreType === 'power') {
-          powerUnits.push(equip);
+          allPowers.push(equip);
         }
       }
+    }
+
+    if (vehicle && vehicle.compatibleComputers) {
+      compatibleComputers = vehicle.compatibleComputers
+        .map(id => EquipmentDB.get(id))
+        .filter(Boolean);
+    } else {
+      compatibleComputers = allComputers;
+    }
+
+    if (vehicle && vehicle.compatiblePowers) {
+      compatiblePowers = vehicle.compatiblePowers
+        .map(id => EquipmentDB.get(id))
+        .filter(Boolean);
+    } else {
+      compatiblePowers = allPowers;
     }
 
     const currentComputer = Player.coreComputer;
@@ -751,7 +773,7 @@ const Game = {
 
     if (!action) {
       Msg.divider();
-      Msg.add('🔧 改装服务', 'info');
+      Msg.add(`🔧 ${vehicleName} 改装服务`, 'info');
       Msg.info(`当前资金：${Player.gold}G`);
       Msg.divider();
       Msg.add('💻 核心计算机', 'info');
@@ -760,11 +782,12 @@ const Game = {
       } else {
         Msg.info('  当前：未安装');
       }
-      if (computers.length > 0) {
-        computers.forEach((comp, idx) => {
+      if (compatibleComputers.length > 0) {
+        compatibleComputers.forEach((comp, idx) => {
           const owned = currentComputer && currentComputer.id === comp.id;
           const upgradeTag = owned ? ' ✅已装备' : '';
-          Msg.info(`  ${idx+1}. <span class="item-tag core">${comp.name}</span> - 算力+${comp.coreOutput} MFlops - ${comp.price}G${upgradeTag}`);
+          const canAfford = Player.gold >= comp.price ? '' : ' 🔒';
+          Msg.info(`  ${idx+1}. <span class="item-tag core">${comp.name}</span> - 算力+${comp.coreOutput} MFlops - ${comp.price}G${upgradeTag}${canAfford}`);
         });
       } else {
         Msg.info('  暂无可用升级选项');
@@ -776,11 +799,12 @@ const Game = {
       } else {
         Msg.info('  当前：未安装');
       }
-      if (powerUnits.length > 0) {
-        powerUnits.forEach((power, idx) => {
+      if (compatiblePowers.length > 0) {
+        compatiblePowers.forEach((power, idx) => {
           const owned = currentPower && currentPower.id === power.id;
           const upgradeTag = owned ? ' ✅已装备' : '';
-          Msg.info(`  ${idx+1}. <span class="item-tag core">${power.name}</span> - 功率+${power.coreOutput} kW - ${power.price}G${upgradeTag}`);
+          const canAfford = Player.gold >= power.price ? '' : ' 🔒';
+          Msg.info(`  ${idx+1}. <span class="item-tag core">${power.name}</span> - 功率+${power.coreOutput} kW - ${power.price}G${upgradeTag}${canAfford}`);
         });
       } else {
         Msg.info('  暂无可用升级选项');
@@ -796,11 +820,11 @@ const Game = {
     const num = parseInt(parts[1]);
 
     if (type === 'computer' || type === '计算机') {
-      if (isNaN(num) || num < 1 || num > computers.length) {
+      if (isNaN(num) || num < 1 || num > compatibleComputers.length) {
         Msg.error('无效的编号。输入 upgrade 查看可用选项。');
         return;
       }
-      const target = computers[num - 1];
+      const target = compatibleComputers[num - 1];
       if (currentComputer && currentComputer.id === target.id) {
         Msg.warning('已经装备了该核心计算机。');
         return;
@@ -818,11 +842,11 @@ const Game = {
       Msg.success(`💰 改装完成！安装了 <span class="item-tag core">${target.name}</span>，算力+${target.coreOutput} MFlops，花费 ${target.price}G`);
       Msg.info(`当前算力上限：${Player.budget.computeMax} MFlops`);
     } else if (type === 'power' || type === '动力') {
-      if (isNaN(num) || num < 1 || num > powerUnits.length) {
+      if (isNaN(num) || num < 1 || num > compatiblePowers.length) {
         Msg.error('无效的编号。输入 upgrade 查看可用选项。');
         return;
       }
-      const target = powerUnits[num - 1];
+      const target = compatiblePowers[num - 1];
       if (currentPower && currentPower.id === target.id) {
         Msg.warning('已经装备了该核心动力。');
         return;

@@ -49,7 +49,7 @@ const Player = {
   statusEffects: [],
   killCount: {},
   stats: { totalDmg:0, totalHeal:0, monstersKilled:0, deaths:0 },
-  gold: 10000,
+  gold: 100000,
   level: 1,
   exp: 0,
   expToNext: 50,
@@ -206,8 +206,10 @@ const Player = {
     this.initSlots();
 
     // 安装默认核心模块（核心模块不占用接口和预算，而是增加预算上限）
-    const coreComputer = EquipmentDB.get('basic_core_computer');
-    const corePower = EquipmentDB.get('basic_core_power');
+    const defaultCompId = vehicle && vehicle.defaultCoreComputer || 'basic_core_computer';
+    const defaultPowerId = vehicle && vehicle.defaultCorePower || 'basic_core_power';
+    const coreComputer = EquipmentDB.get(defaultCompId);
+    const corePower = EquipmentDB.get(defaultPowerId);
     if (coreComputer) {
       this.coreComputer = { ...coreComputer };
       this.budget.computeMax += coreComputer.coreOutput || 0;

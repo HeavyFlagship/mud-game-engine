@@ -316,6 +316,46 @@ const EquipmentDB = {
     coreType: 'power', coreOutput: 100,
     desc: '提供功率100 kW。'
   },
+  'advanced_core_computer': {
+    id: 'advanced_core_computer', name: '高级核心计算机', type: 'core', slot: 'coreComputer',
+    category: 'core', subCategory: '计算机',
+    weight: 200, cargoVolume: 0.2, price: 40000,
+    interfaceReq: ['数据', '界面'],
+    equipVolume: 0.6, powerReq: 0, computeReq: 0, bayReq: 0.25,
+    startupReq: null, cycle: '持续', potential: 3,
+    coreType: 'computer', coreOutput: 150,
+    desc: '提供算力150 MFlops。'
+  },
+  'elite_core_computer': {
+    id: 'elite_core_computer', name: '顶级核心计算机', type: 'core', slot: 'coreComputer',
+    category: 'core', subCategory: '计算机',
+    weight: 300, cargoVolume: 0.3, price: 80000,
+    interfaceReq: ['数据', '界面'],
+    equipVolume: 0.8, powerReq: 0, computeReq: 0, bayReq: 0.4,
+    startupReq: null, cycle: '持续', potential: 4,
+    coreType: 'computer', coreOutput: 250,
+    desc: '提供算力250 MFlops。'
+  },
+  'advanced_core_power': {
+    id: 'advanced_core_power', name: '高级核心动力', type: 'core', slot: 'corePower',
+    category: 'core', subCategory: '动力',
+    weight: 500, cargoVolume: 0.4, price: 30000,
+    interfaceReq: ['电源', '界面'],
+    equipVolume: 1.0, powerReq: 0, computeReq: 0, bayReq: 0.45,
+    startupReq: null, cycle: '持续', potential: 3,
+    coreType: 'power', coreOutput: 150,
+    desc: '提供功率150 kW。'
+  },
+  'elite_core_power': {
+    id: 'elite_core_power', name: '顶级核心动力', type: 'core', slot: 'corePower',
+    category: 'core', subCategory: '动力',
+    weight: 700, cargoVolume: 0.5, price: 60000,
+    interfaceReq: ['电源', '界面'],
+    equipVolume: 1.2, powerReq: 0, computeReq: 0, bayReq: 0.6,
+    startupReq: null, cycle: '持续', potential: 4,
+    coreType: 'power', coreOutput: 250,
+    desc: '提供功率250 kW。'
+  },
 
   // ===== 旧版兼容装备 =====
   'auto_cannon_mk1': {
