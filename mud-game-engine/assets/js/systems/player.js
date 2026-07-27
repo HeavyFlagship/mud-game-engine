@@ -191,16 +191,14 @@ const Player = {
       this.visionRadius = vehicle.visionRadius;
       this.signalRadius = vehicle.signalRadius;
       this.targetRadius = vehicle.targetRadius;
-      this.power = vehicle.power;
-      this.compute = vehicle.compute;
       this.weight = vehicle.weight;
       this.overweightCoeff = vehicle.overweightCoeff;
       this.maxEnergy = vehicle.energyCapacity;
       this.energy = vehicle.energyCapacity;
       this.energyRegen = vehicle.energyRegen;
-      // 设置预算基准
-      this.budget.powerMax = vehicle.power;
-      this.budget.computeMax = vehicle.compute;
+      // 设置预算基准：功率和算力完全由核心装备提供
+      this.budget.powerMax = 0;
+      this.budget.computeMax = 0;
       this.budget.bayMax = vehicle.equipmentBay || 10;
     }
 
@@ -334,15 +332,13 @@ const Player = {
     this.visionRadius = vehicle.visionRadius;
     this.signalRadius = vehicle.signalRadius;
     this.targetRadius = vehicle.targetRadius;
-    this.power = vehicle.power;
-    this.compute = vehicle.compute;
     this.weight = vehicle.weight;
     this.overweightCoeff = vehicle.overweightCoeff;
     this.maxEnergy = vehicle.energyCapacity;
     this.energy = vehicle.energyCapacity;
     this.energyRegen = vehicle.energyRegen;
-    this.budget.powerMax = vehicle.power;
-    this.budget.computeMax = vehicle.compute;
+    this.budget.powerMax = 0;
+    this.budget.computeMax = 0;
     this.budget.bayMax = vehicle.equipmentBay || 10;
 
     // 清空并重建装备槽位

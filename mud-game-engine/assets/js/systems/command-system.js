@@ -94,6 +94,8 @@ const CommandSystem = {
         Game.shop(parsed.args[0] || 'list'); break;
       case 'sell': case '出售':
         Game.sell(parsed.args.join(' ')); break;
+      case 'upgrade': case '改装':
+        Game.upgrade(parsed.args.join(' ')); break;
       case 'score': case 'stats': case '统计':
         this.runQuery(parsed, '任务统计', () => Game.showStats()); break;
       case 'help': case '帮助':
@@ -485,10 +487,6 @@ const CommandSystem = {
     // 仅当目标超出边界（非 autoExit 模式）才尝试立即切换场景
     const [bw, bh] = Battle.battlefield.size;
     if (!autoExit && (targetX < 0 || targetX > bw || targetY < 0 || targetY > bh)) {
-      if (Battle.combatActive) {
-        Msg.warn('战斗中无法离开当前场景！');
-        return;
-      }
       const room = MapSystem.getRoom(Player.room);
       if (!room || !room.exits) {
         Msg.warning('这个方向无法通行。');
@@ -566,10 +564,6 @@ const CommandSystem = {
     const dir = dirMap[args[0].toLowerCase()] || args[0].toLowerCase();
     if (!['north','south','east','west'].includes(dir)) {
       Msg.error('方向无效。使用 n/s/e/w 或 north/south/east/west');
-      return;
-    }
-    if (Battle.combatActive) {
-      Msg.warn('战斗中无法切换场景！');
       return;
     }
     const room = MapSystem.getRoom(Player.room);

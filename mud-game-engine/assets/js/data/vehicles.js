@@ -13,8 +13,6 @@ const VehicleDB = {
     visionRadius: 200,
     signalRadius: 2.5,
     targetRadius: 2.0,
-    power: 150,
-    compute: 80,
     interfaces: [
       { types: ['外部','电源','数据','弹药管道','界面'], count: 2 },
       { types: ['外部','电源','数据','界面'], count: 2 },
@@ -44,8 +42,6 @@ const VehicleDB = {
     visionRadius: 180,
     signalRadius: 2.8,
     targetRadius: 2.5,
-    power: 200,
-    compute: 100,
     interfaces: [
       { types: ['外部','电源','数据','弹药管道','界面'], count: 3 },
       { types: ['外部','电源','数据','界面'], count: 2 },
@@ -75,8 +71,6 @@ const VehicleDB = {
     visionRadius: 160,
     signalRadius: 3.0,
     targetRadius: 3.0,
-    power: 250,
-    compute: 120,
     interfaces: [
       { types: ['外部','电源','数据','弹药管道','界面'], count: 4 },
       { types: ['外部','电源','数据','界面'], count: 3 },
@@ -106,8 +100,6 @@ const VehicleDB = {
     visionRadius: 250,
     signalRadius: 2.0,
     targetRadius: 1.8,
-    power: 120,
-    compute: 150,
     interfaces: [
       { types: ['外部','电源','数据','弹药管道','界面'], count: 1 },
       { types: ['外部','电源','数据','界面'], count: 2 },
