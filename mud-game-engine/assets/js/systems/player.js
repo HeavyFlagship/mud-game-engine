@@ -292,7 +292,7 @@ const Player = {
       Msg.error('只能在基地内切换机体。');
       return false;
     }
-    if (Battle.active || Battle.combatActive) {
+    if (Battle.combatActive) {
       Msg.error('战斗中无法切换机体。');
       return false;
     }
