@@ -13,6 +13,7 @@ desktop.ini
 # Trae workspace temp
 .uploads/
 .trae-html-share-packages/
+.trae/
 
 # Node modules (if added later)
 node_modules/
