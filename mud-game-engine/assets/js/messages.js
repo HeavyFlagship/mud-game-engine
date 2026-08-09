@@ -46,6 +46,7 @@ const Msg = {
   },
   withQuery(title, raw, callback) {
     if (!this.queryEl) {
+      console.warn('[Msg.withQuery] queryEl is null, falling back to main output');
       callback();
       return;
     }
@@ -56,6 +57,9 @@ const Msg = {
     this.target = 'query';
     try {
       callback();
+    } catch (e) {
+      console.error('[Msg.withQuery] Error in callback:', e);
+      Msg.error(`查询出错: ${e.message}`);
     } finally {
       this.target = previousTarget;
       this.queryEl.scrollTop = this.queryEl.scrollHeight;

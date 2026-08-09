@@ -145,7 +145,7 @@ const MapGenerator = {
     return templates[idx];
   },
 
-  // 生成出口（确保连通性）
+  // 生成出口（确保连通性，包括垂直方向）
   generateExits(x, y, z) {
     const exits = {};
     const dirs = [
@@ -163,6 +163,17 @@ const MapGenerator = {
         const targetId = this.getRoomId(nx, ny, z);
         exits[dir] = targetId;
       }
+    }
+
+    // 垂直方向：检查上下层是否有房间
+    // 地下矿洞区域 (x=0-3, y=7-9) 有 z=-1 层
+    if (z === 0 && x >= 0 && x <= 3 && y >= 7 && y <= 9) {
+      const belowId = this.getRoomId(x, y, -1);
+      exits['down'] = belowId;
+    }
+    if (z === -1) {
+      const aboveId = this.getRoomId(x, y, 0);
+      exits['up'] = aboveId;
     }
 
     return exits;

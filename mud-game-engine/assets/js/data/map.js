@@ -338,8 +338,31 @@ const MapDB = {
       this.rooms[id] = room;
     }
     this.generatedRooms = generated;
+
+    // 补充双向出口连接：确保所有相邻房间可以互相通行
+    this._fixBidirectionalExits();
+
     // 为生成房间构建区域分组
     this.generatedAreas = this._buildGeneratedAreas(generated);
+  },
+
+  // 修复双向出口：确保房间之间的出口是双向的
+  _fixBidirectionalExits() {
+    const allRooms = this.rooms;
+    const oppositeDir = { north:'south', south:'north', east:'west', west:'east', up:'down', down:'up' };
+
+    for (const [roomId, room] of Object.entries(allRooms)) {
+      if (!room.exits) room.exits = {};
+      for (const [dir, targetId] of Object.entries(room.exits)) {
+        const targetRoom = allRooms[targetId];
+        if (!targetRoom) continue;
+        if (!targetRoom.exits) targetRoom.exits = {};
+        const reverseDir = oppositeDir[dir];
+        if (reverseDir && !targetRoom.exits[reverseDir]) {
+          targetRoom.exits[reverseDir] = roomId;
+        }
+      }
+    }
   },
 
   _buildGeneratedAreas(generated) {

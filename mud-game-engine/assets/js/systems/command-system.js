@@ -43,6 +43,13 @@ const CommandSystem = {
     if (!parsed) return;
     Msg.cmd(`> ${parsed.raw}`);
 
+    // 方向移动指令特殊处理（需要查询房间出口，优先于注册表查找）
+    if (['north','south','east','west','up','down','上','下'].includes(parsed.cmd)) {
+      Game.move(parsed.cmd);
+      Game.updateUI();
+      return;
+    }
+
     // 使用注册表查找指令定义
     const def = CommandRegistry.find(parsed.cmd);
     if (!def) {
@@ -63,35 +70,37 @@ const CommandSystem = {
       return;
     }
 
-    // 方向移动指令特殊处理（需要查询房间出口）
-    if (['north','south','east','west','up','down','上','下'].includes(parsed.cmd)) {
-      Game.move(parsed.cmd);
-      Game.updateUI();
-      return;
-    }
-
     // 通过注册表分发到对应指令处理模块
     const context = { cmd: parsed.cmd, args: parsed.args, parsed };
     const handlerName = def.handler;
+    const isQuery = def.isQuery === true;
 
-    // 尝试在对应模块中查找处理函数
-    let handled = false;
-    const modules = [GlobalCommands, BattleCommands, BaseCommands];
-    for (const mod of modules) {
-      if (mod && typeof mod[handlerName] === 'function') {
-        mod[handlerName](context);
-        handled = true;
-        break;
+    // 执行指令处理函数的包装
+    const executeHandler = () => {
+      let handled = false;
+      const modules = [GlobalCommands, BattleCommands, BaseCommands];
+      for (const mod of modules) {
+        if (mod && typeof mod[handlerName] === 'function') {
+          mod[handlerName](context);
+          handled = true;
+          break;
+        }
       }
-    }
+      if (!handled) {
+        if (typeof Game !== 'undefined' && typeof Game[handlerName] === 'function') {
+          Game[handlerName](parsed.args);
+        } else {
+          Msg.system(`指令 "${parsed.cmd}" 已注册但处理函数尚未实现。`);
+        }
+      }
+    };
 
-    if (!handled) {
-      // 回退到 game.js 中的方法（兼容旧指令）
-      if (typeof Game !== 'undefined' && typeof Game[handlerName] === 'function') {
-        Game[handlerName](parsed.args);
-      } else {
-        Msg.system(`指令 "${parsed.cmd}" 已注册但处理函数尚未实现。`);
-      }
+    // 查询类指令路由到查询面板
+    if (isQuery) {
+      const title = def.desc || '查询';
+      Msg.withQuery(title, parsed.raw, executeHandler);
+    } else {
+      executeHandler();
     }
 
     // 设施系统更新（根据实际时间流逝）
