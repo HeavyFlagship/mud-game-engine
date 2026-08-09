@@ -36,6 +36,12 @@ const Battle = {
     this.isProcessing = false;
     this.playerFireHint = null;
 
+    // 显示环境危险警告
+    if (this.battlefield.hazards && this.battlefield.hazards.length > 0) {
+      const hazardDescs = this.battlefield.hazards.map(h => h.label || this.getHazardName(h.type));
+      Msg.warn(`⚠ 警告: 检测到危险环境 - ${hazardDescs.join('、')}`);
+    }
+
     // 启动时间轴并注册战斗系统的事件处理器与更新器
     Timeline.start(Timeline.time);
     this.registerHandlers();
@@ -129,6 +135,7 @@ const Battle = {
     Timeline.addUpdater('statusEffects', (delta) => this.updateStatusEffects(delta));
     Timeline.addUpdater('energy', (delta) => this.regenEnergy(delta));
     Timeline.addUpdater('ai', (delta) => this.updateAI(delta));
+    Timeline.addUpdater('hazards', (delta) => this.updateHazards(delta));
     Timeline.addUpdater('winLoss', () => this.checkWinLoss());
   },
 
@@ -151,7 +158,7 @@ const Battle = {
     if (this.combatActive) return;
     this.combatActive = true;
     Msg.warn(`⚔ 进入战斗状态！${reason}`);
-    BattleUI.addHistory('系统', '#f55', `战斗开始`);
+    BattleUI.addHistory('系统', '#f55', `战斗开始`, 'system');
 
     const wasMoving = this.playerTask && this.playerTask.type === 'move';
     const wasCalling = this.playerTask && this.playerTask.type === 'call';
@@ -204,7 +211,7 @@ const Battle = {
     Timeline.cancelEvents(e => e.type === 'player_turn' && e.actor === 'player');
     Timeline.scheduleEvent({ type: 'player_idle_end', actor: 'player' }, seconds);
     this.playerIdleEnd = Timeline.time + seconds;
-    BattleUI.addHistory('你', '#888', `待机${seconds}秒`);
+    BattleUI.addHistory('你', '#888', `待机${seconds}秒`, 'system');
     if (Timeline.paused) {
       Timeline.paused = false;
     }
@@ -229,6 +236,7 @@ const Battle = {
   exitCombat() {
     if (!this.combatActive) return;
     this.combatActive = false;
+    BattleUI.addHistory('系统', '#8af', '战斗结束', 'system');
     Msg.info('⛑ 脱离战斗状态，场景时间轴继续运行。');
   },
 
@@ -267,6 +275,52 @@ const Battle = {
   regenEnergy(delta) {
     if (Player.energy < Player.maxEnergy) {
       Player.energy = Math.min(Player.maxEnergy, Player.energy + (Player.energyRegen * delta));
+    }
+  },
+
+  updateHazards(delta) {
+    if (!this.battlefield || !this.battlefield.hazards || this.battlefield.hazards.length === 0) return;
+
+    const playerPos = Player.position;
+    let inEmiZone = false;
+
+    for (const hazard of this.battlefield.hazards) {
+      const dist = this.getDistance(playerPos, hazard.pos);
+      const radius = hazard.radius || 100;
+
+      if (dist <= radius) {
+        // 电磁干扰区
+        if (hazard.type === 'emi' || hazard.type === 'em_interference') {
+          inEmiZone = true;
+        }
+        // 酸液池：装甲损伤
+        if (hazard.type === 'acid_pool') {
+          const dps = hazard.dps || 5;
+          const armorDmg = dps * delta;
+          if (Player.armor > 0) {
+            Player.armor = Math.max(0, Player.armor - armorDmg);
+          }
+        }
+        // 毒雾区：HP损伤
+        if (hazard.type === 'toxic_fog') {
+          const dps = hazard.dps || 5;
+          const hpDmg = dps * delta;
+          Player.hp = Math.max(1, Player.hp - hpDmg);
+        }
+      }
+    }
+
+    // EMI 区域：视野减半
+    if (inEmiZone) {
+      if (!Player._originalVisionRadius) {
+        Player._originalVisionRadius = Player.visionRadius;
+        Player.visionRadius = Math.floor(Player.visionRadius / 2);
+      }
+    } else {
+      if (Player._originalVisionRadius) {
+        Player.visionRadius = Player._originalVisionRadius;
+        Player._originalVisionRadius = null;
+      }
     }
   },
 
@@ -335,12 +389,12 @@ const Battle = {
       this.startPlayerMove(task.target);
     } else if (task.type === 'call') {
       this.playerTask = null;
-      BattleUI.addHistory('你', '#8cf', '通信');
+      BattleUI.addHistory('你', '#8cf', '通信', 'system');
       BattleUI.addCurrentAction('通信中...', '#8cf');
       Timeline.scheduleEvent({ type: 'npc_call', actor: 'player', npcId: task.npcId }, 5);
       Timeline.scheduleNext();
     } else if (task.type === 'wait') {
-      BattleUI.addHistory('你', '#888', '等待');
+      BattleUI.addHistory('你', '#888', '等待', 'system');
       this.playerTask = null;
       this.scheduleNextPlayerTurn();
     }
@@ -357,7 +411,7 @@ const Battle = {
     const clamped = this.clampToBattlefield(targetPos);
     Player.facing = Math.atan2(dy, dx);
 
-    BattleUI.addHistory('你', '#8f8', '移动');
+    BattleUI.addHistory('你', '#8f8', '移动', 'move');
     const moveAction = Timeline.createContinuousAction('player', 'move', Timeline.time, time, {
       startPos,
       endPos: clamped
@@ -426,7 +480,7 @@ const Battle = {
     Player.consumeAmmo(weapon, slot);
 
     this.enterCombat(`开火攻击 ${enemy.name}[${enemy.instanceId}]`);
-    BattleUI.addHistory('你', '#fa4', '攻击');
+    BattleUI.addHistory('你', '#fa4', '攻击', 'attack');
 
     const ts = BattleUI.formatGameTime(Timeline.time, 'hh:mm:ss');
     const hitRate = this.calculateHitRate(Player, enemy, weapon, dist);
@@ -453,7 +507,8 @@ const Battle = {
       }
       const result = this.dealDamage(enemy, baseDmg, damageType);
       dmg = result.total;
-      Msg.damage(`[${ts}] 💥 ${weapon.name} 命中 ${enemy.name}[${enemy.instanceId}]！` +
+      const hitDesc = this.getHitDescription(weapon);
+      Msg.damage(`[${ts}] 💥 ${weapon.name} ${hitDesc} → ${enemy.name}[${enemy.instanceId}]` +
         `装甲-${result.armor} 结构-${result.hp} (${dmg}总伤害)`);
       Player.stats.totalDmg += dmg;
 
@@ -461,11 +516,64 @@ const Battle = {
         this.onEnemyKilled(enemy);
       }
     } else {
-      Msg.miss(`[${ts}] ❌ ${weapon.name} 未命中 ${enemy.name}[${enemy.instanceId}] (命中率 ${(hitRate * 100).toFixed(0)}%)`);
+      const missDesc = this.getMissDescription(enemy);
+      Msg.miss(`[${ts}] ❌ ${weapon.name} ${missDesc} (${enemy.name}[${enemy.instanceId}] 命中率 ${(hitRate * 100).toFixed(0)}%)`);
     }
 
     BattleUI.update();
     return true;
+  },
+
+  getHitDescription(weapon) {
+    const damageType = weapon.damageType || 'kinetic';
+    const pools = {
+      kinetic: ['精确命中！', '弹丸穿透装甲！', '直接命中目标核心！', '动能弹头击穿防御！'],
+      thermal: ['激光烧穿装甲！', '热能射线命中！', '高温灼烧目标！', '等离子束贯穿！'],
+      ion: ['离子束击穿护盾！', '电磁脉冲命中！', '离子流瘫痪电子系统！', '高能粒子束命中！'],
+      explosive: ['导弹精准命中！', '爆炸冲击波席卷目标！', '高爆弹头直接命中！', '爆炸撕裂装甲！'],
+      shock: ['冲击波命中！', '震荡攻击击中目标！', '震波穿透装甲！'],
+      corrosion: ['酸液命中机体！', '腐蚀性物质附着目标！', '强酸侵蚀装甲！']
+    };
+    const pool = pools[damageType] || pools.kinetic;
+    return pool[Math.floor(Math.random() * pool.length)];
+  },
+
+  getMissDescription(enemy) {
+    const reasons = [
+      '弹道偏离目标',
+      '目标机动规避',
+      '射程边缘散布过大',
+      '目标信号干扰',
+      '弹道受环境因素偏移',
+      '目标突然变向'
+    ];
+    return reasons[Math.floor(Math.random() * reasons.length)];
+  },
+
+  getEnemyHitDescription(enemy) {
+    const category = enemy.category || 'bug';
+    const attackRange = enemy.attackRange || 0;
+    const isMelee = attackRange <= 150;
+    if (category === 'bug') {
+      const melee = ['利爪撕裂装甲！', '前肢猛烈撞击！', '獠牙刺穿防护层！', '巨颚咬合碾压！'];
+      const ranged = ['酸液命中机体！', '毒刺穿透装甲！', '腐蚀性黏液喷溅！', '尖锐骨刺飞射！'];
+      return isMelee ? melee[Math.floor(Math.random() * melee.length)] : ranged[Math.floor(Math.random() * ranged.length)];
+    } else {
+      const melee = ['机械臂重击！', '液压钳猛砸！', '切割锯撕裂装甲！'];
+      const ranged = ['能量束击中！', '等离子炮命中！', '高能激光贯穿！', '电磁脉冲命中！', '粒子束扫射！'];
+      return isMelee ? melee[Math.floor(Math.random() * melee.length)] : ranged[Math.floor(Math.random() * ranged.length)];
+    }
+  },
+
+  getEnemyMissDescription(enemy) {
+    const category = enemy.category || 'bug';
+    if (category === 'bug') {
+      const pool = ['攻击被装甲弹开', '攻击落空', '扑击被闪避', '攻击角度偏差'];
+      return pool[Math.floor(Math.random() * pool.length)];
+    } else {
+      const pool = ['攻击被装甲弹开', '攻击落空', '弹道被干扰', '瞄准系统误差'];
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
   },
 
   calculateHitRate(attacker, target, weapon, dist) {
@@ -502,7 +610,7 @@ const Battle = {
     return false;
   },
 
-  dealDamage(target, dmg, damageType = 'kinetic') {
+  dealDamage(target, dmg, damageType = 'kinetic', options = {}) {
     if (target.instanceId) {
       let armorDmg = 0;
       let hpDmg = 0;
@@ -552,6 +660,13 @@ const Battle = {
       target.hp = Math.max(0, target.hp - hpDmg);
       return { total: dmg, actual: actualDmg, armor: armorDmg, hp: hpDmg };
     } else {
+      if (options.armorPierce) {
+        const pierceAmount = Math.floor(dmg * options.armorPierce);
+        const normalAmount = dmg - pierceAmount;
+        const normalResult = Player.takeDamage(normalAmount, damageType);
+        Player.hp = Math.max(0, Player.hp - pierceAmount);
+        return { total: dmg, armor: normalResult.armor, hp: normalResult.hp + pierceAmount };
+      }
       return Player.takeDamage(dmg, damageType);
     }
   },
@@ -559,6 +674,19 @@ const Battle = {
   onEnemyKilled(enemy) {
     Msg.success(`🎯 击毁 ${enemy.name}[${enemy.instanceId}]！`);
     BattleUI.addHistory(enemy.name, '#fc0', '被击毁');
+
+    // Boss kill handling
+    if (enemy.isBoss) {
+      Msg.success('🏆 Boss击败！');
+      BattleUI.addHistory('系统', '#fc0', '🏆 Boss击败！');
+      if (enemy.creditReward) {
+        const credits = Utils.rand(enemy.creditReward.min, enemy.creditReward.max);
+        Player.credits += credits;
+        Msg.loot(`获得信用点：${credits}G`);
+        BattleUI.addHistory('你', '#f8f', `获得${credits}G`);
+      }
+    }
+
     Player.stats.monstersKilled++;
     Player.killCount[enemy.templateId] = (Player.killCount[enemy.templateId] || 0) + 1;
     Player.gainExp(enemy.exp);
@@ -570,6 +698,19 @@ const Battle = {
           const item = ItemDB[l.item];
           Msg.loot(`获得战利品：${item ? item.name : l.item} x${count}`);
           BattleUI.addHistory('你', '#f8f', `获得${item ? item.name : l.item}x${count}`);
+        }
+      }
+    }
+    // Update quest kill objectives
+    if (typeof QuestSystem !== 'undefined') {
+      for (const [questId, active] of Object.entries(QuestSystem.activeQuests)) {
+        if (active.completed) continue;
+        const quest = QuestDB[questId];
+        if (!quest) continue;
+        for (const obj of quest.objectives) {
+          if (obj.type === 'kill') {
+            QuestSystem.updateProgress(questId, obj.id, 1);
+          }
         }
       }
     }
@@ -585,7 +726,7 @@ const Battle = {
     const clamped = this.clampToBattlefield(targetPos);
     enemy.facing = Math.atan2(dy, dx);
 
-    BattleUI.addHistory(`${enemy.name}[${enemy.instanceId}]`, '#8f8', '移动');
+    BattleUI.addHistory(`${enemy.name}[${enemy.instanceId}]`, '#8f8', '移动', 'move');
     const moveAction = Timeline.createContinuousAction(enemy.instanceId, 'move', Timeline.time, time, {
       startPos,
       endPos: clamped
@@ -608,7 +749,7 @@ const Battle = {
     if (dist > enemy.attackRange) return;
 
     this.enterCombat(`${enemy.name}[${enemy.instanceId}] 发起攻击`);
-    BattleUI.addHistory(`${enemy.name}[${enemy.instanceId}]`, '#f66', '攻击');
+    BattleUI.addHistory(`${enemy.name}[${enemy.instanceId}]`, '#f66', '攻击', 'attack');
 
     const ts = BattleUI.formatGameTime(Timeline.time, 'hh:mm:ss');
     const hitRate = this.calculateEnemyHitRate(enemy, dist);
@@ -620,14 +761,16 @@ const Battle = {
     if (hit) {
       const baseDmg = Utils.rand(Math.floor(enemy.damage * 0.8), Math.floor(enemy.damage * 1.2));
       const result = Player.takeDamage(baseDmg, enemy.damageType);
-      Msg.damageEnemy(`[${ts}] 💀 ${enemy.name}[${enemy.instanceId}] 攻击命中！` +
+      const hitDesc = this.getEnemyHitDescription(enemy);
+      Msg.damageEnemy(`[${ts}] 💀 ${enemy.name}[${enemy.instanceId}] ${hitDesc}` +
         `装甲-${result.armor} 结构-${result.hp} (${result.total}总伤害)`);
 
       if (Player.isDead()) {
         this.onPlayerDeath();
       }
     } else {
-      Msg.missEnemy(`[${ts}] ➖ ${enemy.name}[${enemy.instanceId}] 攻击未命中 (命中率 ${(hitRate * 100).toFixed(0)}%)`);
+      const missDesc = this.getEnemyMissDescription(enemy);
+      Msg.missEnemy(`[${ts}] ➖ ${enemy.name}[${enemy.instanceId}] ${missDesc} (命中率 ${(hitRate * 100).toFixed(0)}%)`);
     }
 
     Timeline.scheduleEvent({ type: 'attack_complete', actor: enemy.instanceId }, enemy.attackCooldown);
@@ -679,6 +822,7 @@ const Battle = {
   onAreaCleared() {
     Msg.divider();
     Msg.success('🏆 区域敌对信号清空！');
+    BattleUI.addHistory('系统', '#8af', '区域清空', 'system');
     this.exitCombat();
     Msg.info('场景时间轴继续运行，你可以通信、移动或前往下一区域。');
   },
@@ -717,6 +861,16 @@ const Battle = {
     const dx = p1[0] - p2[0];
     const dy = p1[1] - p2[1];
     return Math.sqrt(dx * dx + dy * dy);
+  },
+
+  getHazardName(type) {
+    const names = {
+      emi: '电磁干扰区',
+      em_interference: '电磁干扰区',
+      acid_pool: '酸液池',
+      toxic_fog: '毒雾区'
+    };
+    return names[type] || type;
   },
 
   clampToBattlefield(pos) {

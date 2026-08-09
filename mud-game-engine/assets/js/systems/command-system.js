@@ -18,7 +18,9 @@ const CommandSystem = {
     tm:'timeline', tl_b:'timeline',
     re:'retreat', rt:'retreat',
     rl:'reload',
-    hg:'hangar', wh:'warehouse'
+    hg:'hangar', wh:'warehouse',
+    ind:'industry', ins:'install',
+    quest:'任务'
   },
 
   parse(input) {

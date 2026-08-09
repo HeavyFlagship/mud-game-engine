@@ -10,6 +10,11 @@ const Game = {
     Player.visitedRooms.add(Player.room);
     Timeline.init();
     BattleUI.init();
+    if (typeof TechTree !== 'undefined') TechTree.init();
+    if (typeof FacilitySystem !== 'undefined') FacilitySystem.init();
+    if (typeof SupplyDemand !== 'undefined') SupplyDemand.init();
+    if (typeof QuotaSystem !== 'undefined') QuotaSystem.init();
+    if (typeof QuestSystem !== 'undefined') QuestSystem.init();
  
     const inputEl = document.getElementById('input');
     inputEl.addEventListener('keydown', (e) => {
@@ -72,7 +77,13 @@ const Game = {
     Msg.divider();
     Msg.add(`<span class="room-name">【${room.name}】</span>`, 'info');
     Msg.info(room.desc);
- 
+
+    // 丰富描述
+    const enriched = this.getRoomDescription(room);
+    if (enriched) {
+      Msg.info(enriched);
+    }
+
     const exits = Object.keys(room.exits || {});
     if (exits.length > 0) {
       const exitStr = exits.map(e => `<span class="direction">${MapSystem.getDirectionName(e)}</span>`).join('、');
@@ -119,6 +130,98 @@ const Game = {
     if (room.id === 'outpost_repair') {
       Msg.info('🔧 维修站提供改装服务。输入 <span class="help-cmd">upgrade</span> 升级核心计算机或核心动力。');
     }
+
+    // 显示可采集资源点
+    const resourcePoints = MapSystem.getResourcePoints(room.id);
+    if (resourcePoints.length > 0) {
+      const nameList = resourcePoints.map(r => r.name).join('、');
+      Msg.info(`🔍 可采集资源: ${nameList}`);
+      Msg.system('提示: 输入 <span class="help-cmd">gather</span> 采集所有资源点。');
+    }
+  },
+
+  getRoomDescription(room) {
+    if (!room) return '';
+    const parts = [];
+    const id = room.id.toLowerCase();
+
+    // 地形描述
+    if (room.battlefield && room.battlefield.terrain) {
+      const terrainDescs = {
+        flat: '地表平坦坚实，适合快速行进。',
+        rocky: '地表由碎石覆盖，行走困难。',
+        sandy: '松软的沙地使每一步都陷入其中。',
+        crystal: '地面覆盖着闪烁的结晶矿脉，踩上去发出清脆的声响。',
+        cave: '洞穴地面凹凸不平，洞壁上镶嵌着发光的矿脉。',
+        metal_floor: '金属地板在脚下发出沉闷的回响。'
+      };
+      const desc = terrainDescs[room.battlefield.terrain];
+      if (desc) parts.push(desc);
+    }
+
+    // 区域类型描述
+    if (id.startsWith('wasteland_') || id.startsWith('arid_')) {
+      parts.push('赤褐色的荒原向远方延伸，空气中弥漫着干燥的硫化物气味。');
+    } else if (id.startsWith('wild_')) {
+      parts.push('荒野地带，风化的岩屑和稀疏的结晶矿脉散布四周。');
+    } else if (id.startsWith('cave_') || id.startsWith('mine_')) {
+      parts.push('矿洞的黑暗被辉锗矿的幽蓝光芒照亮，虫群的活动痕迹随处可见。');
+    } else if (id.startsWith('mech_')) {
+      parts.push('远古机械的遗迹中，锈蚀的金属结构在昏暗的光线中若隐若现。');
+    } else if (id.startsWith('front_')) {
+      parts.push('前沿区域危机四伏，空气中弥漫着紧张的气息。');
+    } else if (id.startsWith('spec_')) {
+      parts.push('奇异的自然地貌让人不禁驻足，地表呈现出不自然的色彩和纹理。');
+    } else if (id.startsWith('trans_')) {
+      parts.push('地形逐渐发生变化，过渡地带连接着两个截然不同的区域。');
+    }
+
+    // 危险信息
+    if (room.battlefield && room.battlefield.hazards && room.battlefield.hazards.length > 0) {
+      const hazardDescs = room.battlefield.hazards.map(h => {
+        if (h.type === 'acid_pool' || h.type === 'emi' || h.type === 'em_interference' || h.type === 'toxic_fog') {
+          const names = { acid_pool: '酸性雾气弥漫在空气中', emi: '空气中充满了电磁干扰的嗡嗡声', em_interference: '空气中充满了电磁干扰的嗡嗡声', toxic_fog: '有毒的雾气在地面低洼处聚集' };
+          return names[h.type] || '';
+        }
+        return '';
+      }).filter(Boolean);
+      if (hazardDescs.length > 0) {
+        parts.push(hazardDescs.join('；') + '。');
+      }
+    }
+
+    // 资源信息
+    const resourcePoints = MapSystem.getResourcePoints(room.id);
+    if (resourcePoints.length > 0) {
+      const hasIron = resourcePoints.some(r => r.itemId === 'iron_ore');
+      const hasCopper = resourcePoints.some(r => r.itemId === 'copper_ore');
+      const hasGermanite = resourcePoints.some(r => r.itemId === 'germanite_shard');
+      const hasMechParts = resourcePoints.some(r => r.itemId === 'mech_parts');
+      const hasAlloy = resourcePoints.some(r => r.itemId === 'alloy_fragment');
+
+      if (hasGermanite) {
+        parts.push('岩壁上闪烁着辉锗矿的幽蓝光泽，仿佛星辰落入凡间。');
+      } else if (hasIron || hasCopper) {
+        parts.push('岩壁上闪烁着矿石的光泽，隐约可见矿脉的轮廓。');
+      } else if (hasMechParts || hasAlloy) {
+        parts.push('残骸中散落着可用的机械零件，金属碎片在光线下反射着微光。');
+      }
+    }
+
+    // 敌人信息
+    if (room.battlefield && room.battlefield.enemies && room.battlefield.enemies.length > 0) {
+      const bf = MapSystem.getBattlefield(room.id);
+      if (bf) {
+        const alive = bf.enemies.filter(e => e.hp > 0).length;
+        if (alive > 0) {
+          parts.push(`雷达探测到${alive}个敌对信号，保持警惕。`);
+        }
+      } else {
+        parts.push(`雷达探测到${room.battlefield.enemies.length}个敌对信号。`);
+      }
+    }
+
+    return parts.join(' ');
   },
  
   move(direction) {
@@ -154,6 +257,19 @@ const Game = {
       }
       Player.position = entryPos;
       BattleUI.remove();
+    }
+    // Update quest explore objectives
+    if (typeof QuestSystem !== 'undefined') {
+      for (const [questId, active] of Object.entries(QuestSystem.activeQuests)) {
+        if (active.completed) continue;
+        const quest = QuestDB[questId];
+        if (!quest) continue;
+        for (const obj of quest.objectives) {
+          if (obj.type === 'explore') {
+            QuestSystem.updateProgress(questId, obj.id, 1);
+          }
+        }
+      }
     }
     this.look();
     this.updateUI();
@@ -518,11 +634,31 @@ const Game = {
 
   pickItem(itemName) {
     const room = MapSystem.getRoom(Player.room);
-    if (!room || !room.items || room.items.length === 0) {
+    
+    // 检查是否在指定资源点采集
+    const resourcePoints = MapSystem.getResourcePoints(room.id);
+    const hasResources = resourcePoints.length > 0;
+    
+    if ((!room || !room.items || room.items.length === 0) && !hasResources) {
       Msg.warning('这里没有可拾取的物品。');
       return;
     }
+    
     if (itemName) {
+      // 先尝试匹配资源点
+      const resourceMatch = resourcePoints.find(r => r.name === itemName || r.itemId === itemName);
+      if (resourceMatch) {
+        const count = resourceMatch.rarity === 'rare' ? Utils.rand(1, 2) : Utils.rand(1, 3);
+        Player.addItem(resourceMatch.itemId, count);
+        Msg.success(`⛏ 采集了 <span class="item-tag material">${resourceMatch.name}</span> x${count}`);
+        return;
+      }
+      
+      if (!room || !room.items || room.items.length === 0) {
+        Msg.warning('没有找到该物品。');
+        return;
+      }
+      
       const num = parseInt(itemName, 10);
       let idx = -1;
       if (!isNaN(num) && num >= 1 && num <= room.items.length) {
@@ -541,8 +677,8 @@ const Game = {
       MapSystem.recordChange(room.id, 'remove', itemId);
       Msg.success(`📦 拾取了 <span class="item-tag ${item.type}">${item.name}</span>`);
     } else {
-      const items = [...room.items];
-      room.items = [];
+      const items = room.items ? [...room.items] : [];
+      if (room.items) room.items = [];
       items.forEach(id => {
         const item = ItemDB[id];
         if (item) {
@@ -973,6 +1109,10 @@ const Game = {
           ['import [物品]', '取出仓库'],
           ['wequip [物品]', '从仓库直接装备'],
           ['upgrade', '改装核心计算机/核心动力（维修站）'],
+          ['工业 (industry)', '查看工业区与科技树'],
+          ['安装 <设施ID> (install)', '安装工业设施'],
+          ['使用设施 <设施ID>', '收集设施产出'],
+          ['调度 <设施ID> [start|stop]', '调度设施运行状态'],
         ]
       },
       npc: {
@@ -1037,6 +1177,11 @@ const Game = {
       mapChanges: MapSystem.changes,
       savedAt: new Date().toISOString()
     };
+    if (typeof TechTree !== 'undefined') data.techTree = TechTree.getState();
+    if (typeof FacilitySystem !== 'undefined') data.facilities = FacilitySystem.getState();
+    if (typeof SupplyDemand !== 'undefined') data.supplyDemand = SupplyDemand.getState();
+    if (typeof QuotaSystem !== 'undefined') data.quota = QuotaSystem.getState();
+    if (typeof QuestSystem !== 'undefined') data.quests = QuestSystem.getState();
     try {
       localStorage.setItem('mud_save', JSON.stringify(data));
       Msg.success('💾 游戏已保存！');
@@ -1075,6 +1220,11 @@ const Game = {
         stats: data.stats || { totalDmg:0, totalHeal:0, monstersKilled:0, deaths:0 }
       });
       Battle.end();
+      if (data.techTree && typeof TechTree !== 'undefined') TechTree.loadState(data.techTree);
+      if (data.facilities && typeof FacilitySystem !== 'undefined') FacilitySystem.loadState(data.facilities);
+      if (data.supplyDemand && typeof SupplyDemand !== 'undefined') SupplyDemand.loadState(data.supplyDemand);
+      if (data.quota && typeof QuotaSystem !== 'undefined') QuotaSystem.loadState(data.quota);
+      if (data.quests && typeof QuestSystem !== 'undefined') QuestSystem.loadState(data.quests);
       Msg.clear();
       Msg.success('📂 存档已读取！');
       if (data.savedAt) {

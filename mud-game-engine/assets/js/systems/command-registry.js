@@ -32,6 +32,8 @@ const CommandRegistry = {
     west: { cmd: 'west', handler: 'cmdMove', desc: '向西移动' },
     up: { cmd: 'up', handler: 'cmdMove', desc: '向上移动' },
     down: { cmd: 'down', handler: 'cmdMove', desc: '向下移动' },
+    gather: { cmd: 'gather', handler: 'cmdGather', desc: '采集资源点' },
+    采集: { cmd: '采集', handler: 'cmdGather', desc: '采集资源点' },
   },
   battle: {
     move: { cmd: 'move', handler: 'cmdBattleMove', desc: '移动', args: '<方向/坐标/目标>' },
@@ -52,12 +54,15 @@ const CommandRegistry = {
     upgrade: { cmd: 'upgrade', handler: 'cmdUpgrade', desc: '改装核心模块', args: '[类型] [编号]' },
     // Placeholder handlers for future base commands
     工业: { cmd: '工业', handler: 'cmdIndustry', desc: '查看工业区' },
+    industry: { cmd: 'industry', handler: 'cmdIndustry', desc: '查看工业区' },
     安装: { cmd: '安装', handler: 'cmdInstall', desc: '安装工业设施', args: '<设施ID>' },
+    install: { cmd: 'install', handler: 'cmdInstall', desc: '安装工业设施', args: '<设施ID>' },
     使用设施: { cmd: '使用设施', handler: 'cmdUseFacility', desc: '使用设施', args: '<设施ID>' },
     调度: { cmd: '调度', handler: 'cmdSchedule', desc: '调度设施', args: '<设施ID> [模式]' },
+    schedule: { cmd: 'schedule', handler: 'cmdSchedule', desc: '调度设施', args: '<设施ID> [模式]' },
     仓库: { cmd: '仓库', handler: 'cmdWarehouseBase', desc: '仓库管理' },
     机库: { cmd: '机库', handler: 'cmdHangarBase', desc: '机库/载具管理' },
-    任务: { cmd: '任务', handler: 'cmdQuest', desc: '任务接取/交付' },
+    任务: { cmd: '任务', handler: 'cmdQuest', desc: '任务接取/交付', aliases: ['quest'] },
     备份: { cmd: '备份', handler: 'cmdBackup', desc: '意识备份/恢复' },
   },
   
