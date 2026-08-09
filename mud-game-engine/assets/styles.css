@@ -227,6 +227,23 @@ body {
   color: var(--accent4);
 }
 
+/* 状态效果标签 */
+.status-tag {
+  display: inline-block;
+  padding: 1px 5px;
+  margin: 1px 2px;
+  border-radius: 3px;
+  font-size: var(--font-hint);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+.status-effects-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 2px 0;
+}
+
 /* 单位上下文菜单 */
 .unit-context-menu {
   display: none;
@@ -507,6 +524,38 @@ body {
 .map-cell.current.vertical {
   background: linear-gradient(135deg, var(--accent), var(--map-current-vertical-end));
   box-shadow: 0 0 10px var(--map-current-vertical-glow);
+}
+/* Minimap legend */
+.minimap-legend {
+  color: var(--muted);
+  font-size: 0.55rem;
+  text-align: center;
+  margin-top: 0.4rem;
+  line-height: 1.4;
+  max-width: 240px;
+  margin-left: auto;
+  margin-right: auto;
+}
+/* Danger level borders */
+.map-cell.danger-safe {
+  /* 安全 - no extra border */
+}
+.map-cell.danger-moderate {
+  outline: 1px solid rgba(255, 200, 0, 0.5);
+  outline-offset: -1px;
+}
+.map-cell.danger-danger {
+  outline: 2px solid rgba(255, 60, 30, 0.7);
+  outline-offset: -2px;
+}
+.map-cell.danger-boss {
+  outline: 2px solid rgba(255, 30, 30, 0.85);
+  outline-offset: -2px;
+}
+/* Boss room text */
+.map-cell:not(.current).danger-boss {
+  color: #f44;
+  font-weight: 900;
 }
 
 .direction-pad {
@@ -880,6 +929,38 @@ body {
 }
 .timeline-item.history {
   opacity: 0.75;
+}
+/* Log dot indicator */
+.log-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+/* Filter buttons */
+.filter-btn {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #888;
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  margin-left: 2px;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  line-height: 1.4;
+}
+.filter-btn:hover {
+  background: rgba(255,255,255,0.12);
+  color: #ccc;
+}
+.filter-btn.active {
+  background: rgba(0, 255, 136, 0.12);
+  border-color: rgba(0, 255, 136, 0.35);
+  color: var(--accent);
 }
 @keyframes actionPulse {
   0% { opacity: 0; transform: translateX(-4px); }

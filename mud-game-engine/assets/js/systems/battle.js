@@ -696,17 +696,17 @@ const Battle = {
 
   onEnemyKilled(enemy) {
     Msg.success(`🎯 击毁 ${enemy.name}[${enemy.instanceId}]！`);
-    BattleUI.addHistory(enemy.name, '#fc0', '被击毁');
+    BattleUI.addHistory(enemy.name, '#fc0', '被击毁', 'loot');
 
     // Boss kill handling
     if (enemy.isBoss) {
       Msg.success('🏆 Boss击败！');
-      BattleUI.addHistory('系统', '#fc0', '🏆 Boss击败！');
+      BattleUI.addHistory('系统', '#fc0', '🏆 Boss击败！', 'system');
       if (enemy.creditReward) {
         const credits = Utils.rand(enemy.creditReward.min, enemy.creditReward.max);
         Player.credits += credits;
         Msg.loot(`获得信用点：${credits}G`);
-        BattleUI.addHistory('你', '#f8f', `获得${credits}G`);
+        BattleUI.addHistory('你', '#f8f', `获得${credits}G`, 'loot');
       }
     }
 
@@ -720,7 +720,7 @@ const Battle = {
           Player.addItem(l.item, count);
           const item = ItemDB[l.item];
           Msg.loot(`获得战利品：${item ? item.name : l.item} x${count}`);
-          BattleUI.addHistory('你', '#f8f', `获得${item ? item.name : l.item}x${count}`);
+          BattleUI.addHistory('你', '#f8f', `获得${item ? item.name : l.item}x${count}`, 'loot');
         }
       }
     }

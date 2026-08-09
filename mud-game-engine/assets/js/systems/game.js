@@ -735,6 +735,31 @@ const Game = {
     }
   },
  
+  compareEquipment(shopItem, equippedItem) {
+    const stats = [
+      { key: 'damage',       label: '伤害',   unit: '' },
+      { key: 'armorValue',   label: '装甲',   unit: '' },
+      { key: 'range',        label: '射程',   unit: 'm' },
+      { key: 'cooldown',     label: '冷却',   unit: 's' },
+      { key: 'powerReq',     label: '功率',   unit: 'kW' },
+      { key: 'computeReq',   label: '算力',   unit: '' }
+    ];
+    const results = [];
+    for (const stat of stats) {
+      const shopVal = shopItem[stat.key] || 0;
+      const equipVal = equippedItem[stat.key] || 0;
+      if (shopVal === 0 && equipVal === 0) continue;
+      const diff = shopVal - equipVal;
+      if (diff === 0) continue;
+      const better = (stat.key === 'cooldown' || stat.key === 'powerReq' || stat.key === 'computeReq')
+        ? (diff < 0) : (diff > 0);
+      const arrow = better ? '▲' : '▼';
+      const sign = diff > 0 ? '+' : '';
+      results.push({ stat: stat.label, key: stat.key, diff, better, arrow, sign, unit: stat.unit });
+    }
+    return results;
+  },
+
   shop(action) {
     const room = MapSystem.getRoom(Player.room);
     if (!room || !room.isShop) {
@@ -798,6 +823,29 @@ const Game = {
             const extra = stats.length ? ` [${stats.join(',')}]` : '';
             const catTag = item.category ? `[${item.category}] ` : '';
             Msg.info(`  ${idx+1}. ${catTag}<span class="item-tag ${item.type}">${item.name}</span>${extra} - ${item.price}G`);
+
+            // 装备对比：仅对武器/装甲类装备显示
+            if (item.slot && (item.category === 'weapon' || item.category === 'armor' || item.type === 'weapon' || item.type === 'armor')) {
+              let equippedItem = null;
+              let equippedSlotName = '';
+              for (const [slotKey, slot] of Object.entries(Player.equipment)) {
+                const eq = slot.equip;
+                if (eq && eq.slot === item.slot) {
+                  equippedItem = eq;
+                  equippedSlotName = Player.getSlotDesc(slotKey);
+                  break;
+                }
+              }
+              if (equippedItem) {
+                const comp = this.compareEquipment(item, equippedItem);
+                if (comp.length > 0) {
+                  const compStr = comp.map(c => `${c.stat} ${item[c.key] || 0}${c.unit} ${c.arrow}${c.sign}${c.diff}${c.unit}`).join(' | ');
+                  Msg.info(`    <span style="color:#888;font-size:0.85em;">对比 ${equippedSlotName}: ${compStr}</span>`);
+                } else {
+                  Msg.info(`    <span style="color:#888;font-size:0.85em;">对比 ${equippedSlotName}: ${equippedItem.name} (属性相同)</span>`);
+                }
+              }
+            }
           }
         });
       }

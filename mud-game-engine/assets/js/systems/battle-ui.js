@@ -313,6 +313,28 @@ const BattleUI = {
     CommandSystem.execute(cmd);
   },
 
+  getStatusEffectsHTML(statusEffects) {
+    if (!statusEffects || statusEffects.length === 0) return '';
+    const iconMap = {
+      burn: { icon: '🔥', name: '灼烧', color: '#f80' },
+      ion_disrupt: { icon: '🔌', name: 'EMP', color: '#8af' },
+      slow: { icon: '🐌', name: '减速', color: '#88f' },
+      corrosion: { icon: '🧪', name: '腐蚀', color: '#0f0' },
+      poison: { icon: '☠', name: '中毒', color: '#8f0' },
+      shock: { icon: '⚡', name: '电击', color: '#ff0' },
+      stun: { icon: '💫', name: '眩晕', color: '#f0f' }
+    };
+    let html = '<span class="status-effects-tags">';
+    for (const eff of statusEffects) {
+      const info = iconMap[eff.type] || { icon: '❓', name: eff.type, color: '#aaa' };
+      const stacks = eff.stacks ? `x${eff.stacks}` : '';
+      const dur = (eff.duration || 0).toFixed(0);
+      html += `<span class="status-tag" style="background:${info.color}22;color:${info.color};border:1px solid ${info.color}44;" title="${info.name}${stacks}: 剩余${dur}秒">${info.icon}${info.name}${stacks} ${dur}s</span>`;
+    }
+    html += '</span>';
+    return html;
+  },
+
   render() {
     this.historyEvents = [];
     this.currentActions = [];
@@ -331,14 +353,21 @@ const BattleUI = {
     return `${pad(h)}:${pad(m)}:${pad(s)}`;
   },
 
-  addHistory(text, color = '#aaa', actionType = null) {
+  activeFilters: { attack: true, move: true, system: true, loot: true },
+
+  addHistory(text, color = '#aaa', actionType = null, category = 'system') {
     const time = Timeline.time || 0;
     const formattedTime = this.formatGameTime(time, 'mm:ss');
     const displayText = actionType ? `${text}行动：${actionType}` : `${text}`;
-    this.historyEvents.unshift({ time: formattedTime, text: displayText, color });
+    this.historyEvents.unshift({ time: formattedTime, text: displayText, color, category });
     if (this.historyEvents.length > 30) {
       this.historyEvents.pop();
     }
+  },
+
+  toggleFilter(category) {
+    this.activeFilters[category] = !this.activeFilters[category];
+    this.updateTimeline();
   },
 
   clearCurrentActions() {
@@ -370,6 +399,7 @@ const BattleUI = {
       if (Game.updatePlayerInfo) Game.updatePlayerInfo();
       if (Game.updateEquipInfo) Game.updateEquipInfo();
     }
+    this.updatePlayerStatusEffects();
     if (!Battle.active || !Battle.battlefield) {
       this.clearBattlePanels();
       return;
@@ -385,6 +415,38 @@ const BattleUI = {
     const el = document.getElementById('battle-time');
     if (!el) return;
     el.textContent = this.formatGameTime(Timeline.time || 0, 'hh:mm:ss');
+  },
+
+  updatePlayerStatusEffects() {
+    const el = document.getElementById('player-status-effects');
+    if (!el) return;
+    const effects = Player.statusEffects || [];
+    const section = document.getElementById('player-status-section');
+    if (effects.length === 0) {
+      if (section) section.style.display = 'none';
+      el.innerHTML = '';
+      return;
+    }
+    if (section) section.style.display = '';
+
+    const iconMap = {
+      burn: { icon: '🔥', name: '灼烧', color: '#f80', desc: '持续受到热能伤害，热能易伤' },
+      ion_disrupt: { icon: '🔌', name: 'EMP干扰', color: '#8af', desc: '能量系统受干扰' },
+      slow: { icon: '🐌', name: '减速', color: '#88f', desc: '移动速度降低' },
+      corrosion: { icon: '🧪', name: '腐蚀', color: '#0f0', desc: '装甲持续受损' },
+      poison: { icon: '☠', name: '中毒', color: '#8f0', desc: '持续受到结构伤害' },
+      shock: { icon: '⚡', name: '电击', color: '#ff0', desc: '收到震荡伤害' },
+      stun: { icon: '💫', name: '眩晕', color: '#f0f', desc: '无法行动' }
+    };
+    let html = '<div class="status-effects-tags">';
+    for (const eff of effects) {
+      const info = iconMap[eff.type] || { icon: '❓', name: eff.type, color: '#aaa', desc: '' };
+      const stacks = eff.stacks ? `x${eff.stacks}` : '';
+      const dur = (eff.duration || 0).toFixed(0);
+      html += `<div class="status-tag" style="background:${info.color}22;color:${info.color};border:1px solid ${info.color}44;margin:2px 0;" title="${info.desc}">${info.icon} ${info.name}${stacks} · ${dur}秒</div>`;
+    }
+    html += '</div>';
+    el.innerHTML = html;
   },
 
   clearBattlePanels() {
@@ -435,6 +497,7 @@ const BattleUI = {
           <div style="display:inline-block;width:90px;height:7px;background:#333;border-radius:2px;vertical-align:middle;margin-left:4px;">
           <div style="width:${arPct}%;height:7px;background:#88f;border-radius:2px;"></div></div>
         </span>
+        ${this.getStatusEffectsHTML(enemy.statusEffects)}
         <div class="unit-quick-actions">
           <button class="quick-action-btn fire${fireDisabled}" onclick="BattleUI.execCmd('fire ${id}')"${fireDisabled ? ' disabled' : ''} title="开火">开火</button>
           <button class="quick-action-btn" onclick="BattleUI.execCmd('move ${id}')"${dead ? ' disabled' : ''} title="靠近">靠近</button>
@@ -543,12 +606,22 @@ const BattleUI = {
     }
 
     html += '<div class="timeline-section timeline-history">';
-    html += '<div class="timeline-divider">— 历史记录 —</div>';
-    for (const h of this.historyEvents.slice(0, 8)) {
-      html += `<div class="timeline-item history" style="color:${h.color};opacity:0.7;">${h.time} ${h.text}</div>`;
+    html += '<div class="timeline-divider">— 历史记录 —';
+    const catNames = { attack: '攻击', move: '移动', system: '系统', loot: '战利品' };
+    for (const [cat, catLabel] of Object.entries(catNames)) {
+      const active = this.activeFilters[cat];
+      html += ` <button class="filter-btn ${active ? 'active' : ''}" onclick="BattleUI.toggleFilter('${cat}')" title="${active ? '隐藏' : '显示'}${catLabel}">${catLabel}</button>`;
     }
-    if (this.historyEvents.length === 0) {
+    html += '</div>';
+    const filteredHistory = this.historyEvents.filter(h => this.activeFilters[h.category]);
+    for (const h of filteredHistory.slice(0, 8)) {
+      const dotColor = { attack: '#f84', move: '#4f4', system: '#8af', loot: '#f8f' }[h.category] || h.color;
+      html += `<div class="timeline-item history" style="color:${h.color};opacity:0.7;"><span class="log-dot" style="background:${dotColor};"></span>${h.time} ${h.text}</div>`;
+    }
+    if (filteredHistory.length === 0 && this.historyEvents.length === 0) {
       html += '<div class="timeline-item history" style="color:#555;opacity:0.5;">（无）</div>';
+    } else if (filteredHistory.length === 0) {
+      html += '<div class="timeline-item history" style="color:#555;opacity:0.5;">（已过滤）</div>';
     }
     html += '</div>';
 
