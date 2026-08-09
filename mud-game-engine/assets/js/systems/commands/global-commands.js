@@ -79,4 +79,23 @@ const GlobalCommands = {
       Game.move(args);
     }
   },
+  cmdGather() {
+    const room = MapSystem.getRoom(Player.room);
+    const resourcePoints = MapSystem.getResourcePoints(room.id);
+    if (resourcePoints.length === 0) {
+      Msg.warning('这里没有可采集的资源。');
+      return;
+    }
+    let totalCollected = 0;
+    for (const rp of resourcePoints) {
+      const count = rp.rarity === 'rare' ? Utils.rand(1, 2) : Utils.rand(1, 3);
+      Player.addItem(rp.itemId, count);
+      Msg.success(`⛏ 采集了 <span class="item-tag material">${rp.name}</span> x${count}`);
+      totalCollected++;
+    }
+    MapSystem.markHarvested(room.id);
+    if (totalCollected > 0) {
+      Msg.info('资源点已枯竭，该区域无法再采集。');
+    }
+  },
 };

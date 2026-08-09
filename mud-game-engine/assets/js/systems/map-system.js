@@ -225,6 +225,46 @@ const MapSystem = {
       metal_floor: '金属地板'
     };
     return names[terrainType] || terrainType;
+  },
+
+  getResourcePoints(roomId) {
+    const room = this.getRoom(roomId);
+    if (!room) return [];
+
+    const change = this.changes[roomId];
+    if (change && change.harvested) return [];
+
+    const id = roomId.toLowerCase();
+    const resources = [];
+
+    // 矿脉房间（矿洞和荒原区域）
+    if (id.startsWith('cave_') || id.startsWith('mine_') || id.startsWith('front_') || id.startsWith('spec_')) {
+      const hasCaveZone = (room.battlefield && room.battlefield.terrain === 'cave') || (room.z || 0) < 0;
+      if (hasCaveZone || id.startsWith('cave_') || id.startsWith('mine_')) {
+        resources.push({ itemId: 'iron_ore', name: '铁矿石', rarity: 'common' });
+        resources.push({ itemId: 'copper_ore', name: '铜矿石', rarity: 'common' });
+        resources.push({ itemId: 'germanite_shard', name: '辉锗矿碎片', rarity: 'rare' });
+      } else if (id.startsWith('front_') || id.startsWith('spec_')) {
+        resources.push({ itemId: 'iron_ore', name: '铁矿石', rarity: 'common' });
+        resources.push({ itemId: 'copper_ore', name: '铜矿石', rarity: 'common' });
+        if (Math.random() < 0.5) {
+          resources.push({ itemId: 'germanite_shard', name: '辉锗矿碎片', rarity: 'rare' });
+        }
+      }
+    }
+
+    // 机械遗迹房间（残骸）
+    if (id.startsWith('mech_')) {
+      resources.push({ itemId: 'mech_parts', name: '机械零件', rarity: 'common' });
+      resources.push({ itemId: 'alloy_fragment', name: '合金碎片', rarity: 'common' });
+    }
+
+    return resources;
+  },
+
+  markHarvested(roomId) {
+    if (!this.changes[roomId]) this.changes[roomId] = { removedItems: [], addedItems: [] };
+    this.changes[roomId].harvested = true;
   }
 };
 

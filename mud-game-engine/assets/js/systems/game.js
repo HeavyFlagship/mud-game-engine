@@ -1068,6 +1068,8 @@ const Game = {
           ['bag (inv/i)', '查看背包和装备'],
           ['status (sta)', '查看机体状态'],
           ['map', '查看区域地图'],
+          ['gather (采集)', '采集当前区域的资源点'],
+          ['pick [物品名]', '拾取物品/资源'],
           ['score/stats', '查看任务统计'],
           ['clear', '清空屏幕'],
         ]
@@ -1368,11 +1370,12 @@ const Game = {
     const el = document.getElementById('minimap');
     if (!el) return;
     const levelEl = document.getElementById('map-level-info');
+    const legendEl = document.getElementById('minimap-legend');
     const currentRoom = MapSystem.getRoom(Player.room);
     if (!currentRoom) return;
     const currentZ = currentRoom.z || 0;
     if (levelEl) levelEl.textContent = `当前高度：${MapSystem.getLevelName(currentZ)}`;
- 
+
     const roomsOnLevel = Object.values(MapSystem.rooms).filter(room => (room.z || 0) === currentZ);
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const room of roomsOnLevel) {
@@ -1381,7 +1384,7 @@ const Game = {
         minY = Math.min(minY, room.y); maxY = Math.max(maxY, room.y);
       }
     }
- 
+
     const offsetX = currentRoom.x - 5;
     const offsetY = currentRoom.y - 5;
     const dirInfo = {
@@ -1400,7 +1403,28 @@ const Game = {
       }
       return borderStyles.join(';');
     };
- 
+
+    // 计算房间危险等级
+    const getDangerLevel = (room) => {
+      if (room.isSafeZone) return 'safe';
+      if (room.isBossRoom) return 'boss';
+      if (room.battlefield && room.battlefield.enemies) {
+        const enemyCount = room.battlefield.enemies.length;
+        const hasBoss = room.battlefield.enemies.some(e => {
+          const enemyDef = EnemyDB[e.enemyId];
+          return enemyDef && enemyDef.isBoss;
+        });
+        if (hasBoss) return 'boss';
+        if (enemyCount >= 3) return 'danger';
+        if (enemyCount >= 1) return 'moderate';
+      }
+      return 'safe';
+    };
+
+    let hasBossRoom = false;
+    let hasDangerRooms = false;
+    let hasSafeRooms = false;
+
     let html = '';
     for (let dy = 0; dy < 10; dy++) {
       for (let dx = 0; dx < 10; dx++) {
@@ -1413,12 +1437,22 @@ const Game = {
           const verticalClass = (room.exits.up || room.exits.down) ? ' vertical' : '';
           const hasExit = Object.keys(room.exits || {}).length > 0;
           const exitClass = hasExit ? ' has-exit' : '';
+          const dangerLevel = getDangerLevel(room);
+          const dangerClass = ` danger-${dangerLevel}`;
+          if (dangerLevel === 'boss') hasBossRoom = true;
+          if (dangerLevel === 'danger') hasDangerRooms = true;
+          if (dangerLevel === 'safe' || dangerLevel === 'moderate') hasSafeRooms = true;
+          const visited = Player.visitedRooms.has(room.id);
+          const tooltip = `${room.name}｜${MapSystem.getLevelName(room.z || 0)}｜${visited ? '已探索' : '未探索'}`;
+
           if (room.id === Player.room) {
-            html += `<div class="map-cell current${verticalClass}" style="${style}" title="${room.name}｜${MapSystem.getLevelName(room.z || 0)}">@</div>`;
-          } else if (Player.visitedRooms.has(room.id)) {
-            html += `<div class="map-cell visited${verticalClass}" style="${style}" title="${room.name}｜${MapSystem.getLevelName(room.z || 0)}">${label}</div>`;
+            const bossLabel = room.isBossRoom ? '💀' : '';
+            html += `<div class="map-cell current${verticalClass}${dangerClass}" style="${style}" title="${tooltip}">${bossLabel || '@'}</div>`;
+          } else if (visited) {
+            const bossLabel = room.isBossRoom ? '💀' : '';
+            html += `<div class="map-cell visited${verticalClass}${dangerClass}" style="${style}" title="${tooltip}">${bossLabel || label}</div>`;
           } else {
-            html += `<div class="map-cell room${verticalClass}${exitClass}" style="${style}" title="${room.name}｜${MapSystem.getLevelName(room.z || 0)}">${hasExit ? label : ''}</div>`;
+            html += `<div class="map-cell room${verticalClass}${exitClass}${dangerClass}" style="${style}" title="${tooltip}">${hasExit ? label : ''}</div>`;
           }
         } else {
           html += `<div class="map-cell"></div>`;
@@ -1426,6 +1460,10 @@ const Game = {
       }
     }
     el.innerHTML = html;
+
+    if (legendEl) {
+      legendEl.innerHTML = `@ 当前位置 | <span style="color:var(--accent);">绿色</span> 已探索 | <span style="color:var(--muted);">灰色</span> 未探索 | 💀 Boss | <span style="color:var(--accent3);">黄框</span> 出入口`;
+    }
   },
  
   updateLocation() {

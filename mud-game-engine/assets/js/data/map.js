@@ -27,6 +27,11 @@ const MapDB = {
         sceneType: 'safe',
         isSafeZone: true,
         enemies:[],
+        industryZone: {
+          area: 1000,
+          areaUsed: 0,
+          facilities: []
+        },
         battlefield: {
           terrain: 'metal_floor',
           terrainPenalty: { biped: 1.0, wheel: 0.9 },
@@ -178,7 +183,9 @@ const MapDB = {
           covers: [
             { id:'d1', pos:[600,400], size:[90,70], height:2, durability:300, label:'沙丘' }
           ],
-          hazards: [],
+          hazards: [
+            { type:'toxic_fog', pos:[400,300], radius:100, effect:'poison', dps:3, label:'毒雾区' }
+          ],
           entryPoints: { north:[500,50], south:[500,950], east:[950,500], west:[50,500] },
           enemies: [
             { enemyId:'assault_bug', pos:[450,600], pattern:'guard' },
