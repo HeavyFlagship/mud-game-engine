@@ -1,4 +1,4 @@
-// ========== 地图数据 ==========
+// ========== 地图数据（10x10网格，100个房间） ==========
 // 房间字段说明：
 // id: 房间唯一标识
 // name: 房间名称
@@ -15,6 +15,7 @@
 //   - lootPoints: 战利品/资源点
 //   - isSafeZone: 安全区，不会自动进入战斗模式，可以购物/对话/正常移动
 const MapDB = {
+  // 所有房间（手工设计 + 自动生成），由 MapGenerator.generateAllRooms() 合并
   rooms: {
       // ===== 前哨基地 =====
       outpost_hub: {
@@ -319,8 +320,59 @@ const MapDB = {
  
   areas: [
     { name:'🛰 前哨基地', rooms:['outpost_hub','outpost_command','outpost_arsenal','outpost_repair','outpost_gate'] },
-    { name:'🏜 荒原区域', rooms:['wasteland_north','wasteland_east','wasteland_south','crystal_valley','canyon_entrance'] },
+    { name:'🏜 荒原区域', rooms:['wasteland_north','wasteland_east','wasteland_south'] },
+    { name:'💎 结晶峡谷', rooms:['crystal_valley'] },
+    { name:'🕳 峡谷深处', rooms:['canyon_entrance'] },
     { name:'⛏ 地下矿洞', rooms:['mine_entrance','mine_tunnel','mine_side','mine_chamber'] },
-  ]
+  ],
+
+  // 动态生成房间（由 MapGenerator 在初始化时填充）
+  generatedRooms: {},
+  generatedAreas: [],
+
+  // 初始化生成房间
+  initGenerated() {
+    if (typeof MapGenerator === 'undefined') return;
+    const generated = MapGenerator.generateAllRooms();
+    for (const [id, room] of Object.entries(generated)) {
+      this.rooms[id] = room;
+    }
+    this.generatedRooms = generated;
+    // 为生成房间构建区域分组
+    this.generatedAreas = this._buildGeneratedAreas(generated);
+  },
+
+  _buildGeneratedAreas(generated) {
+    const areaMap = {};
+    for (const [id, room] of Object.entries(generated)) {
+      const region = MapGenerator.findRegion(room.x, room.y, room.z || 0);
+      if (!region) continue;
+      const areaName = region.name;
+      if (!areaMap[areaName]) areaMap[areaName] = [];
+      areaMap[areaName].push(id);
+    }
+    const areas = [];
+    for (const [name, rooms] of Object.entries(areaMap)) {
+      areas.push({ name, rooms });
+    }
+    // 排序使其更稳定
+    areas.sort((a, b) => a.name.localeCompare(b.name));
+    return areas;
+  },
+
+  // 获取所有区域（手工 + 生成）
+  getAllAreas() {
+    const all = [...this.areas];
+    for (const area of this.generatedAreas) {
+      // 避免重复
+      const existing = all.find(a => a.name === area.name);
+      if (existing) {
+        existing.rooms = [...new Set([...existing.rooms, ...area.rooms])];
+      } else {
+        all.push(area);
+      }
+    }
+    return all;
+  }
 };
 

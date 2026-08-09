@@ -10,6 +10,15 @@ const Game = {
     Player.visitedRooms.add(Player.room);
     Timeline.init();
     BattleUI.init();
+    // 初始化制造系统
+    if (typeof TechTree !== 'undefined') TechTree.init();
+    if (typeof FacilitySystem !== 'undefined') FacilitySystem.init();
+    // 初始化经济系统
+    if (typeof SupplyDemand !== 'undefined') SupplyDemand.init();
+    if (typeof TradeSystem !== 'undefined') TradeSystem.init();
+    if (typeof QuotaSystem !== 'undefined') QuotaSystem.init();
+    // 初始化任务系统
+    if (typeof QuestSystem !== 'undefined') QuestSystem.init();
  
     const inputEl = document.getElementById('input');
     inputEl.addEventListener('keydown', (e) => {
@@ -350,22 +359,6 @@ const Game = {
       if (!slotKey) { Msg.danger(`没有第 ${num} 个接口。`); return; }
     }
     Player.uninstallEquipment(slotKey, true);
-  },
-
-  reload(arg) {
-    if (!arg) {
-      Msg.info('装填弹药用法: reload <接口编号>（如 reload 1，编号见 bag）');
-      Player.showInterfaceStatus();
-      return;
-    }
-    let slotKey = arg;
-    const num = parseInt(arg);
-    if (!isNaN(num) && num >= 1) {
-      const keys = Object.keys(Player.equipment);
-      slotKey = keys[num - 1];
-      if (!slotKey) { Msg.danger(`没有第 ${num} 个接口。`); return; }
-    }
-    Player.reload(slotKey);
   },
 
   reload(arg) {
@@ -877,6 +870,15 @@ const Game = {
       mapChanges: MapSystem.changes,
       savedAt: new Date().toISOString()
     };
+    // 制造系统状态
+    if (typeof TechTree !== 'undefined') data.techTree = TechTree.getState();
+    if (typeof FacilitySystem !== 'undefined') data.facility = FacilitySystem.getState();
+    // 经济系统状态
+    if (typeof SupplyDemand !== 'undefined') data.supplyDemand = SupplyDemand.getState();
+    if (typeof TradeSystem !== 'undefined') data.trade = TradeSystem.getState();
+    if (typeof QuotaSystem !== 'undefined') data.quota = QuotaSystem.getState();
+    // 任务系统状态
+    if (typeof QuestSystem !== 'undefined') data.quests = QuestSystem.getState();
     try {
       localStorage.setItem('mud_save', JSON.stringify(data));
       Msg.success('💾 游戏已保存！');
@@ -915,6 +917,15 @@ const Game = {
         stats: data.stats || { totalDmg:0, totalHeal:0, monstersKilled:0, deaths:0 }
       });
       Battle.end();
+      // 恢复制造系统状态
+      if (typeof TechTree !== 'undefined' && data.techTree) TechTree.applyState(data.techTree);
+      if (typeof FacilitySystem !== 'undefined' && data.facility) FacilitySystem.applyState(data.facility);
+      // 恢复经济系统状态
+      if (typeof SupplyDemand !== 'undefined' && data.supplyDemand) SupplyDemand.applyState(data.supplyDemand);
+      if (typeof TradeSystem !== 'undefined' && data.trade) TradeSystem.applyState(data.trade);
+      if (typeof QuotaSystem !== 'undefined' && data.quota) QuotaSystem.applyState(data.quota);
+      // 恢复任务系统状态
+      if (typeof QuestSystem !== 'undefined' && data.quests) QuestSystem.applyState(data.quests);
       Msg.clear();
       Msg.success('📂 存档已读取！');
       if (data.savedAt) {

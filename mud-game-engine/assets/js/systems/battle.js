@@ -546,7 +546,17 @@ const Battle = {
     Player.stats.monstersKilled++;
     Player.killCount[enemy.templateId] = (Player.killCount[enemy.templateId] || 0) + 1;
     Player.gainExp(enemy.exp);
-    if (enemy.loot) {
+
+    // 战利品掉落（优先使用 LootTable，回退到 enemy.loot）
+    if (typeof LootTable !== 'undefined') {
+      const drops = LootTable.generate(enemy);
+      for (const drop of drops) {
+        Player.addItem(drop.itemId, drop.count);
+        const item = ItemDB.get(drop.itemId);
+        Msg.loot(`获得战利品：${item ? item.name : drop.itemId} x${drop.count}`);
+        BattleUI.addHistory('你', '#f8f', `获得${item ? item.name : drop.itemId}x${drop.count}`);
+      }
+    } else if (enemy.loot) {
       for (const l of enemy.loot) {
         if (Math.random() < l.chance) {
           const count = Utils.rand(l.min || 1, l.max || 1);
@@ -555,6 +565,14 @@ const Battle = {
           Msg.loot(`获得战利品：${item ? item.name : l.item} x${count}`);
           BattleUI.addHistory('你', '#f8f', `获得${item ? item.name : l.item}x${count}`);
         }
+      }
+    }
+
+    // 通知任务系统
+    if (typeof QuestSystem !== 'undefined') {
+      QuestSystem.updateProgress('kill', enemy);
+      if (enemy.isBoss) {
+        QuestSystem.onBossKilled(enemy.templateId);
       }
     }
   },
