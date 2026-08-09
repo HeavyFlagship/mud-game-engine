@@ -959,19 +959,9 @@ const Player = {
   },
 
   gainExp(amount) {
-    this.exp += amount;
-    while (this.exp >= this.expToNext) {
-      this.exp -= this.expToNext;
-      this.level++;
-      this.expToNext = Math.floor(this.expToNext * 1.5);
-      const hpUp = Utils.rand(15, 25);
-      this.maxHp += hpUp;
-      this.hp = this.maxHp;
-      this.armor = this.maxArmor;
-      Msg.divider();
-      Msg.success(`🎉 升级！你现在是 Lv.${this.level}！`);
-      Msg.info(`结构值+${hpUp}`);
-    }
+    // 等级系统暂时取消：不再累积经验、升级或提升机体属性，
+    // 避免升级获得的属性加成在切换机体后被重置丢失。
+    return;
   },
 
   addItem(id, count = 1) {

@@ -23,6 +23,21 @@ const CommandSystem = {
     quest:'任务'
   },
 
+  // 查询类指令：信息显示在查询窗口
+  queryCommands: {
+    help: '指令帮助',
+    status: '机体状态',
+    bag: '背包',
+    skills: '技能',
+    map: '世界地图',
+    score: '统计信息',
+    hangar: '机库',
+    warehouse: '仓库',
+    industry: '工业区',
+    timeline: '战场时间轴',
+    工业: '工业区',
+  },
+
   parse(input) {
     input = input.trim().toLowerCase();
     if (!input) return null;
@@ -39,7 +54,6 @@ const CommandSystem = {
   execute(input) {
     const parsed = this.parse(input);
     if (!parsed) return;
-    Msg.cmd(`> ${parsed.raw}`);
 
     // Determine scene type
     const room = MapSystem.getRoom(Player.room);
@@ -48,6 +62,7 @@ const CommandSystem = {
     // Check if command is available for current scene
     const found = CommandRegistry.findCommand(parsed.cmd);
     if (!found) {
+      Msg.cmd(`> ${parsed.raw}`);
       Msg.warning(`未知指令: ${parsed.cmd}。输入 <span class="help-cmd">help</span> 查看帮助。`);
       Game.updateUI();
       return;
@@ -55,20 +70,30 @@ const CommandSystem = {
     
     // Check scene availability
     if (found.layer === 'battle' && sceneType !== 'battle') {
+      Msg.cmd(`> ${parsed.raw}`);
       Msg.warning(`指令 ${parsed.cmd} 仅在战场场景可用。`);
       Game.updateUI();
       return;
     }
     if (found.layer === 'base' && sceneType !== 'safe') {
+      Msg.cmd(`> ${parsed.raw}`);
       Msg.warning(`指令 ${parsed.cmd} 仅在安全区可用。`);
       Game.updateUI();
       return;
     }
     
-    // Route to handler
-    this.routeCommand(parsed, found);
+    // 查询类指令：在查询窗口显示信息
+    const queryTitle = this.queryCommands[parsed.cmd];
+    if (queryTitle) {
+      this.runQuery(parsed, queryTitle, () => {
+        this.routeCommand(parsed, found);
+      });
+    } else {
+      Msg.cmd(`> ${parsed.raw}`);
+      this.routeCommand(parsed, found);
+    }
     Game.updateUI();
-},
+  },
 
 routeCommand(parsed, found) {
     const { entry, layer } = found;
@@ -97,11 +122,7 @@ handleGlobalCmd(parsed) {
     
     // Dispatch to GlobalCommands
     if (typeof GlobalCommands !== 'undefined' && GlobalCommands[handler]) {
-      if (handler === 'cmdMove') {
-        GlobalCommands[handler](parsed.cmd);
-      } else {
-        GlobalCommands[handler](args);
-      }
+      GlobalCommands[handler](args);
       return;
     }
     

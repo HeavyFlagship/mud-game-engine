@@ -70,14 +70,33 @@ const GlobalCommands = {
   cmdWithdraw(args) { Game.withdrawFromWarehouse(args[0] || '', parseInt(args[1]) || 1); },
   cmdWequip(args) { Game.equipFromWarehouse(args[0] || ''); },
   cmdMove(args) {
-    // 方向移动指令：查看当前场景类型，如果在战场则委托给战场移动
-    if (Battle.active && Battle.battlefield) {
-      // 在战场场景中，方向移动指令由 battle 层处理
-      // 但如果在安全区，方向移动就是基本移动
-      Game.move(args);
-    } else {
-      Game.move(args);
+    // 安全区：按方向切换房间（基地/安全区同样使用 move）
+    const room = MapSystem.getRoom(Player.room);
+    const isSafe = room && room.sceneType === 'safe';
+    if (isSafe) {
+      const raw = (args[0] || '').toLowerCase();
+      const dirMap = { n:'north', s:'south', e:'east', w:'west', up:'up', down:'down' };
+      const direction = dirMap[raw] || raw;
+      if (!['north','south','east','west','up','down'].includes(direction)) {
+        Msg.info('用法：move <方向> (north/south/east/west/up/down)');
+        return;
+      }
+      Game.move(direction);
+      return;
     }
+    // 战场：委托给战场移动逻辑（支持方向/坐标/目标）
+    if (Battle.active && Battle.battlefield) {
+      CommandSystem.cmdBattleMove(args);
+      return;
+    }
+    const raw = (args[0] || '').toLowerCase();
+    const dirMap = { n:'north', s:'south', e:'east', w:'west', up:'up', down:'down' };
+    const direction = dirMap[raw] || raw;
+    if (!['north','south','east','west','up','down'].includes(direction)) {
+      Msg.info('用法：move <方向> (north/south/east/west/up/down)');
+      return;
+    }
+    Game.move(direction);
   },
   cmdGather() {
     const room = MapSystem.getRoom(Player.room);
