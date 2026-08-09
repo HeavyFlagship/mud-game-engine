@@ -6,12 +6,8 @@ const MapSystem = {
   battlefieldState: {},
  
   init() {
-    // 初始化生成的房间
-    if (typeof MapDB !== 'undefined' && MapDB.initGenerated) {
-      MapDB.initGenerated();
-    }
     this.rooms = JSON.parse(JSON.stringify(MapDB.rooms));
-    this.areas = typeof MapDB.getAllAreas === 'function' ? JSON.parse(JSON.stringify(MapDB.getAllAreas())) : JSON.parse(JSON.stringify(MapDB.areas));
+    this.areas = JSON.parse(JSON.stringify(MapDB.areas));
     for (const room of Object.values(this.rooms)) {
       if (room.z === undefined) room.z = 0;
       if (!room.label) room.label = room.name.slice(0, 1);
