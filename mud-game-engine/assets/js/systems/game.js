@@ -10,7 +10,16 @@ const Game = {
     Player.visitedRooms.add(Player.room);
     Timeline.init();
     BattleUI.init();
- 
+    // 初始化制造系统
+    if (typeof TechTree !== 'undefined') TechTree.init();
+    if (typeof FacilitySystem !== 'undefined') FacilitySystem.init();
+    // 初始化经济系统
+    if (typeof SupplyDemand !== 'undefined') SupplyDemand.init();
+    if (typeof TradeSystem !== 'undefined') TradeSystem.init();
+    if (typeof QuotaSystem !== 'undefined') QuotaSystem.init();
+    // 初始化任务系统
+    if (typeof QuestSystem !== 'undefined') QuestSystem.init();
+
     const inputEl = document.getElementById('input');
     inputEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {

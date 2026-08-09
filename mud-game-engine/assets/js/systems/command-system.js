@@ -98,6 +98,41 @@ const CommandSystem = {
         Game.shop(parsed.args[0] || 'list'); break;
       case 'sell': case '出售':
         Game.sell(parsed.args.join(' ')); break;
+      case 'trade': case '交易':
+        if (typeof TradeSystem !== 'undefined') TradeSystem.showTrade(parsed.args);
+        else Msg.info('交易中心尚未开放。'); break;
+      case '工业': case 'industry':
+        if (typeof TechTree !== 'undefined') {
+          Msg.add('🔬 开发树', 'info');
+          const unlocked = TechTree.getUnlocked();
+          const unlockable = TechTree.getUnlockable();
+          Msg.info(`已解锁: ${unlocked.map(n => n.name).join(' → ') || '无'}`);
+          if (unlockable.length > 0) {
+            Msg.info(`可解锁: ${unlockable.map(n => {
+              const cond = n.requiredItem ? `（需拥有${n.requiredCount}个${n.requiredItem}）` : '';
+              return n.name + cond;
+            }).join(', ')}`);
+          }
+        }
+        if (typeof FacilitySystem !== 'undefined') FacilitySystem.showIndustry();
+        else Msg.info('工业区尚未开放。'); break;
+      case '使用设施': case 'use_facility':
+        if (typeof FacilitySystem !== 'undefined') FacilitySystem.useFacility(parsed.args);
+        else Msg.info('设施系统尚未开放。'); break;
+      case '安装': case 'install':
+        if (typeof FacilitySystem !== 'undefined') FacilitySystem.installFacility(parsed.args);
+        else Msg.info('设施安装系统尚未开放。'); break;
+      case '调度': case 'schedule':
+        if (typeof FacilitySystem !== 'undefined') FacilitySystem.scheduleFacility(parsed.args);
+        else Msg.info('设施调度系统尚未开放。'); break;
+      case 'replenish': case '补给':
+        if (typeof QuotaSystem !== 'undefined') QuotaSystem.replenish(parsed.args);
+        else Msg.info('配额补给系统尚未开放。'); break;
+      case '任务': case 'quest':
+        if (typeof QuestSystem !== 'undefined') QuestSystem.showQuests();
+        else Msg.info('任务系统尚未开放。'); break;
+      case '备份': case 'backup':
+        Msg.info('意识备份系统尚未开放。'); break;
       case 'score': case 'stats': case '统计':
         this.runQuery(parsed, '任务统计', () => Game.showStats()); break;
       case 'help': case '帮助':
