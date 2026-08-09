@@ -6,6 +6,9 @@ const MapSystem = {
   battlefieldState: {},
  
   init() {
+    if (typeof MapDB.generateRooms === 'function') {
+      MapDB.generateRooms();
+    }
     this.rooms = JSON.parse(JSON.stringify(MapDB.rooms));
     this.areas = JSON.parse(JSON.stringify(MapDB.areas));
     for (const room of Object.values(this.rooms)) {
