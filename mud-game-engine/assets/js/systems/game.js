@@ -692,11 +692,11 @@ const Game = {
           Msg.warning('你已经拥有该机体了。');
           return;
         }
-        if (Player.gold < (vehicle.price || 0)) {
+        if (Player.credits < (vehicle.price || 0)) {
           Msg.danger('资金不足！');
           return;
         }
-        Player.gold -= vehicle.price || 0;
+        Player.credits -= vehicle.price || 0;
         Player.hangar.push({
           vehicleId: targetItem.id,
           equipment: {},
@@ -707,8 +707,8 @@ const Game = {
         Msg.success(`💰 购买了机体 <span class="item-tag core">${vehicle.name}</span>，花费 ${vehicle.price || 0}G`);
         Msg.info('输入 hangar 查看机库，switch <编号> 切换机体。');
       } else {
-        if (Player.gold < targetItem.price) { Msg.danger('资金不足！'); return; }
-        Player.gold -= targetItem.price;
+        if (Player.credits < targetItem.price) { Msg.danger('资金不足！'); return; }
+        Player.credits -= targetItem.price;
         Player.addItem(targetItem.id);
         Msg.success(`💰 购买了 <span class="item-tag ${targetItem.type}">${targetItem.name}</span>，花费 ${targetItem.price}G`);
       }
@@ -723,7 +723,7 @@ const Game = {
     if (!template || !template.price) { Msg.danger('该物品无法出售。'); return; }
     const sellPrice = Math.max(1, Math.floor(template.price * 0.5));
     Player.removeItem(item.id);
-    Player.gold += sellPrice;
+    Player.credits += sellPrice;
     Msg.success(`💰 出售了 <span class="item-tag ${template.type}">${template.name}</span>，获得 ${sellPrice}G`);
   },
 
@@ -774,7 +774,7 @@ const Game = {
     if (!action) {
       Msg.divider();
       Msg.add(`🔧 ${vehicleName} 改装服务`, 'info');
-      Msg.info(`当前资金：${Player.gold}G`);
+      Msg.info(`当前资金：${Player.credits}G`);
       Msg.divider();
       Msg.add('💻 核心计算机', 'info');
       if (currentComputer) {
@@ -786,7 +786,7 @@ const Game = {
         compatibleComputers.forEach((comp, idx) => {
           const owned = currentComputer && currentComputer.id === comp.id;
           const upgradeTag = owned ? ' ✅已装备' : '';
-          const canAfford = Player.gold >= comp.price ? '' : ' 🔒';
+          const canAfford = Player.credits >= comp.price ? '' : ' 🔒';
           Msg.info(`  ${idx+1}. <span class="item-tag core">${comp.name}</span> - 算力+${comp.coreOutput} MFlops - ${comp.price}G${upgradeTag}${canAfford}`);
         });
       } else {
@@ -803,7 +803,7 @@ const Game = {
         compatiblePowers.forEach((power, idx) => {
           const owned = currentPower && currentPower.id === power.id;
           const upgradeTag = owned ? ' ✅已装备' : '';
-          const canAfford = Player.gold >= power.price ? '' : ' 🔒';
+          const canAfford = Player.credits >= power.price ? '' : ' 🔒';
           Msg.info(`  ${idx+1}. <span class="item-tag core">${power.name}</span> - 功率+${power.coreOutput} kW - ${power.price}G${upgradeTag}${canAfford}`);
         });
       } else {
@@ -829,14 +829,14 @@ const Game = {
         Msg.warning('已经装备了该核心计算机。');
         return;
       }
-      if (Player.gold < target.price) {
-        Msg.danger(`资金不足！需要 ${target.price}G，当前 ${Player.gold}G`);
+      if (Player.credits < target.price) {
+        Msg.danger(`资金不足！需要 ${target.price}G，当前 ${Player.credits}G`);
         return;
       }
       if (currentComputer) {
         Player.budget.computeMax -= currentComputer.coreOutput || 0;
       }
-      Player.gold -= target.price;
+      Player.credits -= target.price;
       Player.coreComputer = { ...target };
       Player.budget.computeMax += target.coreOutput || 0;
       Msg.success(`💰 改装完成！安装了 <span class="item-tag core">${target.name}</span>，算力+${target.coreOutput} MFlops，花费 ${target.price}G`);
@@ -851,14 +851,14 @@ const Game = {
         Msg.warning('已经装备了该核心动力。');
         return;
       }
-      if (Player.gold < target.price) {
-        Msg.danger(`资金不足！需要 ${target.price}G，当前 ${Player.gold}G`);
+      if (Player.credits < target.price) {
+        Msg.danger(`资金不足！需要 ${target.price}G，当前 ${Player.credits}G`);
         return;
       }
       if (currentPower) {
         Player.budget.powerMax -= currentPower.coreOutput || 0;
       }
-      Player.gold -= target.price;
+      Player.credits -= target.price;
       Player.corePower = { ...target };
       Player.budget.powerMax += target.coreOutput || 0;
       Msg.success(`💰 改装完成！安装了 <span class="item-tag core">${target.name}</span>，功率+${target.coreOutput} kW，花费 ${target.price}G`);
@@ -1020,7 +1020,7 @@ const Game = {
       hp: Player.hp, maxHp: Player.maxHp,
       armor: Player.armor, maxArmor: Player.maxArmor,
       energy: Player.energy, maxEnergy: Player.maxEnergy,
-      gold: Player.gold,
+      credits: Player.credits,
       room: Player.room,
       position: Player.position,
       inventory: Player.inventory,
@@ -1060,7 +1060,7 @@ const Game = {
         hp: data.hp, maxHp: data.maxHp,
         armor: data.armor, maxArmor: data.maxArmor,
         energy: data.energy, maxEnergy: data.maxEnergy,
-        gold: data.gold, room: data.room,
+        credits: data.credits || data.gold || 0, room: data.room,
         position: data.position || [500, 500],
         inventory: data.inventory || [],
         equipment: data.equipment || {},
@@ -1130,7 +1130,7 @@ const Game = {
       <div class="bar-container"><div class="bar-fill exp" style="width:${expPct}%"></div></div>
       <div class="stat-row"><span class="stat-label">速度</span><span class="stat-value">${Player.currentSpeed.toFixed(1)}</span></div>
       <div class="stat-row"><span class="stat-label">视野</span><span class="stat-value">${Player.visionRadius}m</span></div>
-      <div class="stat-row"><span class="stat-label">资金</span><span class="stat-value gold">${Player.gold}G</span></div>
+      <div class="stat-row"><span class="stat-label">信用点</span><span class="stat-value gold">${Player.credits}G</span></div>
     `;
   },
  

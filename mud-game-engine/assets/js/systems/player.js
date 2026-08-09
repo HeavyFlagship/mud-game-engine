@@ -49,7 +49,7 @@ const Player = {
   statusEffects: [],
   killCount: {},
   stats: { totalDmg:0, totalHeal:0, monstersKilled:0, deaths:0 },
-  gold: 100000,
+  credits: 100000,
   level: 1,
   exp: 0,
   expToNext: 50,
@@ -268,11 +268,11 @@ const Player = {
       return false;
     }
     const price = vehicle.price || 0;
-    if (this.gold < price) {
-      Msg.error(`金币不足，需要 ${price} 金币。`);
+    if (this.credits < price) {
+      Msg.error(`信用点不足，需要 ${price} 信用点。`);
       return false;
     }
-    this.gold -= price;
+    this.credits -= price;
     // 创建空白配置存入机库
     this.hangar.push({
       vehicleId,

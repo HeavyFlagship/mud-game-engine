@@ -22,6 +22,7 @@ const MapDB = {
         desc:'先遣队在织女-7建立的小型前哨基地。穹顶形的建筑内，维护设备嗡嗡运转，空气中飘着臭氧的气味。北面是指挥室，东面是装备库，西面是维修站。',
         exits:{ north:'outpost_command', east:'outpost_arsenal', west:'outpost_repair', south:'outpost_gate' },
         npcs:['commander'],
+        sceneType: 'safe',
         isSafeZone: true,
         enemies:[],
         battlefield: {
@@ -41,6 +42,7 @@ const MapDB = {
         desc:'基地的指挥中心，墙上挂满了星球地图和监测数据。指挥官的全息投影终端位于正中央。',
         exits:{ south:'outpost_hub' },
         npcs:['commander'],
+        sceneType: 'safe',
         isSafeZone: true,
         enemies:[],
         battlefield: {
@@ -59,6 +61,7 @@ const MapDB = {
         exits:{ west:'outpost_hub' },
         npcs:['quartermaster'],
         enemies:[],
+        sceneType: 'safe',
         isSafeZone: true,
         isShop:true,
         battlefield: {
@@ -77,6 +80,7 @@ const MapDB = {
         exits:{ east:'outpost_hub' },
         npcs:['engineer'],
         enemies:[],
+        sceneType: 'safe',
         isSafeZone: true,
         isShop:true,
         battlefield: {
@@ -95,6 +99,7 @@ const MapDB = {
         exits:{ north:'outpost_hub', south:'wasteland_north' },
         npcs:[],
         enemies:[],
+        sceneType: 'safe',
         isSafeZone: true,
         battlefield: {
           terrain: 'metal_floor',
@@ -113,6 +118,7 @@ const MapDB = {
         desc:'赤褐色的荒原一望无际，地表覆盖着风化的岩屑和沙尘。远处的地平线上隐约可见矿脉的轮廓。空气干燥，带着硫化物的刺鼻气味。',
         exits:{ north:'outpost_gate', south:'wasteland_south', east:'wasteland_east' },
         npcs:[],
+        sceneType: 'battle',
         enemies:[],
         battlefield: {
           terrain: 'rocky',
@@ -137,6 +143,7 @@ const MapDB = {
         desc:'荒原东部，地表散布着发光的结晶矿脉，空气中有微弱的电磁干扰。越往东走，矿脉越密集，虫子的活动迹象也越多。',
         exits:{ west:'wasteland_north', south:'crystal_valley' },
         npcs:[],
+        sceneType: 'battle',
         enemies:[],
         battlefield: {
           terrain: 'crystal',
@@ -161,6 +168,7 @@ const MapDB = {
         desc:'荒原南部，地表逐渐向下倾斜，通向一条深邃的峡谷。峡谷入口处有虫群活动的痕迹，地面布满了黏液和爬行轨迹。',
         exits:{ north:'wasteland_north', south:'canyon_entrance' },
         npcs:[],
+        sceneType: 'battle',
         enemies:[],
         battlefield: {
           terrain: 'sandy',
@@ -183,7 +191,7 @@ const MapDB = {
         desc:'一片被发光结晶矿脉覆盖的峡谷。辉锗矿的光芒在暗处闪烁，如同星河倒悬。这里是虫子的主要栖息地，空气中弥漫着危险的气息。',
         exits:{ north:'wasteland_east' },
         npcs:[],
-        enemies:[],
+        sceneType: 'battle',
         isBossRoom:true,
         battlefield: {
           terrain: 'crystal',
@@ -210,6 +218,7 @@ const MapDB = {
         desc:'向下通往地下矿洞的峡谷入口。两侧岩壁陡峭，底部有一个巨大的洞穴，里面似乎有虫群的嗡鸣声。',
         exits:{ north:'wasteland_south', down:'mine_entrance' },
         npcs:[],
+        sceneType: 'battle',
         enemies:[],
         battlefield: {
           terrain: 'rocky',
@@ -232,6 +241,7 @@ const MapDB = {
         desc:'地下矿洞的入口处，洞顶滴落着含矿的水珠。岩壁上镶嵌着稀疏的辉锗矿结晶，散发着微弱的蓝光。通道深处传来虫群的爬动声。',
         exits:{ up:'canyon_entrance', south:'mine_tunnel' },
         npcs:[],
+        sceneType: 'battle',
         enemies:[],
         battlefield: {
           terrain: 'cave',
@@ -252,6 +262,7 @@ const MapDB = {
         desc:'狭长的地下隧道，两侧是开凿的痕迹。辉锗矿结晶越来越密集，几乎照亮了整个通道。',
         exits:{ north:'mine_entrance', south:'mine_chamber', east:'mine_side' },
         npcs:[],
+        sceneType: 'battle',
         enemies:[],
         battlefield: {
           terrain: 'cave',
@@ -273,6 +284,7 @@ const MapDB = {
         desc:'一个小型的矿洞侧室，似乎是先遣队早期的采矿点。角落里散落着废弃的采矿设备和包装箱。',
         exits:{ west:'mine_tunnel' },
         npcs:[],
+        sceneType: 'battle',
         enemies:[],
         items:['repair_kit_small'],
         battlefield: {
@@ -294,7 +306,7 @@ const MapDB = {
         desc:'巨大的地下洞窟，洞顶镶嵌着大量的辉锗矿结晶，将整个大厅照得幽蓝通明。大厅中央有一座由虫胶和矿石构筑的巢穴，里面似乎有什么东西在蠕动。',
         exits:{ north:'mine_tunnel' },
         npcs:[],
-        enemies:[],
+        sceneType: 'battle',
         isBossRoom:true,
         battlefield: {
           terrain: 'cave',

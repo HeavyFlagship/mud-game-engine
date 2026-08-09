@@ -1,0 +1,73 @@
+// ========== 战利品掉落表 ==========
+const LootTableDB = {
+  // Zerg
+  worker_bug: [
+    { item: 'chitin_fragment', chance: 0.6, min: 1, max: 3 }
+  ],
+  assault_bug: [
+    { item: 'chitin_fragment', chance: 0.8, min: 2, max: 5 },
+    { item: 'acid_gland', chance: 0.3, min: 1, max: 1 }
+  ],
+  acid_spitter: [
+    { item: 'acid_gland', chance: 0.6, min: 1, max: 2 },
+    { item: 'chitin_fragment', chance: 0.4, min: 1, max: 2 }
+  ],
+  flying_bug: [
+    { item: 'bug_gel', chance: 0.4, min: 1, max: 1 },
+    { item: 'chitin_fragment', chance: 0.3, min: 1, max: 1 }
+  ],
+  beetle: [
+    { item: 'carapace_plate', chance: 0.5, min: 1, max: 2 },
+    { item: 'chitin_fragment', chance: 0.3, min: 1, max: 3 }
+  ],
+  hopper: [
+    { item: 'bug_gel', chance: 0.3, min: 1, max: 1 },
+    { item: 'chitin_fragment', chance: 0.2, min: 1, max: 1 }
+  ],
+  toxic_bug: [
+    { item: 'acid_gland', chance: 0.5, min: 1, max: 2 },
+    { item: 'chitin_fragment', chance: 0.4, min: 1, max: 2 }
+  ],
+  giant_guardian: [
+    { item: 'carapace_plate', chance: 1.0, min: 3, max: 5 },
+    { item: 'giant_acid_gland', chance: 1.0, min: 1, max: 1 }
+  ],
+  // Mech
+  recon_probe: [
+    { item: 'mech_parts', chance: 0.4, min: 1, max: 2 },
+    { item: 'energy_core_remnant', chance: 0.2, min: 1, max: 1 }
+  ],
+  defense_node: [
+    { item: 'mech_parts', chance: 0.6, min: 2, max: 3 },
+    { item: 'alloy_fragment', chance: 0.3, min: 1, max: 2 }
+  ],
+  particle_sentry: [
+    { item: 'mech_parts', chance: 0.5, min: 1, max: 2 },
+    { item: 'germanite_shard', chance: 0.3, min: 1, max: 1 }
+  ],
+  self_repair_guardian: [
+    { item: 'mech_parts', chance: 0.6, min: 2, max: 4 },
+    { item: 'energy_core_remnant', chance: 0.3, min: 1, max: 2 }
+  ],
+  gravity_distorter: [
+    { item: 'mech_parts', chance: 0.5, min: 1, max: 3 },
+    { item: 'germanite_shard', chance: 0.2, min: 1, max: 1 }
+  ],
+  colossus_guardian: [
+    { item: 'alloy_fragment', chance: 1.0, min: 3, max: 5 },
+    { item: 'ancient_core', chance: 1.0, min: 1, max: 1 }
+  ],
+  
+  getLoot(enemyId) {
+    const table = this[enemyId];
+    if (!table) return [];
+    const loot = [];
+    for (const entry of table) {
+      if (Math.random() < entry.chance) {
+        const count = entry.min + Math.floor(Math.random() * (entry.max - entry.min + 1));
+        loot.push({ id: entry.item, count });
+      }
+    }
+    return loot;
+  }
+};
