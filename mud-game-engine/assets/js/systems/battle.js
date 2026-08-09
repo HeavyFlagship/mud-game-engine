@@ -152,6 +152,11 @@ const Battle = {
     this.playerIdleEnd = null;
     this.isProcessing = false;
     this.playerFireHint = null;
+    // 恢复视野（EMI区域效果清除）
+    if (Player._originalVisionRadius) {
+      Player.visionRadius = Player._originalVisionRadius;
+      Player._originalVisionRadius = null;
+    }
   },
 
   enterCombat(reason = '') {
@@ -259,6 +264,9 @@ const Battle = {
       eff.duration -= delta;
       if (eff.duration <= 0) {
         Player.statusEffects = Player.statusEffects.filter(e => e !== eff);
+        if (eff.type === 'slow') {
+          Player.currentSpeed = Player.speed;
+        }
       }
     }
     for (const enemy of this.battlefield.enemies) {
@@ -267,6 +275,9 @@ const Battle = {
         eff.duration -= delta;
         if (eff.duration <= 0) {
           enemy.statusEffects = enemy.statusEffects.filter(e => e !== eff);
+          if (eff.type === 'slow') {
+            enemy.currentSpeed = enemy.speed;
+          }
         }
       }
     }
@@ -668,6 +679,18 @@ const Battle = {
         return { total: dmg, armor: normalResult.armor, hp: normalResult.hp + pierceAmount };
       }
       return Player.takeDamage(dmg, damageType);
+    }
+  },
+
+  applySlowEffect(target, duration, slowAmount) {
+    // Remove existing slow effects
+    target.statusEffects = target.statusEffects.filter(e => e.type !== 'slow');
+    target.statusEffects.push({ type: 'slow', duration, slowAmount });
+    // Apply speed reduction
+    if (target === Player || !target.instanceId) {
+      Player.currentSpeed = Player.speed * (1 - slowAmount);
+    } else {
+      target.currentSpeed = target.speed * (1 - slowAmount);
     }
   },
 

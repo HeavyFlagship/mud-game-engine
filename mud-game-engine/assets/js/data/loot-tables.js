@@ -30,7 +30,8 @@ const LootTableDB = {
   ],
   giant_guardian: [
     { item: 'carapace_plate', chance: 1.0, min: 3, max: 5 },
-    { item: 'giant_acid_gland', chance: 1.0, min: 1, max: 1 }
+    { item: 'giant_acid_gland', chance: 1.0, min: 1, max: 1 },
+    { item: 'repair_kit_large', chance: 0.5, min: 1, max: 2 }
   ],
   // Mech
   recon_probe: [
@@ -55,7 +56,8 @@ const LootTableDB = {
   ],
   colossus_guardian: [
     { item: 'alloy_fragment', chance: 1.0, min: 3, max: 5 },
-    { item: 'ancient_core', chance: 1.0, min: 1, max: 1 }
+    { item: 'ancient_core', chance: 1.0, min: 1, max: 1 },
+    { item: 'energy_battery_large', chance: 0.5, min: 1, max: 2 }
   ],
   
   getLoot(enemyId) {

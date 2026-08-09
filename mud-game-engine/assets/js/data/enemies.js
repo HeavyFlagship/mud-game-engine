@@ -206,8 +206,10 @@ const EnemyDB = {
     exp: 500,
     loot: [
       { item: 'carapace_plate', chance: 1.0, min: 3, max: 5 },
-      { item: 'giant_acid_gland', chance: 1.0, min: 1, max: 1 }
+      { item: 'giant_acid_gland', chance: 1.0, min: 1, max: 1 },
+      { item: 'repair_kit_large', chance: 0.5, min: 1, max: 2 }
     ],
+    creditReward: { min: 300, max: 500 },
     aiType: 'boss_guardian',
     // Special: 震地冲击（范围200m，伤害30+减速3秒，冷却25秒）
     // Phase 2（HP<50%）：攻速+30%，伤害+20%
@@ -371,8 +373,10 @@ const EnemyDB = {
     exp: 800,
     loot: [
       { item: 'alloy_fragment', chance: 1.0, min: 3, max: 5 },
-      { item: 'ancient_core', chance: 1.0, min: 1, max: 1 }
+      { item: 'ancient_core', chance: 1.0, min: 1, max: 1 },
+      { item: 'energy_battery_large', chance: 0.5, min: 1, max: 2 }
     ],
+    creditReward: { min: 500, max: 800 },
     aiType: 'boss_colossus',
     // Special: 护盾再生（每30秒恢复100护盾值，二阶段缩短至20秒）
     // Special: 粒子束轰炸（范围300m，伤害80，冷却30秒）
