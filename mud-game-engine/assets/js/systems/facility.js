@@ -26,6 +26,11 @@ const FacilitySystem = {
       return { ok: false, reason: `工业区面积不足（需要 ${def.footprint}m²，剩余 ${zone.area - zone.areaUsed}m²）。` };
     }
 
+    // Check credit cost
+    if (def.creditCost && Player.credits < def.creditCost) {
+      return { ok: false, reason: `信用点不足，需要 ${def.creditCost} 信用点（当前：${Player.credits}）。` };
+    }
+
     // Check material cost
     const cost = def.installCost || [];
     for (const c of cost) {
@@ -47,6 +52,11 @@ const FacilitySystem = {
 
     const def = FacilityDB[facilityId];
     const room = MapSystem.getRoom(baseRoomId);
+
+    // Deduct credit cost
+    if (def.creditCost) {
+      Player.credits -= def.creditCost;
+    }
 
     // Consume materials
     for (const c of (def.installCost || [])) {

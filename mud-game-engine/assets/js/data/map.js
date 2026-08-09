@@ -214,10 +214,10 @@ const MapDB = {
           ],
           entryPoints: { north:[500,50], south:[500,950], east:[950,500], west:[50,500] },
           enemies: [
-            { enemyId:'assault_bug', pos:[400,500], pattern:'guard' },
-            { enemyId:'assault_bug', pos:[600,500], pattern:'guard' },
-            { enemyId:'worker_bug', pos:[300,700], pattern:'guard' },
-            { enemyId:'worker_bug', pos:[700,700], pattern:'guard' }
+            { enemyId:'beetle', pos:[500,400], pattern:'guard' },
+            { enemyId:'hopper', pos:[300,650], pattern:'patrol', path:[[300,650],[500,600],[400,400],[300,650]] },
+            { enemyId:'hopper', pos:[700,650], pattern:'patrol', path:[[700,650],[500,600],[600,400],[700,650]] },
+            { enemyId:'flying_bug', pos:[500,700], pattern:'patrol', path:[[500,700],[300,500],[700,300],[500,700]] }
           ],
           lootPoints: []
         }
@@ -261,7 +261,7 @@ const MapDB = {
           hazards: [],
           entryPoints: { north:[500,50], south:[500,950], east:[950,500], west:[50,500] },
           enemies: [
-            { enemyId:'worker_bug', pos:[600,500], pattern:'guard' }
+            { enemyId:'acid_spitter', pos:[600,500], pattern:'guard' }
           ],
           lootPoints: []
         }
@@ -282,8 +282,8 @@ const MapDB = {
           hazards: [],
           entryPoints: { north:[500,50], south:[500,950], east:[950,500], west:[50,500] },
           enemies: [
-            { enemyId:'worker_bug', pos:[400,600], pattern:'guard' },
-            { enemyId:'assault_bug', pos:[700,500], pattern:'guard' }
+            { enemyId:'acid_spitter', pos:[400,600], pattern:'guard' },
+            { enemyId:'beetle', pos:[700,500], pattern:'guard' }
           ],
           lootPoints: []
         }
@@ -329,9 +329,10 @@ const MapDB = {
           ],
           entryPoints: { north:[500,50], south:[500,950], east:[950,500], west:[50,500] },
           enemies: [
-            { enemyId:'assault_bug', pos:[350,600], pattern:'guard' },
-            { enemyId:'assault_bug', pos:[650,600], pattern:'guard' },
-            { enemyId:'worker_bug', pos:[500,800], pattern:'guard' }
+            { enemyId:'beetle', pos:[350,500], pattern:'guard' },
+            { enemyId:'acid_spitter', pos:[650,500], pattern:'guard' },
+            { enemyId:'acid_spitter', pos:[500,700], pattern:'guard' },
+            { enemyId:'toxic_bug', pos:[500,850], pattern:'guard' }
           ],
           lootPoints: []
         }
@@ -373,12 +374,13 @@ const MapDB = {
       isSafe: true
     },
     A: {
+      // [难度曲线] Lv1 简单区域：仅工虫和突击虫，1-2只/房间，适合新手起步
       prefix: 'arid',
       label: '原',
       zoneName: '荒原',
       terrains: ['rocky', 'sandy'],
       terrainPenalty: { biped: 0.9, wheel: 0.7 },
-      enemyPool: [['worker_bug',60], ['assault_bug',30], ['hopper',10]],
+      enemyPool: [['worker_bug',70], ['assault_bug',30]],
       enemyCount: [1, 2],
       coverType: 'rock',
       coverCount: [1, 3],
@@ -389,13 +391,14 @@ const MapDB = {
       desc: '赤褐色的荒原一望无际，风化岩屑在脚下沙沙作响。'
     },
     W: {
+      // [难度曲线] Lv2 简单-中等：加入飞虫和跳虫，1-3只/房间，引入飞行单位和快速单位
       prefix: 'wild',
       label: '野',
       zoneName: '荒野',
       terrains: ['rocky', 'sandy', 'crystal'],
       terrainPenalty: { biped: 0.85, wheel: 0.65 },
-      enemyPool: [['worker_bug',40], ['assault_bug',30], ['acid_spitter',15], ['flying_bug',10], ['beetle',5]],
-      enemyCount: [2, 3],
+      enemyPool: [['worker_bug',35], ['assault_bug',30], ['flying_bug',20], ['hopper',15]],
+      enemyCount: [1, 3],
       coverType: 'rock',
       coverCount: [1, 2],
       lootChance: 0,
@@ -405,13 +408,14 @@ const MapDB = {
       desc: '荒野地带，地表覆盖着风化的岩屑和稀疏的结晶矿脉。'
     },
     C: {
+      // [难度曲线] Lv3 中等：喷酸虫、甲壳虫、毒雾虫，2-3只/房间，引入远程中毒和重甲单位
       prefix: 'cave',
       label: '矿',
       zoneName: '矿洞',
       terrains: ['cave'],
       terrainPenalty: { biped: 0.9, wheel: 0.7 },
-      enemyPool: [['worker_bug',20], ['assault_bug',30], ['beetle',20], ['toxic_bug',15], ['acid_spitter',15]],
-      enemyCount: [2, 4],
+      enemyPool: [['acid_spitter',35], ['beetle',35], ['toxic_bug',30]],
+      enemyCount: [2, 3],
       coverType: 'pillar',
       coverCount: [1, 2],
       lootChance: 0.3,
@@ -422,6 +426,7 @@ const MapDB = {
       z: -1
     },
     M: {
+      // [难度曲线] Lv4 中等-困难：侦察探针、防御节点、粒子束哨兵、自修复守卫，1-3只/房间，机械阵营主力
       prefix: 'mech',
       label: '械',
       zoneName: '机械遗迹',
@@ -474,13 +479,14 @@ const MapDB = {
       npcChance: 0.15
     },
     F: {
+      // [难度曲线] Lv5 困难：重力扭曲器、防御节点、粒子束哨兵、自修复守卫，2-3只/房间，最高难度区域
       prefix: 'front',
       label: '前',
       zoneName: '前沿区域',
       terrains: ['crystal', 'cave'],
       terrainPenalty: { biped: 0.8, wheel: 0.55 },
-      enemyPool: [['assault_bug',20], ['beetle',15], ['acid_spitter',15], ['recon_probe',15], ['defense_node',15], ['particle_sentry',10], ['self_repair_guardian',10]],
-      enemyCount: [2, 4],
+      enemyPool: [['gravity_distorter',35], ['defense_node',30], ['particle_sentry',25], ['self_repair_guardian',10]],
+      enemyCount: [2, 3],
       coverType: 'rock',
       coverCount: [1, 3],
       lootChance: 0.25,

@@ -6,7 +6,7 @@ const FacilityDB = {
     type: 'smelter',
     scale: 'small',
     footprint: 150,
-    requiresNode: 'iron_ingot',
+    requiresNode: 'iron_ore',
     unlocksNode: 'iron_ingot',
     outputItemId: 'iron_ingot',
     outputRate: 2, // per hour
@@ -15,6 +15,7 @@ const FacilityDB = {
     inputRate: 3, // per hour
     inputSource: 'warehouse',
     outputTarget: 'warehouse',
+    creditCost: 200,
     installCost: [
       { id: 'iron_ore', name: '铁矿石', count: 20 },
       { id: 'mech_parts', name: '机械零件', count: 5 }
@@ -27,15 +28,16 @@ const FacilityDB = {
     type: 'furnace',
     scale: 'small',
     footprint: 200,
-    requiresNode: 'steel_ingot',
+    requiresNode: 'iron_ingot',
     unlocksNode: 'steel_ingot',
     outputItemId: 'steel_ingot',
     outputRate: 1,
-    storageLimit: 30,
+    storageLimit: 50,
     inputItemId: 'iron_ore',
     inputRate: 2,
     inputSource: 'warehouse',
     outputTarget: 'warehouse',
+    creditCost: 350,
     installCost: [
       { id: 'iron_ingot', name: '铁锭', count: 10 },
       { id: 'mech_parts', name: '机械零件', count: 8 }
@@ -48,15 +50,16 @@ const FacilityDB = {
     type: 'factory',
     scale: 'small',
     footprint: 300,
-    requiresNode: 'armor_plate',
+    requiresNode: 'steel_ingot',
     unlocksNode: 'armor_plate',
     outputItemId: 'armor_plate',
     outputRate: 1,
-    storageLimit: 20,
+    storageLimit: 50,
     inputItemId: 'steel_ingot',
     inputRate: 2,
     inputSource: 'warehouse',
     outputTarget: 'warehouse',
+    creditCost: 500,
     installCost: [
       { id: 'steel_ingot', name: '钢锭', count: 5 },
       { id: 'mech_parts', name: '机械零件', count: 10 }

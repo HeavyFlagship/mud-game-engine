@@ -29,10 +29,10 @@ const CraftRecipeDB = {
     name: '离子电荷制造',
     output: { id: 'ion_charge', name: '离子电荷', count: 15 },
     materials: [
-      { id: 'germanite_shard', name: '辉锗矿碎片', count: 2 },
+      { id: 'germanite_shard', name: '辉锗矿碎片', count: 1 },
       { id: 'energy_core_remnant', name: '能量核心残片', count: 1 }
     ],
-    cost: 30,
+    cost: 10,
     facility: 'repair_station',
     desc: '消耗辉锗矿碎片和能量核心残片，在维修站制造离子电荷。'
   },
@@ -41,13 +41,12 @@ const CraftRecipeDB = {
     name: '高爆导弹制造',
     output: { id: 'missile_he', name: '高爆导弹', count: 5 },
     materials: [
-      { id: 'gunpowder', name: '火药', count: 2 },
-      { id: 'propellant', name: '推进剂', count: 1 },
-      { id: 'alloy_fragment', name: '合金碎片', count: 1 }
+      { id: 'gunpowder', name: '火药', count: 1 },
+      { id: 'propellant', name: '推进剂', count: 1 }
     ],
-    cost: 50,
+    cost: 10,
     facility: 'repair_station',
-    desc: '消耗火药、推进剂和合金碎片，在维修站制造高爆导弹。'
+    desc: '消耗火药和推进剂，在维修站制造高爆导弹。'
   },
   
   get(id) { return this[id] || null; },

@@ -5,7 +5,7 @@ const ItemDB = {
   consumables: {
     repair_kit_small: { id:'repair_kit_small', name:'小型修复包', type:'consumable', healHp:50, desc:'恢复50点结构值。', price:30, weight:5 },
     repair_kit_medium: { id:'repair_kit_medium', name:'中型修复包', type:'consumable', healHp:120, desc:'恢复120点结构值。', price:80, weight:8 },
-    repair_kit_large: { id:'repair_kit_large', name:'大型修复包', type:'consumable', healHp:250, desc:'恢复250点结构值。', price:180, weight:12 },
+    repair_kit_large: { id:'repair_kit_large', name:'大型修复包', type:'consumable', healHp:250, desc:'恢复250点结构值。', price:200, weight:12 },
     armor_patch: { id:'armor_patch', name:'装甲补片', type:'consumable', healArmor:40, desc:'恢复40点装甲值。', price:25, weight:3 },
     armor_patch_medium: { id:'armor_patch_medium', name:'中型装甲补片', type:'consumable', healArmor:100, desc:'恢复100点装甲值。', price:70, weight:5 },
     energy_cell: { id:'energy_cell', name:'能量电池', type:'consumable', energy:80, desc:'恢复80点能量。', price:40, weight:3 },
