@@ -155,6 +155,40 @@ const BattleUI = {
     ctx.lineWidth = 1;
     ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
 
+    // 危害区域
+    if (Battle.active && Battle.battlefield && Battle.battlefield.hazards) {
+      for (const hazard of Battle.battlefield.hazards) {
+        const hx = cx + (hazard.pos[0] - 500) * scale;
+        const hy = cy + (hazard.pos[1] - 500) * scale;
+        const hr = (hazard.radius || 100) * scale;
+        let color, alpha;
+        if (hazard.type === 'acid_pool') { color = '255, 68, 68'; alpha = 0.12; }
+        else if (hazard.type === 'emi' || hazard.type === 'em_interference') { color = '68, 136, 255'; alpha = 0.10; }
+        else if (hazard.type === 'toxic_fog') { color = '68, 255, 68'; alpha = 0.10; }
+        else { color = '136, 136, 136'; alpha = 0.08; }
+        ctx.fillStyle = `rgba(${color}, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(hx, hy, hr, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = `rgba(${color}, 0.6)`;
+        ctx.lineWidth = 0.8;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.arc(hx, hy, hr, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.lineWidth = 1;
+        // 标签
+        const label = hazard.label || '';
+        if (label) {
+          ctx.fillStyle = `rgb(${color})`;
+          ctx.font = `${Math.round(9 * (canvas.width / 200))}px monospace`;
+          ctx.textAlign = 'center';
+          ctx.fillText(label, hx, hy - hr - 2);
+        }
+      }
+    }
+
     // 玩家位置
     let playerX = 500, playerY = 500;
     if (Battle.active && Battle.battlefield) {

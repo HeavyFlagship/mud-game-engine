@@ -107,7 +107,7 @@ const GlobalCommands = {
     }
     let totalCollected = 0;
     for (const rp of resourcePoints) {
-      const count = rp.rarity === 'rare' ? Utils.rand(1, 2) : Utils.rand(1, 3);
+      const count = rp.rarity === 'rare' ? Utils.rand(10, 20) : Utils.rand(10, 30);
       Player.addItem(rp.itemId, count);
       Msg.success(`⛏ 采集了 <span class="item-tag material">${rp.name}</span> x${count}`);
       totalCollected++;

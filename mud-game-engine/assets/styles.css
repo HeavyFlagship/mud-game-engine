@@ -460,14 +460,17 @@ body {
 .weapon-cooldown-status.ready { color: var(--accent2); }
 .weapon-cooldown-status.cooling { color: var(--accent4); }
 
-.minimap {
-  display: grid;
-  grid-template-columns: repeat(10, 1fr);
-  grid-template-rows: repeat(10, 1fr);
-  gap: 1px;
-  aspect-ratio: 1;
-  max-width: 240px;
+.region-map-wrap {
+  display: flex;
+  justify-content: center;
   margin: 0 auto;
+}
+.region-map-wrap canvas {
+  max-width: 240px;
+  max-height: 240px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  display: block;
 }
 .map-level-info {
   color: var(--accent4);
@@ -475,55 +478,6 @@ body {
   text-align: center;
   margin-bottom: 0.45rem;
   letter-spacing: 0.08em;
-}
-.map-cell {
-  background: var(--bg);
-  border: 1px solid transparent;
-  border-radius: 2px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--font-map);
-  color: var(--rule);
-  min-height: 10px;
-  font-weight: 700;
-  line-height: 1;
-}
-.map-cell.room {
-  background: var(--fog);
-  color: var(--muted);
-  opacity: 0.3;
-}
-.map-cell.room.has-exit {
-  background: #1a2a3a;
-  border-color: rgba(0, 255, 136, 0.25);
-  color: rgba(0, 255, 136, 0.7);
-  opacity: 0.85;
-}
-.map-cell.current {
-  background: var(--accent);
-  color: var(--bg);
-  font-weight: 900;
-  font-size: var(--font-map-current);
-  box-shadow: 0 0 8px var(--glow);
-  opacity: 1;
-}
-.map-cell.visited {
-  background: var(--map-visited-bg);
-  color: var(--ink);
-  text-shadow: 0 0 6px var(--map-visited-glow);
-  box-shadow: inset 0 0 0 1px var(--map-visited-line);
-  opacity: 1;
-}
-.map-cell.vertical:not(.current) {
-  background: var(--map-vertical-bg);
-  color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--map-vertical-line), 0 0 8px var(--map-vertical-glow);
-  opacity: 1;
-}
-.map-cell.current.vertical {
-  background: linear-gradient(135deg, var(--accent), var(--map-current-vertical-end));
-  box-shadow: 0 0 10px var(--map-current-vertical-glow);
 }
 /* Minimap legend */
 .minimap-legend {

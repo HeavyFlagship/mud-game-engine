@@ -294,12 +294,23 @@ const Battle = {
 
     const playerPos = Player.position;
     let inEmiZone = false;
+    const hazardNames = { acid_pool: '酸液池', emi: '电磁干扰区', em_interference: '电磁干扰区', toxic_fog: '毒雾区' };
+    const hazardEffects = { acid_pool: '装甲持续受损', emi: '视野减半', em_interference: '视野减半', toxic_fog: '结构值持续下降' };
+
+    if (!Player._hazardStatus) Player._hazardStatus = new Set();
 
     for (const hazard of this.battlefield.hazards) {
       const dist = this.getDistance(playerPos, hazard.pos);
       const radius = hazard.radius || 100;
 
       if (dist <= radius) {
+        // 进入危害区提示
+        if (!Player._hazardStatus.has(hazard.type)) {
+          Player._hazardStatus.add(hazard.type);
+          const name = hazardNames[hazard.type] || hazard.type;
+          const effect = hazardEffects[hazard.type] || '';
+          Msg.warn(`⚠ 进入${name}${effect ? '——' + effect : ''}`);
+        }
         // 电磁干扰区
         if (hazard.type === 'emi' || hazard.type === 'em_interference') {
           inEmiZone = true;
@@ -319,6 +330,21 @@ const Battle = {
           Player.hp = Math.max(1, Player.hp - hpDmg);
         }
       }
+    }
+
+    // 离开危害区提示
+    const toRemove = [];
+    for (const hType of Player._hazardStatus) {
+      const stillInside = this.battlefield.hazards.some(h => {
+        const dist = this.getDistance(playerPos, h.pos);
+        return dist <= (h.radius || 100) && h.type === hType;
+      });
+      if (!stillInside) toRemove.push(hType);
+    }
+    for (const hType of toRemove) {
+      const name = hazardNames[hType] || hType;
+      Msg.info(`已离开${name}`);
+      Player._hazardStatus.delete(hType);
     }
 
     // EMI 区域：视野减半

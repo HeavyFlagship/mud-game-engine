@@ -1307,7 +1307,7 @@ const Game = {
   updateUI() {
     this.updatePlayerInfo();
     this.updateEquipInfo();
-    this.updateMinimap();
+    this.updateRegionMap();
     this.updateLocation();
   },
  
@@ -1414,9 +1414,12 @@ const Game = {
     el.innerHTML = html;
   },
  
-  updateMinimap() {
-    const el = document.getElementById('minimap');
-    if (!el) return;
+  updateRegionMap() {
+    const canvas = document.getElementById('region-map-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const cellSize = 40;
+    const gridSize = 11;
     const levelEl = document.getElementById('map-level-info');
     const legendEl = document.getElementById('minimap-legend');
     const currentRoom = MapSystem.getRoom(Player.room);
@@ -1425,92 +1428,123 @@ const Game = {
     if (levelEl) levelEl.textContent = `当前高度：${MapSystem.getLevelName(currentZ)}`;
 
     const roomsOnLevel = Object.values(MapSystem.rooms).filter(room => (room.z || 0) === currentZ);
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    for (const room of roomsOnLevel) {
-      if (room.x !== undefined) {
-        minX = Math.min(minX, room.x); maxX = Math.max(maxX, room.x);
-        minY = Math.min(minY, room.y); maxY = Math.max(maxY, room.y);
-      }
-    }
 
-    const offsetX = currentRoom.x - 5;
-    const offsetY = currentRoom.y - 5;
-    const dirInfo = {
-      north: { dx:0, dy:-1, border:'border-top-color' },
-      south: { dx:0, dy:1, border:'border-bottom-color' },
-      east: { dx:1, dy:0, border:'border-right-color' },
-      west: { dx:-1, dy:0, border:'border-left-color' }
-    };
     const roomAt = (x, y, z = currentZ) => roomsOnLevel.find(r => r.x === x && r.y === y && (r.z || 0) === z);
-    const getCellStyle = (room) => {
-      const borderStyles = [];
-      for (const [dir, info] of Object.entries(dirInfo)) {
-        const neighbor = roomAt(room.x + info.dx, room.y + info.dy, currentZ);
-        const canPass = Boolean(neighbor && room.exits[dir] === neighbor.id);
-        borderStyles.push(`${info.border}:${canPass ? 'var(--rule)' : 'var(--wall)'}`);
-      }
-      return borderStyles.join(';');
+
+    // 地形颜色表
+    const terrainColors = {
+      metal_floor: '#2a3a4a',
+      cave: '#2a2a2a',
+      crystal: '#1a3a5a',
+      sandy: '#4a3a2a',
+      rocky: '#3a3a3a',
+      default: '#1a2a1a'
     };
 
-    // 计算房间危险等级
-    const getDangerLevel = (room) => {
-      if (room.isSafeZone) return 'safe';
-      if (room.isBossRoom) return 'boss';
-      if (room.battlefield && room.battlefield.enemies) {
-        const enemyCount = room.battlefield.enemies.length;
-        const hasBoss = room.battlefield.enemies.some(e => {
-          const enemyDef = EnemyDB[e.enemyId];
-          return enemyDef && enemyDef.isBoss;
-        });
-        if (hasBoss) return 'boss';
-        if (enemyCount >= 3) return 'danger';
-        if (enemyCount >= 1) return 'moderate';
-      }
-      return 'safe';
+    // 获取房间特征图标
+    const getRoomIcon = (room) => {
+      if (room.isBossRoom) return '💀';
+      if (room.isSafeZone) return '🏠';
+      if (room.battlefield && room.battlefield.hazards && room.battlefield.hazards.length > 0) return '⚠';
+      if (room.battlefield && room.battlefield.lootPoints && room.battlefield.lootPoints.length > 0) return '⛏';
+      if (room.battlefield && room.battlefield.npcs && room.battlefield.npcs.length > 0) return '👤';
+      return '';
     };
 
-    let hasBossRoom = false;
-    let hasDangerRooms = false;
-    let hasSafeRooms = false;
+    // 检查房间是否有出口连接
+    const hasExitTo = (room, dir) => {
+      const deltas = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] };
+      const [dx, dy] = deltas[dir];
+      const neighbor = roomAt(room.x + dx, room.y + dy, currentZ);
+      return Boolean(neighbor && room.exits[dir] === neighbor.id);
+    };
 
-    let html = '';
-    for (let dy = 0; dy < 10; dy++) {
-      for (let dx = 0; dx < 10; dx++) {
-        const rx = offsetX + dx;
-        const ry = offsetY + dy;
+    // 清空画布
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const cx = currentRoom.x;
+    const cy = currentRoom.y;
+    const half = Math.floor(gridSize / 2);
+
+    for (let gy = 0; gy < gridSize; gy++) {
+      for (let gx = 0; gx < gridSize; gx++) {
+        const rx = cx - half + gx;
+        const ry = cy - half + gy;
         const room = roomAt(rx, ry);
-        if (room) {
-          const style = getCellStyle(room);
-          const label = MapSystem.getRoomLabel(room);
-          const verticalClass = (room.exits.up || room.exits.down) ? ' vertical' : '';
-          const hasExit = Object.keys(room.exits || {}).length > 0;
-          const exitClass = hasExit ? ' has-exit' : '';
-          const dangerLevel = getDangerLevel(room);
-          const dangerClass = ` danger-${dangerLevel}`;
-          if (dangerLevel === 'boss') hasBossRoom = true;
-          if (dangerLevel === 'danger') hasDangerRooms = true;
-          if (dangerLevel === 'safe' || dangerLevel === 'moderate') hasSafeRooms = true;
-          const visited = Player.visitedRooms.has(room.id);
-          const tooltip = `${room.name}｜${MapSystem.getLevelName(room.z || 0)}｜${visited ? '已探索' : '未探索'}`;
+        const px = gx * cellSize;
+        const py = gy * cellSize;
 
-          if (room.id === Player.room) {
-            const bossLabel = room.isBossRoom ? '💀' : '';
-            html += `<div class="map-cell current${verticalClass}${dangerClass}" style="${style}" title="${tooltip}">${bossLabel || '@'}</div>`;
-          } else if (visited) {
-            const bossLabel = room.isBossRoom ? '💀' : '';
-            html += `<div class="map-cell visited${verticalClass}${dangerClass}" style="${style}" title="${tooltip}">${bossLabel || label}</div>`;
+        if (room) {
+          const visited = Player.visitedRooms.has(room.id);
+          const terrain = room.terrain || 'default';
+          const bgColor = terrainColors[terrain] || terrainColors.default;
+
+          if (visited) {
+            ctx.fillStyle = bgColor;
           } else {
-            html += `<div class="map-cell room${verticalClass}${exitClass}${dangerClass}" style="${style}" title="${tooltip}">${hasExit ? label : ''}</div>`;
+            // 未探索：暗色
+            ctx.fillStyle = '#0a0f0a';
+          }
+          ctx.fillRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
+
+          // 当前房间高亮边框
+          if (room.id === Player.room) {
+            ctx.strokeStyle = '#00ffcc';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
+            ctx.lineWidth = 1;
+          } else if (visited) {
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.strokeRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
+          }
+
+          // 未探索房间不显示图标
+          if (!visited) continue;
+
+          // 绘制出口方向指示线
+          const exitDirs = ['north', 'south', 'east', 'west'];
+          const dirAngles = { north: 0, east: Math.PI / 2, south: Math.PI, west: -Math.PI / 2 };
+          for (const dir of exitDirs) {
+            if (hasExitTo(room, dir)) {
+              const angle = dirAngles[dir];
+              const edgeX = px + cellSize / 2 + Math.sin(angle) * (cellSize / 2 - 2);
+              const edgeY = py + cellSize / 2 - Math.cos(angle) * (cellSize / 2 - 2);
+              ctx.fillStyle = 'rgba(0,255,136,0.5)';
+              ctx.beginPath();
+              ctx.arc(edgeX, edgeY, 2, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+
+          // 特征图标
+          const icon = getRoomIcon(room);
+          if (icon) {
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(icon, px + cellSize / 2, py + cellSize / 2);
+          }
+
+          // 玩家位置标记
+          if (room.id === Player.room) {
+            const time = Date.now() / 1000;
+            const alpha = 0.5 + 0.5 * Math.sin(time * 3);
+            ctx.fillStyle = `rgba(0, 255, 204, ${alpha})`;
+            ctx.beginPath();
+            ctx.arc(px + cellSize / 2, py + cellSize / 2, 5, 0, Math.PI * 2);
+            ctx.fill();
           }
         } else {
-          html += `<div class="map-cell"></div>`;
+          // 无房间的格子：深色
+          ctx.fillStyle = '#050508';
+          ctx.fillRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
         }
       }
     }
-    el.innerHTML = html;
 
+    // 图例
     if (legendEl) {
-      legendEl.innerHTML = `@ 当前位置 | <span style="color:var(--accent);">绿色</span> 已探索 | <span style="color:var(--muted);">灰色</span> 未探索 | 💀 Boss | <span style="color:var(--accent3);">黄框</span> 出入口`;
+      legendEl.innerHTML = `@ 当前位置 | <span style="color:#00ffcc;">青色</span> 已探索 | <span style="color:#888;">暗色</span> 未探索 | 💀 Boss | 🏠 安全区 | ⚠ 危害 | ⛏ 资源`;
     }
   },
  
