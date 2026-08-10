@@ -1462,14 +1462,25 @@ const Game = {
     // 清空画布
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const cx = currentRoom.x;
-    const cy = currentRoom.y;
+    // 计算当前层世界边界，用于将视口钳制在地图范围内（边缘紧贴画面边缘）
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const room of roomsOnLevel) {
+      if (room.x !== undefined) {
+        minX = Math.min(minX, room.x); maxX = Math.max(maxX, room.x);
+        minY = Math.min(minY, room.y); maxY = Math.max(maxY, room.y);
+      }
+    }
+    if (minX === Infinity) { minX = 0; maxX = gridSize - 1; minY = 0; maxY = gridSize - 1; }
+
     const half = Math.floor(gridSize / 2);
+    // 视口左上角：以玩家为中心，但钳制到世界边界内，使地图边缘贴紧画面边缘
+    const startX = Math.max(minX, Math.min(currentRoom.x - half, maxX - gridSize + 1));
+    const startY = Math.max(minY, Math.min(currentRoom.y - half, maxY - gridSize + 1));
 
     for (let gy = 0; gy < gridSize; gy++) {
       for (let gx = 0; gx < gridSize; gx++) {
-        const rx = cx - half + gx;
-        const ry = cy - half + gy;
+        const rx = startX + gx;
+        const ry = startY + gy;
         const room = roomAt(rx, ry);
         const px = gx * cellSize;
         const py = gy * cellSize;
@@ -1519,7 +1530,7 @@ const Game = {
           // 特征图标
           const icon = getRoomIcon(room);
           if (icon) {
-            ctx.font = '10px monospace';
+            ctx.font = '16px monospace';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(icon, px + cellSize / 2, py + cellSize / 2);

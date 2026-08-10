@@ -482,10 +482,10 @@ body {
 /* Minimap legend */
 .minimap-legend {
   color: var(--muted);
-  font-size: 0.55rem;
+  font-size: 0.8rem;
   text-align: center;
   margin-top: 0.4rem;
-  line-height: 1.4;
+  line-height: 1.5;
   max-width: 240px;
   margin-left: auto;
   margin-right: auto;
