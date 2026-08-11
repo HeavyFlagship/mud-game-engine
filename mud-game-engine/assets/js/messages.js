@@ -7,6 +7,9 @@ const Msg = {
     this.el = document.getElementById('output');
     this.queryEl = document.getElementById('query-output');
     this.queryTitleEl = document.getElementById('query-title');
+    // 页面载入时清空消息区，避免残留上一次会话/缓存的旧消息
+    if (this.el) this.el.innerHTML = '';
+    if (this.queryEl) this.queryEl.innerHTML = '<div class="msg system">查询类指令的信息会显示在这里。</div>';
   },
   getTargetEl(target = this.target) {
     if (target === 'query' && this.queryEl) return this.queryEl;

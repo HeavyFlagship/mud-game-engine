@@ -4,39 +4,42 @@ const GlobalCommands = {
     const room = MapSystem.getRoom(Player.room);
     const sceneType = (room && room.sceneType === 'safe') ? 'safe' : 'battle';
     const help = CommandRegistry.getCommandHelp(sceneType);
-    
+
+    const formatEntry = (entry) => {
+      const args = entry.args ? ` ${entry.args}` : '';
+      const aliases = entry.aliases && entry.aliases.length > 0 ? ` <span class="help-alias">(${entry.aliases.join(' / ')})</span>` : '';
+      return `  <span class="help-cmd">${entry.cmd}${args}</span> - <span class="help-desc">${entry.desc}</span>${aliases}`;
+    };
+
     Msg.divider();
     Msg.add('📖 指令帮助', 'info');
-    
+
     // 全局指令
     if (help.global.length > 0) {
       Msg.add('📋 全局指令', 'info');
       for (const entry of help.global) {
-        const args = entry.args ? ` ${entry.args}` : '';
-        Msg.info(`  <span class="help-cmd">${entry.cmd}${args}</span> - <span class="help-desc">${entry.desc}</span>`);
+        Msg.info(formatEntry(entry));
       }
       Msg.info('');
     }
-    
+
     // 场景指令
     if (sceneType === 'battle' && help.battle.length > 0) {
       Msg.add('⚔ 战场指令', 'info');
       for (const entry of help.battle) {
-        const args = entry.args ? ` ${entry.args}` : '';
-        Msg.info(`  <span class="help-cmd">${entry.cmd}${args}</span> - <span class="help-desc">${entry.desc}</span>`);
+        Msg.info(formatEntry(entry));
       }
       Msg.info('');
     }
-    
+
     if (sceneType === 'safe' && help.base.length > 0) {
       Msg.add('🏭 基地指令', 'info');
       for (const entry of help.base) {
-        const args = entry.args ? ` ${entry.args}` : '';
-        Msg.info(`  <span class="help-cmd">${entry.cmd}${args}</span> - <span class="help-desc">${entry.desc}</span>`);
+        Msg.info(formatEntry(entry));
       }
       Msg.info('');
     }
-    
+
     Msg.system('提示: 进入战场场景自动开启时间轴，开火或被攻击后进入战斗状态');
   },
   cmdSave() { Game.save(); },
@@ -70,18 +73,24 @@ const GlobalCommands = {
   cmdWithdraw(args) { Game.withdrawFromWarehouse(args[0] || '', parseInt(args[1]) || 1); },
   cmdWequip(args) { Game.equipFromWarehouse(args[0] || ''); },
   cmdMove(args) {
-    // 安全区：按方向切换房间（基地/安全区同样使用 move）
     const room = MapSystem.getRoom(Player.room);
     const isSafe = room && room.sceneType === 'safe';
+    const first = (args[0] || '').toLowerCase();
+    const dirMap = { n:'north', s:'south', e:'east', w:'west', up:'up', down:'down' };
+    const direction = dirMap[first] || first;
+    const isDirection = ['north','south','east','west','up','down'].includes(direction);
+
     if (isSafe) {
-      const raw = (args[0] || '').toLowerCase();
-      const dirMap = { n:'north', s:'south', e:'east', w:'west', up:'up', down:'down' };
-      const direction = dirMap[raw] || raw;
-      if (!['north','south','east','west','up','down'].includes(direction)) {
-        Msg.info('用法：move <方向> (north/south/east/west/up/down)');
+      // 安全区：方向用于切换房间，坐标/目标用于场景内移动
+      if (isDirection) {
+        Game.move(direction);
         return;
       }
-      Game.move(direction);
+      if (Battle.active && Battle.battlefield) {
+        CommandSystem.cmdBattleMove(args);
+        return;
+      }
+      Msg.info('用法：move <方向> (north/south/east/west) 或 move <x> <y>');
       return;
     }
     // 战场：委托给战场移动逻辑（支持方向/坐标/目标）
@@ -89,14 +98,11 @@ const GlobalCommands = {
       CommandSystem.cmdBattleMove(args);
       return;
     }
-    const raw = (args[0] || '').toLowerCase();
-    const dirMap = { n:'north', s:'south', e:'east', w:'west', up:'up', down:'down' };
-    const direction = dirMap[raw] || raw;
-    if (!['north','south','east','west','up','down'].includes(direction)) {
-      Msg.info('用法：move <方向> (north/south/east/west/up/down)');
+    if (isDirection) {
+      Game.move(direction);
       return;
     }
-    Game.move(direction);
+    Msg.info('用法：move <方向> (north/south/east/west/up/down)');
   },
   cmdGather() {
     const room = MapSystem.getRoom(Player.room);

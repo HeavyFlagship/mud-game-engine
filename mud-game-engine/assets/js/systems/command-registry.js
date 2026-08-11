@@ -77,14 +77,30 @@ const CommandRegistry = {
     const globalCmds = [];
     const battleCmds = [];
     const baseCmds = [];
-    
+
+    const mergeByHandler = (entries) => {
+      const map = new Map();
+      for (const entry of entries) {
+        if (map.has(entry.handler)) {
+          map.get(entry.handler).aliases.push(entry.cmd);
+        } else {
+          map.set(entry.handler, { ...entry, aliases: [] });
+        }
+      }
+      return [...map.values()];
+    };
+
     for (const [key, entry] of Object.entries(available)) {
       if (this.global[key]) globalCmds.push(entry);
       else if (this.battle[key]) battleCmds.push(entry);
       else if (this.base[key]) baseCmds.push(entry);
     }
-    
-    return { global: globalCmds, battle: battleCmds, base: baseCmds };
+
+    return {
+      global: mergeByHandler(globalCmds),
+      battle: battleCmds,
+      base: mergeByHandler(baseCmds)
+    };
   },
   
   findCommand(cmd) {
