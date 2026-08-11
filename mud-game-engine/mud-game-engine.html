@@ -1,6 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
-<head>
+<html lang="zh-CN"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>织女-7前哨 - 科幻战术MUD</title>
@@ -23,21 +22,42 @@
   <div class="sidebar" id="sidebar">
     <div class="sidebar-section">
       <div class="sidebar-title">🗺 区域地图</div>
-      <div id="map-level-info" class="map-level-info"></div>
+      <div id="map-level-info" class="map-level-info">当前高度：地表</div>
       <div class="region-map-wrap">
         <canvas id="region-map-canvas" width="440" height="440"></canvas>
       </div>
-      <div id="minimap-legend" class="minimap-legend"></div>
+      <div id="minimap-legend" class="minimap-legend">@ 当前位置 | <span style="color:#00ffcc;">青色</span> 已探索 | <span style="color:#888;">暗色</span> 未探索 | 💀 Boss | 🏠 安全区 | ⚠ 危害 | ⛏ 资源</div>
     </div>
     <div class="sidebar-section">
       <div class="sidebar-title">📜 角色</div>
-      <div id="player-info"></div>
+      <div id="player-info">
+      <div class="stat-row"><span class="stat-label">等级</span><span class="stat-value exp">Lv.1</span></div>
+      <div class="stat-row"><span class="stat-label">结构</span><span class="stat-value hp">200/200</span></div>
+      <div class="bar-container"><div class="bar-fill hp" style="width:100.0%"></div></div>
+      <div class="stat-row"><span class="stat-label">装甲</span><span class="stat-value">160/160</span></div>
+      <div class="bar-container"><div class="bar-fill mp" style="width:100.0%"></div></div>
+      <div class="stat-row"><span class="stat-label">能量</span><span class="stat-value mp">200/200</span></div>
+      <div class="bar-container"><div class="bar-fill mp" style="width:100.0%"></div></div>
+      <div class="stat-row"><span class="stat-label">EXP</span><span class="stat-value exp">0/50</span></div>
+      <div class="bar-container"><div class="bar-fill exp" style="width:0.0%"></div></div>
+      <div class="stat-row"><span class="stat-label">速度</span><span class="stat-value">12.0</span></div>
+      <div class="stat-row"><span class="stat-label">视野</span><span class="stat-value">200m</span></div>
+      <div class="stat-row"><span class="stat-label">信用点</span><span class="stat-value gold">100000G</span></div>
+    </div>
     </div>
     <div class="sidebar-section">
       <div class="sidebar-title">🗡 装备</div>
-      <div id="equip-info"></div>
+      <div id="equip-info"><div class="equip-item" style="border-bottom: 1px solid var(--border);padding-bottom:0.5rem;margin-bottom:0.5rem;"><div class="equip-slot"><span class="equip-slot-name">机体</span><span class="equip-slot-item" style="color:var(--accent);font-weight:bold;">侦察机体 MK-I</span></div></div><div class="equip-item"><div class="equip-slot"><span class="equip-slot-name">#1</span><span class="equip-slot-item">MK-I 自动机炮</span></div>
+            <div class="weapon-ammo">
+              <div class="weapon-ammo-bar"><div class="weapon-ammo-fill" style="width:100%"></div></div>
+              <div class="weapon-ammo-text">20mm弹: 50/50 (+150备弹)</div>
+            </div>
+          <div class="weapon-cooldown">
+            <div class="weapon-cooldown-bar"><div class="weapon-cooldown-fill ready" style="width:100%"></div></div>
+            <div class="weapon-cooldown-status ready">就绪</div>
+          </div></div><div class="equip-item"><div class="equip-slot"><span class="equip-slot-name">#8</span><span class="equip-slot-item">轻型合金装甲板</span></div></div></div>
     </div>
-    <div class="sidebar-section" id="player-status-section">
+    <div class="sidebar-section" id="player-status-section" style="display: none;">
       <div class="sidebar-title">✨ 状态效果</div>
       <div id="player-status-effects"></div>
     </div>
@@ -51,37 +71,48 @@
         <button class="radar-dir-btn radar-dir-bottom" title="向南移动" onclick="BattleUI.quickDirMove('s')">▼</button>
         <button class="radar-dir-btn radar-dir-left" title="向西移动" onclick="BattleUI.quickDirMove('w')">◀</button>
         <button class="radar-dir-btn radar-dir-right" title="向东移动" onclick="BattleUI.quickDirMove('e')">▶</button>
-        <canvas id="radar-canvas" width="200" height="200" style="width:100%;background:#051005;border:1px solid #2d5;border-radius:4px;display:block;"></canvas>
+        <canvas id="radar-canvas" width="200" height="200" style="width: 100%; background: rgb(5, 16, 5); border: 1px solid rgb(34, 221, 85); border-radius: 4px; display: block; cursor: crosshair;"></canvas>
       </div>
-      <div id="radar-legend" style="font-size:var(--font-radar-legend);color:#888;margin-top:4px;"></div>
+      <div id="radar-legend" style="font-size:var(--font-radar-legend);color:#888;margin-top:4px;"><span style="color:#0ff;">●</span> 玩家 &nbsp; <span style="color:#8cf;">●</span> NPC &nbsp; <span style="color:#f44;">●</span> 威胁 &nbsp; <span style="color:#fd0;">●</span> 未警觉</div>
     </div>
     <div class="sidebar-section">
       <div class="sidebar-title">📍 当前位置</div>
-      <div id="location-info" style="font-size:var(--font-stat);color:var(--muted)"></div>
+      <div id="location-info" style="font-size:var(--font-stat);color:var(--muted)"><div style="color:var(--accent);font-weight:600;margin-bottom:0.3rem">前哨基地·中央大厅</div><div>高度: 地表</div><div>位置: (500, 950)</div><div>出口: 北方、东方、西方、南方</div></div>
     </div>
     <div class="sidebar-section unit-section" id="unit-list-section">
       <div class="sidebar-title">📡 单位列表</div>
-      <div id="unit-list" class="unit-list"></div>
+      <div id="unit-list" class="unit-list"><div class="unit-card">
+        <div class="unit-card-header">
+          <span class="name" style="color:#8cf;" title="N1 指挥官·李远 📡">N1 指挥官·李远 📡</span>
+          <span class="dist" style="color:var(--muted);font-size:var(--font-enemy-header);">145m 📏</span>
+        </div>
+        <div class="unit-card-sub" style="color:var(--muted-bright);">前哨基地指挥官</div>
+        <div class="unit-quick-actions">
+          <button class="quick-action-btn" onclick="BattleUI.execCmd('move N1')" title="移动到附近">移动</button>
+          <button class="quick-action-btn call disabled" onclick="BattleUI.execCmd('call N1')" disabled="" title="通信">通信</button>
+          <button class="quick-action-btn" onclick="BattleUI.execCmd('look N1')" title="查看">查看</button>
+        </div>
+      </div></div>
     </div>
     <div class="sidebar-section enemy-section" id="enemy-list-section">
       <div class="sidebar-title">⚔ 敌人列表</div>
-      <div id="enemy-list" class="enemy-list"></div>
+      <div id="enemy-list" class="enemy-list"><div style="color:var(--muted);font-size:var(--font-enemy-header);margin-bottom:6px;">存活 0/0</div></div>
     </div>
   </div>
 
-  <div class="timeline-panel" id="timeline-panel">
+  <div class="timeline-panel active" id="timeline-panel">
     <div class="timeline-header">
       <span class="sidebar-title">⏱ 时间轴</span>
-      <span id="battle-time" class="battle-time">00:00</span>
+      <span id="battle-time" class="battle-time">00:00:47</span>
     </div>
-    <div id="ready-list" class="ready-list"></div>
-    <div id="timeline-content" class="timeline-content"></div>
+    <div id="ready-list" class="ready-list"><div class="sidebar-title">🔫 就绪武器</div><div class="ready-item" style="color:var(--accent4);">1. MK-I 自动机炮 <span style="color:var(--muted);font-size:var(--font-hint);">(#1)</span></div></div>
+    <div id="timeline-content" class="timeline-content"><div class="timeline-section timeline-upcoming"><div class="timeline-divider">— 即将到来 —</div><div class="timeline-item upcoming" style="color:#555;">（无）</div></div><div class="timeline-section timeline-current"><div class="timeline-divider current-divider">▶ 当前行动 <button class="skip-action-btn" onclick="BattleUI.execCmd('continue')" title="跳过当前行动阶段">跳过</button></div><div class="timeline-item current" style="color:#0ff;">你的行动</div></div><div class="timeline-section timeline-history"><div class="timeline-divider">— 历史记录 — <button class="filter-btn active" onclick="BattleUI.toggleFilter('attack')" title="隐藏攻击">攻击</button> <button class="filter-btn active" onclick="BattleUI.toggleFilter('move')" title="隐藏移动">移动</button> <button class="filter-btn active" onclick="BattleUI.toggleFilter('system')" title="隐藏系统">系统</button> <button class="filter-btn active" onclick="BattleUI.toggleFilter('loot')" title="隐藏战利品">战利品</button></div><div class="timeline-item history" style="color:#8f8;opacity:0.7;"><span class="log-dot" style="background:#4f4;"></span>00:12 你行动：移动</div></div></div>
   </div>
 
   <div class="unit-context-menu" id="unit-context-menu" role="menu"></div>
  
   <div class="game-area">
-    <div class="output" id="output"></div>
+    <div class="output" id="output"><div class="msg success">安装了 MK-I 自动机炮 到 [◎⚡🔗<span style="color:#f84">⩎</span>📥]！</div><div class="msg success">安装了 轻型合金装甲板 到 [◎🔗📥]！</div><div class="msg divider">────────────────────────────────────────</div><div class="msg story">═══════════════════════════════════════</div><div class="msg story">        《 织 女 -7 前 哨 》</div><div class="msg story">═══════════════════════════════════════</div><div class="msg story"></div><div class="msg story">织女座-7号行星，辉锗矿储量排名星系前三。</div><div class="msg story">人类联邦在此建立了前哨基地，开采这一战略资源。</div><div class="msg story">然而，地底的原生物种——虫族，对入侵者展开了猛烈反击。</div><div class="msg story"></div><div class="msg story">你，一名先遣队员，驾驶最新型侦察机体抵达此地。</div><div class="msg story">你的任务是清除虫群威胁，保护基地的安全。</div><div class="msg story"></div><div class="msg system">提示: 输入 help 查看所有可用指令</div><div class="msg divider">────────────────────────────────────────</div><div class="msg divider">────────────────────────────────────────</div><div class="msg info"><span class="room-name">【前哨基地·中央大厅】</span></div><div class="msg info">先遣队在织女-7建立的小型前哨基地。穹顶形的建筑内，维护设备嗡嗡运转，空气中飘着臭氧的气味。北面是指挥室，东面是装备库，西面是维修站。</div><div class="msg info">金属地板在脚下发出沉闷的回响。</div><div class="msg info">出入口: <span class="direction">北方</span>、<span class="direction">东方</span>、<span class="direction">西方</span>、<span class="direction">南方</span></div><div class="msg info">👤 <span class="npc-name">指挥官·李远</span> - 前哨基地指挥官 在这里。</div><div class="msg prompt">&gt; 场景中（输入 move/call/fire/status/look 等）</div><div class="msg command">&gt; move 637 548</div><div class="msg info">机体向 (637, 548) 移动中...</div><div class="msg prompt">&gt; 场景中（输入 move/call/fire/status/look 等）</div></div>
     <div class="battle-bar" id="battle-bar">
       <div class="battle-info">
         <span>⚔ 战斗中: <span class="battle-enemy" id="battle-enemy-name"></span></span>
@@ -113,12 +144,10 @@
  
   <aside class="query-panel" id="query-panel" aria-label="查询窗口">
     <div class="query-header">
-      <span id="query-title">查询窗口</span>
+      <span id="query-title">机库</span>
       <button class="query-clear" onclick="Msg.clearQuery()" title="清空查询窗口">清空</button>
     </div>
-    <div class="query-output" id="query-output">
-      <div class="msg system">查询类指令的信息会显示在这里。</div>
-    </div>
+    <div class="query-output" id="query-output"><div class="msg command">查询：&gt; 机库</div><div class="msg divider">────────────────────────────────────────</div><div class="msg info">🏭 机库</div><div class="msg info">  #1 <span class="item-tag core">侦察机体 MK-I</span> - HP200 装甲80 接口2装备 ✅[当前使用]</div><div class="msg system">提示: 在基地内输入 switch &lt;编号&gt; 切换机体</div></div>
   </aside>
 </div>
  
@@ -159,6 +188,8 @@
 <script src="assets/js/systems/game.js"></script>
 <script src="assets/js/main.js"></script>
  
-</body>
-</html>
+
+
+
+</body><div style="pointer-events: none; visibility: hidden; position: absolute; overflow: scroll; box-sizing: border-box; top: 1084.27px; left: 801.01px; width: 599.656px; height: 34.6667px; padding: 8px 12px; border: 0.666667px solid black; line-height: normal; font-size: 15.2px; font-family: &quot;Courier New&quot;, &quot;Noto Sans CJK SC&quot;, monospace;">cang'ku</div></html>
 
