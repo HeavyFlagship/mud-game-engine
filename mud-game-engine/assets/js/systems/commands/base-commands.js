@@ -144,12 +144,6 @@ const BaseCommands = {
       Msg.info(`${facility.name}: ${status} | 产出速率: ${facility.outputRate}/小时`);
     }
   },
-  cmdWarehouseBase(args) {
-    Game.showWarehouse();
-  },
-  cmdHangarBase(args) {
-    Game.showHangar();
-  },
   cmdQuest(args) {
     if (args.length === 0) {
       // 显示任务列表

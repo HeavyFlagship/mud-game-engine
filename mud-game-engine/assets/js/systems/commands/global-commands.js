@@ -7,8 +7,8 @@ const GlobalCommands = {
 
     const formatEntry = (entry) => {
       const args = entry.args ? ` ${entry.args}` : '';
-      const aliases = entry.aliases && entry.aliases.length > 0 ? ` <span class="help-alias">(${entry.aliases.join(' / ')})</span>` : '';
-      return `  <span class="help-cmd">${entry.cmd}${args}</span> - <span class="help-desc">${entry.desc}</span>${aliases}`;
+      const aliasHtml = entry.aliases && entry.aliases.length > 0 ? ` <span class="help-alias">(${entry.aliases.join(' / ')})</span>` : '';
+      return `  <span class="help-cmd">${entry.cmd}</span>${aliasHtml}${args} - <span class="help-desc">${entry.desc}</span>`;
     };
 
     Msg.divider();

@@ -21,8 +21,10 @@ const CommandRegistry = {
     sell: { cmd: 'sell', handler: 'cmdSell', desc: '出售物品', args: '<物品名>' },
     reload: { cmd: 'reload', handler: 'cmdReload', desc: '装填弹药', args: '<接口编号>' },
     hangar: { cmd: 'hangar', handler: 'cmdHangar', desc: '查看机库' },
+    机库: { cmd: '机库', handler: 'cmdHangar', desc: '查看机库' },
     switch: { cmd: 'switch', handler: 'cmdSwitch', desc: '切换载具', args: '<编号>' },
     warehouse: { cmd: 'warehouse', handler: 'cmdWarehouse', desc: '查看仓库' },
+    仓库: { cmd: '仓库', handler: 'cmdWarehouse', desc: '查看仓库' },
     deposit: { cmd: 'deposit', handler: 'cmdDeposit', desc: '存入仓库', args: '<编号> [数量]' },
     withdraw: { cmd: 'withdraw', handler: 'cmdWithdraw', desc: '取出仓库', args: '<编号> [数量]' },
     wequip: { cmd: 'wequip', handler: 'cmdWequip', desc: '从仓库装备', args: '<编号>' },
@@ -54,8 +56,6 @@ const CommandRegistry = {
     使用设施: { cmd: '使用设施', handler: 'cmdUseFacility', desc: '使用设施', args: '<设施ID>' },
     调度: { cmd: '调度', handler: 'cmdSchedule', desc: '调度设施', args: '<设施ID> [模式]' },
     schedule: { cmd: 'schedule', handler: 'cmdSchedule', desc: '调度设施', args: '<设施ID> [模式]' },
-    仓库: { cmd: '仓库', handler: 'cmdWarehouseBase', desc: '仓库管理' },
-    机库: { cmd: '机库', handler: 'cmdHangarBase', desc: '机库/载具管理' },
     任务: { cmd: '任务', handler: 'cmdQuest', desc: '任务接取/交付', aliases: ['quest'] },
     备份: { cmd: '备份', handler: 'cmdBackup', desc: '意识备份/恢复' },
   },
@@ -84,7 +84,7 @@ const CommandRegistry = {
         if (map.has(entry.handler)) {
           map.get(entry.handler).aliases.push(entry.cmd);
         } else {
-          map.set(entry.handler, { ...entry, aliases: [] });
+          map.set(entry.handler, { ...entry, aliases: entry.aliases ? [...entry.aliases] : [] });
         }
       }
       return [...map.values()];
