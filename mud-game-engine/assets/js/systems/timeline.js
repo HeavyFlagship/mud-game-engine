@@ -141,8 +141,8 @@ const Timeline = {
     }
   },
 
-  // 处理队列中下一个事件
-  tick() {
+  // 推进时间到下一个事件点（仅推进时间 + 渲染，不分发事件）
+  tickAdvance() {
     if (this.paused) return;
     if (this.eventQueue.length === 0) return;
 
@@ -154,7 +154,17 @@ const Timeline = {
       this.advanceTime(delta);
     }
 
-    this.eventQueue.shift();
+    // 推进后立即刷新 UI，让时间轴视觉上开始移动
+    if (this.onTickEnd) this.onTickEnd();
+  },
+
+  // 固定停顿后分发当前事件
+  tickDispatch() {
+    if (this.paused) return;
+    if (this.eventQueue.length === 0) return;
+
+    this.eventQueue.sort((a, b) => a.time - b.time);
+    const next = this.eventQueue.shift();
     this.dispatchEvent(next);
     // 事件处理后再清理一次已结束的持续动作（endTime === currentTime 的情况）
     this.continuousActions = this.continuousActions.filter(a => a.endTime > this.time);
@@ -174,22 +184,18 @@ const Timeline = {
     }
   },
 
-  // 调度下一次推进：停顿与下一个行动点的游戏时间间隔成正比，使停顿对应行动点
+  // 调度下一次推进：立即推进时间让时间轴开始移动，固定 80ms 停顿后分发事件
   scheduleNext() {
     if (this.paused) return;
     this.stopLoop();
-    let delay = this.actionDelay;
-    if (this.eventQueue.length > 0) {
-      let next = this.eventQueue[0].time;
-      for (const e of this.eventQueue) {
-        if (e.time < next) next = e.time;
-      }
-      const gap = Math.max(0, next - this.time);
-      // 每游戏秒约 80ms 真实时间，限制在 300ms~1200ms
-      delay = Math.max(300, Math.min(1200, gap * 80));
-    }
+    if (this.eventQueue.length === 0) return;
+
+    // 立即推进时间到下一个事件点（时间轴开始移动）
+    this.tickAdvance();
+
+    // 固定 80ms 停顿后分发事件
     this.actionTimeout = setTimeout(() => {
-      this.tick();
-    }, delay);
+      this.tickDispatch();
+    }, 80);
   }
 };

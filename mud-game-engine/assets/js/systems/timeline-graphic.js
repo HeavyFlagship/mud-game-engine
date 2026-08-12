@@ -168,7 +168,7 @@ const TimelineGraphic = {
     for (const act of (Timeline.continuousActions || [])) {
       if (act.actor !== actor) continue;
       const color = actor === 'player' ? this.COLOR.player : this.COLOR.enemy;
-      // 过去部分（现在左侧）画灰色
+      // 过去部分（现在左侧）画灰色，zIndex=0
       if (act.startTime < now) {
         const l = (act.startTime - windowStart) / total * 100;
         const r = (Math.min(act.endTime, now) - windowStart) / total * 100;
@@ -177,11 +177,12 @@ const TimelineGraphic = {
             kind: 'line',
             left: Math.max(0, l),
             width: Math.min(100 - Math.max(0, l), r - l),
-            color: this.COLOR.past
+            color: this.COLOR.past,
+            zIndex: 0
           });
         }
       }
-      // 未来部分（现在右侧）画主题色
+      // 未来部分（现在右侧）画主题色，zIndex=1 确保在灰色之上
       const futStart = Math.max(act.startTime, now);
       if (futStart < act.endTime) {
         const l = (futStart - windowStart) / total * 100;
@@ -191,17 +192,19 @@ const TimelineGraphic = {
             kind: 'line',
             left: Math.max(0, l),
             width: Math.min(100 - Math.max(0, l), r - l),
-            color
+            color,
+            zIndex: 1
           });
         }
       }
-      // 持续行动收尾绘制圆点标记
+      // 持续行动收尾绘制圆点标记，zIndex=1
       const endLeft = (act.endTime - windowStart) / total * 100;
       if (endLeft >= 0 && endLeft <= 100) {
         desired.set(`E|${act.actor}|${act.type}|${act.endTime}`, {
           kind: 'dot',
           left: endLeft,
-          color
+          color,
+          zIndex: 1
         });
       }
     }
@@ -215,10 +218,11 @@ const TimelineGraphic = {
       desired.set(`D|${evt.type}|${evt.actor || ''}|${evt.time}`, {
         kind: 'dot',
         left,
-        color: isPast ? this.COLOR.past : info.color
+        color: isPast ? this.COLOR.past : info.color,
+        zIndex: isPast ? 0 : 1
       });
     }
-    // 已完成的行动点（灰度，位于"现在"左侧，保持动画连贯）
+    // 已完成的行动点（灰度，zIndex=0）
     const pastList = this._past[actor] || [];
     pastList.forEach((p, i) => {
       const left = (p.time - windowStart) / total * 100;
@@ -226,7 +230,8 @@ const TimelineGraphic = {
       desired.set(`P|${actor}|${i}|${p.time}`, {
         kind: 'dot',
         left,
-        color: this.COLOR.past
+        color: this.COLOR.past,
+        zIndex: 0
       });
     });
 
@@ -251,9 +256,11 @@ const TimelineGraphic = {
         el.style.left = `${d.left}%`;
         el.style.width = `${d.width}%`;
         el.style.background = d.color;
+        el.style.zIndex = d.zIndex;
       } else {
         el.style.left = `${d.left}%`;
         el.style.background = d.color;
+        el.style.zIndex = d.zIndex;
       }
     }
   },
