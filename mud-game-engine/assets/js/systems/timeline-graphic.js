@@ -167,17 +167,34 @@ const TimelineGraphic = {
     // 持续行动线
     for (const act of (Timeline.continuousActions || [])) {
       if (act.actor !== actor) continue;
-      const left = (act.startTime - windowStart) / total * 100;
-      const right = (act.endTime - windowStart) / total * 100;
-      const width = right - left;
-      if (right < 0 || left > 100) continue;
       const color = actor === 'player' ? this.COLOR.player : this.COLOR.enemy;
-      desired.set(`L|${act.actor}|${act.type}|${act.startTime}`, {
-        kind: 'line',
-        left: Math.max(0, left),
-        width: Math.min(100 - Math.max(0, left), width),
-        color
-      });
+      // 过去部分（现在左侧）画灰色
+      if (act.startTime < now) {
+        const l = (act.startTime - windowStart) / total * 100;
+        const r = (Math.min(act.endTime, now) - windowStart) / total * 100;
+        if (r > 0 && l < 100) {
+          desired.set(`Lp|${act.actor}|${act.type}|${act.startTime}`, {
+            kind: 'line',
+            left: Math.max(0, l),
+            width: Math.min(100 - Math.max(0, l), r - l),
+            color: this.COLOR.past
+          });
+        }
+      }
+      // 未来部分（现在右侧）画主题色
+      const futStart = Math.max(act.startTime, now);
+      if (futStart < act.endTime) {
+        const l = (futStart - windowStart) / total * 100;
+        const r = (act.endTime - windowStart) / total * 100;
+        if (r > 0 && l < 100) {
+          desired.set(`Lf|${act.actor}|${act.type}|${act.startTime}`, {
+            kind: 'line',
+            left: Math.max(0, l),
+            width: Math.min(100 - Math.max(0, l), r - l),
+            color
+          });
+        }
+      }
       // 持续行动收尾绘制圆点标记
       const endLeft = (act.endTime - windowStart) / total * 100;
       if (endLeft >= 0 && endLeft <= 100) {
