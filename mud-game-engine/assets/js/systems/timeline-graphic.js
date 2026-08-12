@@ -5,14 +5,14 @@
 //   - "现在"标记固定于距左约 1/5 处，事件锚定世界时间向左滑动
 // 跳转逻辑仍由 Timeline 驱动，此处仅负责图形化呈现与平滑动画。
 const TimelineGraphic = {
-  // 时间窗口：过去 60 秒 + 未来 180 秒，共 240 秒
-  PAST_SEC: 60,
-  FUTURE_SEC: 180,
+  // 时间窗口：过去 10 秒 + 未来 60 秒，共 70 秒
+  PAST_SEC: 10,
+  FUTURE_SEC: 60,
   // 刻度间隔（秒）
   TICK_SEC: 10,
   // 布局尺寸（px）
   SCALE_H: 18,
-  TRACK_H: 24,
+  TRACK_H: 10,
   LABEL_W: 30,
 
   // 事件圆点颜色
@@ -71,17 +71,8 @@ const TimelineGraphic = {
     if (container.dataset.built === key) return;
     container.dataset.built = key;
 
-    const total = this.TOTAL_SEC();
-    const tickCount = Math.ceil(total / this.TICK_SEC) + 1;
-
-    let html = '';
     // 刻度层（顶部）
-    html += '<div class="tlg-scale">';
-    for (let i = 0; i < tickCount; i++) {
-      const pct = (i * this.TICK_SEC) / total * 100;
-      html += `<div class="tlg-tick" style="left:${pct}%"><span class="tlg-tick-line"></span><span class="tlg-tick-label">–</span></div>`;
-    }
-    html += '</div>';
+    let html = '<div class="tlg-scale"></div>';
     // 轨道层（每个单位一条）
     for (let a = 0; a < actors.length; a++) {
       const label = actors[a] === 'player' ? '你' : this._enemyLabel(actors[a]);
@@ -95,21 +86,43 @@ const TimelineGraphic = {
     html += `<div class="tlg-now" style="left:${this._nowPct()}%"><span class="tlg-now-marker">▼</span><span class="tlg-now-label">现在</span></div>`;
 
     container.innerHTML = html;
-    container.style.height = (this.SCALE_H + actors.length * this.TRACK_H + 4) + 'px';
   },
 
-  // 更新刻度标签（世界时间滚动）
+  // 更新刻度（世界时间锚定，随推进向左滚动）
   _renderTicks() {
     if (!this._container) return;
     const now = Timeline.time || 0;
     const total = this.TOTAL_SEC();
-    // 对齐到刻度间隔，使标签落在整 10 秒上
-    const start = Math.floor((now - this.PAST_SEC) / this.TICK_SEC) * this.TICK_SEC;
-    const ticks = this._container.querySelectorAll('.tlg-tick');
-    ticks.forEach((tick, i) => {
-      const wt = start + i * this.TICK_SEC;
-      tick.querySelector('.tlg-tick-label').textContent = this._timeLabel(wt);
-    });
+    const windowStart = now - this.PAST_SEC;
+    const layers = this._container.querySelector('.tlg-scale');
+    if (!layers) return;
+
+    // 站点落在整 TICK 秒上的世界时刻，出现在窗口内
+    const desired = new Map();
+    const first = Math.ceil(windowStart / this.TICK_SEC) * this.TICK_SEC;
+    for (let W = first - this.TICK_SEC; W <= now + this.FUTURE_SEC; W += this.TICK_SEC) {
+      const left = (W - windowStart) / total * 100;
+      if (left > 100) break;
+      desired.set(W, { left, label: this._timeLabel(W) });
+    }
+
+    // 移除已滑出窗口的节点
+    for (const child of Array.from(layers.children)) {
+      if (!desired.has(Number(child.dataset.w))) child.remove();
+    }
+    // 更新/创建节点（CSS transition 使位置平滑滑动）
+    for (const [W, d] of desired) {
+      let el = layers.querySelector(`[data-w="${W}"]`);
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'tlg-tick';
+        el.dataset.w = W;
+        el.innerHTML = '<span class="tlg-tick-line"></span><span class="tlg-tick-label"></span>';
+        layers.appendChild(el);
+      }
+      el.style.left = `${d.left}%`;
+      el.querySelector('.tlg-tick-label').textContent = d.label;
+    }
   },
 
   // 事件归属信息：该事件是否属于此轨道，及其颜色
@@ -143,6 +156,15 @@ const TimelineGraphic = {
         width: Math.min(100 - Math.max(0, left), width),
         color
       });
+      // 持续行动收尾绘制圆点标记
+      const endLeft = (act.endTime - windowStart) / total * 100;
+      if (endLeft >= 0 && endLeft <= 100) {
+        desired.set(`E|${act.actor}|${act.type}|${act.endTime}`, {
+          kind: 'dot',
+          left: endLeft,
+          color
+        });
+      }
     }
     // 行动圆点
     for (const evt of (Timeline.eventQueue || [])) {
