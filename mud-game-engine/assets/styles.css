@@ -42,7 +42,7 @@ body {
   font-size: var(--font-title);
   font-weight: 700;
   color: var(--accent);
-  text-shadow: 0 0 20px var(--glow);
+  text-shadow: 0 0 12px var(--glow);
   letter-spacing: 0.1em;
 }
 .header-actions { display: flex; gap: 0.5rem; }
@@ -301,7 +301,7 @@ body {
   flex-shrink: 0;
   overflow: hidden;
 }
-.timeline-panel.active { display: flex; }
+.timeline-panel.active { display: flex; animation: fadeIn 0.25s ease; }
 .timeline-header {
   padding: 0.75rem 1rem 0.5rem;
   border-bottom: 1px solid var(--rule);
@@ -357,11 +357,14 @@ body {
 }
 .sidebar-title {
   font-size: var(--font-section-title);
-  color: var(--accent);
+  color: var(--muted-bright);
   text-transform: uppercase;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.12em;
   margin-bottom: 0.5rem;
   font-weight: 700;
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--accent);
+  opacity: 0.9;
 }
 .stat-row {
   display: flex;
@@ -578,6 +581,7 @@ body {
   overflow-y: auto;
   padding: 1rem 1.5rem;
   scroll-behavior: smooth;
+  background: linear-gradient(180deg, var(--bg), #0c1118);
 }
 .output::-webkit-scrollbar { width: 6px; }
 .output::-webkit-scrollbar-track { background: var(--bg); }
@@ -636,10 +640,10 @@ body {
   font-size: var(--font-query);
 }
 
-.msg { margin-bottom: 0.6rem; animation: fadeIn 0.3s ease; }
+.msg { margin-bottom: 0.4rem; animation: fadeIn 0.3s ease; line-height: 1.65; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
-.msg.system { color: var(--muted); font-style: italic; }
+.msg.system { color: var(--muted); font-style: italic; font-size: var(--font-system); }
 .msg.info { color: var(--ink); }
 .msg.success { color: var(--accent); }
 .msg.warning { color: var(--accent3); }
@@ -647,13 +651,14 @@ body {
 .msg.magic { color: var(--accent4); }
 .msg.loot { color: var(--accent3); }
 .msg.story { color: var(--story-ink); line-height: 1.8; }
-.msg.command { color: var(--accent); opacity: 0.6; }
+.msg.command { color: var(--accent); opacity: 0.85; font-weight: 600; }
 .msg.divider {
   color: var(--rule);
+  opacity: 0.6;
   text-align: center;
-  margin: 0.8rem 0;
+  margin: 0.5rem 0;
   font-size: var(--font-hint);
-  letter-spacing: 0.3em;
+  letter-spacing: 0.2em;
 }
 .msg.combat-title {
   color: var(--accent2);
@@ -770,7 +775,7 @@ body {
   display: none;
   flex-shrink: 0;
 }
-.battle-bar.active { display: block; }
+.battle-bar.active { display: block; animation: fadeIn 0.25s ease; }
 .battle-info {
   display: flex;
   justify-content: space-between;
