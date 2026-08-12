@@ -9,7 +9,7 @@ const TimelineGraphic = {
   PAST_MIN: 3,
   FUTURE_MIN: 12,
   // 1 游戏分钟对应的像素宽度（约 1cm），用于刻度密度
-  PIX_PER_MIN: 40,
+  PIX_PER_MIN: 8,
 
   // 事件圆点颜色
   COLOR: {
