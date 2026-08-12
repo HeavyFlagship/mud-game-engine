@@ -430,19 +430,7 @@ body {
   padding: 0.75rem 1rem;
 }
 /* Ready list – separate section above timeline */
-.ready-list {
-  padding: 0.5rem 1rem;
-  border-bottom: 1px solid var(--rule);
-  flex-shrink: 0;
-}
-.ready-list .sidebar-title {
-  margin-bottom: 0.3rem;
-}
-.ready-item {
-  padding: 2px 0;
-  font-size: var(--font-timeline);
-  line-height: 1.5;
-}
+/* (已移除就绪武器显示，样式保留占位) */
 /* Skip button in timeline */
 .skip-action-btn {
   background: rgba(255, 100, 50, 0.15);
@@ -1049,9 +1037,6 @@ body {
 }
 .main.grid-layout .timeline-header {
   padding: 0.5rem 0.7rem 0.35rem;
-}
-.main.grid-layout .ready-list {
-  padding: 0.35rem 0.7rem;
 }
 .main.grid-layout .timeline-content {
   padding: 0.35rem 0.7rem;

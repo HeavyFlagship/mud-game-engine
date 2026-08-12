@@ -441,7 +441,6 @@ const BattleUI = {
     this.updateBattleTime();
     this.updateUnitList();
     this.updateEnemyList();
-    this.updateReadyList();
     this.updateTimeline();
   },
 
@@ -496,10 +495,6 @@ const BattleUI = {
     if (timelineEl) {
       timelineEl.innerHTML = '<div style="color:var(--muted);font-style:italic;">未在场景中</div>';
     }
-    const readyEl = document.getElementById('ready-list');
-    if (readyEl) {
-      readyEl.innerHTML = '<div class="sidebar-title">🔫 就绪武器</div><div class="ready-item" style="color:var(--muted);font-style:italic;">（未在场景中）</div>';
-    }
   },
 
   updateEnemyList() {
@@ -540,32 +535,6 @@ const BattleUI = {
       </div>`;
     }
     enemyEl.innerHTML = html;
-  },
-
-  updateReadyList() {
-    const el = document.getElementById('ready-list');
-    if (!el) return;
-
-    const readyWeapons = [];
-    for (const [slotKey, slot] of Object.entries(Player.equipment)) {
-      const cd = Player.weaponCooldowns[slotKey] || 0;
-      const w = slot.equip;
-      if (w && w.category === 'weapon' && cd <= 0) {
-        readyWeapons.push({ slot: slotKey, name: w.name });
-      }
-    }
-
-    let html = '<div class="sidebar-title">🔫 就绪武器</div>';
-    if (readyWeapons.length > 0) {
-      for (let i = 0; i < readyWeapons.length; i++) {
-        const w = readyWeapons[i];
-        const slotNum = Object.keys(Player.equipment).indexOf(w.slot) + 1;
-        html += `<div class="ready-item" style="color:var(--accent4);">${i + 1}. ${w.name} <span style="color:var(--muted);font-size:var(--font-hint);">(#${slotNum})</span></div>`;
-      }
-    } else {
-      html += '<div class="ready-item" style="color:var(--muted);font-style:italic;">（无就绪武器）</div>';
-    }
-    el.innerHTML = html;
   },
 
   updateTimeline() {
