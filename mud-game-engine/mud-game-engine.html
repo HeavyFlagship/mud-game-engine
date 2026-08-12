@@ -41,7 +41,7 @@
     </div>
   </section>
 
-  <!-- 列3：场景地图（行1-2） + 装备/时间轴（行3） -->
+  <!-- 列3-4：场景地图（横跨3、4列，行1-2） -->
   <section class="panel panel-scene-map">
     <div class="sidebar-title">场景地图</div>
     <div class="radar-wrap">
@@ -52,18 +52,16 @@
       <canvas id="radar-canvas" width="200" height="200" style="width: 100%; background: rgb(5, 16, 5); border: 1px solid rgb(34, 221, 85); border-radius: 4px; display: block; cursor: crosshair;"></canvas>
     </div>
     <div id="radar-legend" style="font-size:var(--font-radar-legend);color:#888;margin-top:4px;"><span style="color:#0ff;">●</span> 玩家 &nbsp; <span style="color:#8cf;">●</span> NPC &nbsp; <span style="color:#f44;">●</span> 威胁 &nbsp; <span style="color:#fd0;">●</span> 未警觉</div>
-    <div class="scene-extra">
-      <div class="scene-sub-title">图例</div>
-      <div id="location-info" class="location-info-block"></div>
-    </div>
+    <div class="scene-location" id="location-info"></div>
   </section>
 
-  <!-- 列4：装备（行1-2） + 时间轴（行3） -->
+  <!-- 列3行3：装备 -->
   <section class="panel panel-equip">
     <div class="sidebar-title">装备</div>
     <div id="equip-info"></div>
   </section>
 
+  <!-- 列4行3：时间轴 -->
   <section class="panel panel-timeline" id="timeline-panel">
     <div class="timeline-header">
       <span class="sidebar-title">时间轴</span>

@@ -452,7 +452,7 @@ const Battle = {
     const moveAction = Timeline.createContinuousAction('player', 'move', Timeline.time, time, {
       startPos,
       endPos: clamped
-    }, (pos) => { Player.position = pos; });
+    }, (pos) => { Player.position = pos; if (Game.updatePlayerPos) Game.updatePlayerPos(); });
     Timeline.addContinuousAction(moveAction);
     Timeline.scheduleEvent({ type: 'move_complete', actor: 'player' }, time);
     this.currentActor = 'player';

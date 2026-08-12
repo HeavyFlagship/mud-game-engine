@@ -1563,9 +1563,14 @@ const Game = {
     const room = MapSystem.getRoom(Player.room);
     const el = document.getElementById('location-info');
     if (room && el) {
-      const exits = Object.keys(room.exits || {}).map(d => MapSystem.getDirectionName(d)).join('、');
-      el.innerHTML = `<div style="color:var(--accent);font-weight:600;margin-bottom:0.3rem">${room.name}</div><div>高度: ${MapSystem.getLevelName(room.z || 0)}</div><div>位置: (${Math.round(Player.position[0])}, ${Math.round(Player.position[1])})</div><div>出口: ${exits}</div>`;
+      el.innerHTML = `<span class="loc-name">${room.name}</span><span class="loc-sep"> | </span><span class="loc-level">${MapSystem.getLevelName(room.z || 0)}</span><span class="loc-sep"> | </span><span class="loc-pos" id="location-pos-value">(${Math.round(Player.position[0])}, ${Math.round(Player.position[1])})</span>`;
     }
+  },
+
+  // 轻量更新坐标（战斗移动时逐帧调用，避免重建整个位置条）
+  updatePlayerPos() {
+    const p = document.getElementById('location-pos-value');
+    if (p) p.textContent = `(${Math.round(Player.position[0])}, ${Math.round(Player.position[1])})`;
   }
 };
 
