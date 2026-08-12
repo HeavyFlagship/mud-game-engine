@@ -442,6 +442,7 @@ const BattleUI = {
     this.updateUnitList();
     this.updateEnemyList();
     this.updateTimeline();
+    if (typeof TimelineGraphic !== 'undefined') TimelineGraphic.render();
   },
 
   updateBattleTime() {
@@ -495,6 +496,7 @@ const BattleUI = {
     if (timelineEl) {
       timelineEl.innerHTML = '<div style="color:var(--muted);font-style:italic;">未在场景中</div>';
     }
+    if (typeof TimelineGraphic !== 'undefined') TimelineGraphic.clear();
   },
 
   updateEnemyList() {
@@ -539,75 +541,9 @@ const BattleUI = {
 
   updateTimeline() {
     const content = document.getElementById('timeline-content');
-    if (!content || !Timeline.eventQueue) return;
+    if (!content) return;
 
     let html = '';
-
-    const upcoming = [...Timeline.eventQueue]
-      .filter(evt => evt.type === 'player_turn' || evt.type === 'enemy_turn' || evt.type === 'weapon_ready' || evt.type === 'player_fire')
-      .sort((a, b) => b.time - a.time)
-      .slice(0, 6);
-    html += '<div class="timeline-section timeline-upcoming">';
-    html += '<div class="timeline-divider">— 即将到来 —</div>';
-    for (const evt of upcoming) {
-      const timeOffset = (evt.time - (Timeline.time || 0)).toFixed(1);
-      let label = '';
-      let color = '#aaa';
-      if (evt.type === 'player_turn') {
-        label = '你的行动';
-        color = '#0ff';
-      } else if (evt.type === 'enemy_turn') {
-        const enemy = Battle.battlefield ? Battle.battlefield.enemies.find(e => e.instanceId === evt.actor) : null;
-        label = enemy ? `${enemy.name}[${evt.actor}]行动` : `敌人[${evt.actor}]行动`;
-        color = '#f66';
-      } else if (evt.type === 'weapon_ready') {
-        const weapon = Player.equipment[evt.slot]?.equip;
-        label = weapon ? `${weapon.name}就绪` : `${evt.slot}就绪`;
-        color = '#ff8';
-      } else if (evt.type === 'player_fire') {
-        const weapon = Player.equipment[evt.slot]?.equip;
-        const wName = weapon ? weapon.name : evt.slot;
-        label = `开火(${wName})→${evt.target}`;
-        color = '#f80';
-      }
-      html += `<div class="timeline-item upcoming" style="color:${color};">+${timeOffset}秒 ${label}</div>`;
-    }
-    if (upcoming.length === 0) {
-      html += '<div class="timeline-item upcoming" style="color:#555;">（无）</div>';
-    }
-    html += '</div>';
-
-    html += '<div class="timeline-section timeline-current">';
-    html += '<div class="timeline-divider current-divider">▶ 当前行动';
-    if (Battle.active && Timeline.paused && Battle.currentActor === 'player') {
-      html += ' <button class="skip-action-btn" onclick="BattleUI.execCmd(\'continue\')" title="跳过当前行动阶段">跳过</button>';
-    }
-    html += '</div>';
-    for (const act of this.currentActions) {
-      html += `<div class="timeline-item current" style="color:${act.color};">${act.text}</div>`;
-    }
-    if (this.currentActions.length === 0) {
-      html += '<div class="timeline-item current" style="color:#555;">（等待中）</div>';
-    }
-    html += '</div>';
-
-    const continuousActions = Timeline.continuousActions || [];
-    if (continuousActions.length > 0) {
-      html += '<div class="timeline-section timeline-continuous">';
-      html += '<div class="timeline-divider">— 持续动作 —</div>';
-      for (const action of continuousActions) {
-        const remaining = Math.max(0, action.endTime - (Timeline.time || 0)).toFixed(0);
-        const total = action.duration || 1;
-        const elapsed = (Timeline.time || 0) - action.startTime;
-        const pct = Math.max(0, Math.min(100, (elapsed / total) * 100));
-        const typeLabel = action.type === 'move' ? '移动' : action.type;
-        const actorLabel = action.actor === 'player' ? '你' : action.actor;
-        html += `<div class="timeline-item continuous" style="color:#8f8;">${actorLabel} ${typeLabel} (剩余${remaining}秒)</div>`;
-        html += `<div style="width:90%;height:4px;background:#333;border-radius:2px;margin:2px 0 4px 8px;"><div style="width:${pct}%;height:4px;background:#8f8;border-radius:2px;"></div></div>`;
-      }
-      html += '</div>';
-    }
-
     html += '<div class="timeline-section timeline-history">';
     html += '<div class="timeline-divider">— 历史记录 —';
     const catNames = { attack: '攻击', move: '移动', system: '系统', loot: '战利品' };
@@ -636,6 +572,7 @@ const BattleUI = {
     this.currentActions = [];
     const tlPanel = document.getElementById('timeline-panel');
     if (tlPanel) tlPanel.classList.remove('active');
+    if (typeof TimelineGraphic !== 'undefined') TimelineGraphic.clear();
     this.clearBattlePanels();
     this.updateRadar();
   }

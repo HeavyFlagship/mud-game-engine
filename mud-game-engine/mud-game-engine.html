@@ -55,17 +55,26 @@
     <div class="scene-location" id="location-info"></div>
   </section>
 
-  <!-- 列3行3：装备 -->
+  <!-- 列3-4行3：图形时间轴 -->
+  <section class="panel panel-timeline-graphic" id="timeline-graphic-panel">
+    <div class="tl-graphic-header">
+      <span class="tl-graphic-title">时间轴</span>
+      <span id="battle-time" class="battle-time">00:00:00</span>
+      <button class="skip-action-btn" id="tl-skip-btn" onclick="BattleUI.execCmd('continue')" style="display:none">跳过</button>
+    </div>
+    <div class="tl-graphic" id="tl-graphic"></div>
+  </section>
+
+  <!-- 列3行4：装备 -->
   <section class="panel panel-equip">
     <div class="sidebar-title">装备</div>
     <div id="equip-info"></div>
   </section>
 
-  <!-- 列4行3：时间轴 -->
+  <!-- 列4行4：历史记录 -->
   <section class="panel panel-timeline" id="timeline-panel">
     <div class="timeline-header">
-      <span class="sidebar-title">时间轴</span>
-      <span id="battle-time" class="battle-time">00:00:00</span>
+      <span class="sidebar-title">历史记录</span>
     </div>
     <div id="timeline-content" class="timeline-content"></div>
   </section>
@@ -157,6 +166,7 @@
 <script src="assets/js/systems/enemy-ai.js"></script>
 <script src="assets/js/systems/timeline.js"></script>
 <script src="assets/js/systems/battle-ui.js"></script>
+<script src="assets/js/systems/timeline-graphic.js"></script>
 <script src="assets/js/systems/battle.js"></script>
 <script src="assets/js/systems/command-registry.js"></script>
 <script src="assets/js/systems/commands/global-commands.js"></script>
