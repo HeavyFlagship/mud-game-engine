@@ -463,49 +463,96 @@ body {
 }
 .tl-graphic {
   position: relative;
-  height: 64px;
   overflow: hidden;
 }
-.tlg-base {
+/* 刻度层（顶部） */
+.tlg-scale {
   position: absolute;
   left: 0; right: 0;
-  top: 50%;
-  height: 2px;
-  background: var(--rule);
-  transform: translateY(-50%);
+  top: 0;
+  height: 18px;
 }
-.tlg-ticks { position: absolute; inset: 0; }
 .tlg-tick {
   position: absolute;
-  top: 0; bottom: 0;
+  top: 0;
+  height: 18px;
   transform: translateX(-50%);
 }
 .tlg-tick-line {
   position: absolute;
   left: 50%;
-  top: 50%;
+  bottom: 0;
   width: 1px;
   height: 6px;
   background: var(--rule);
   opacity: 0.6;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
 }
 .tlg-tick-label {
   position: absolute;
   left: 50%;
-  top: 50%;
-  transform: translate(-50%, 6px);
+  top: 0;
+  transform: translateX(-50%);
   font-size: 0.55rem;
   color: var(--muted);
   line-height: 1;
 }
+/* 轨道层（每个单位一条） */
+.tlg-track {
+  position: absolute;
+  left: 0; right: 0;
+  height: 24px;
+}
+.tlg-track-label {
+  position: absolute;
+  left: 2px;
+  top: 0;
+  height: 24px;
+  line-height: 24px;
+  font-size: 0.6rem;
+  color: var(--muted-bright);
+  width: 30px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.tlg-track-line {
+  position: absolute;
+  left: 30px; right: 0;
+  top: 50%;
+  height: 1px;
+  background: var(--rule);
+  opacity: 0.5;
+}
+.tlg-track-lane {
+  position: absolute;
+  left: 30px; right: 0;
+  top: 0; bottom: 0;
+}
+.tlg-line {
+  position: absolute;
+  top: 50%;
+  height: 4px;
+  border-radius: 2px;
+  transform: translateY(-50%);
+  transition: left 0.3s ease, width 0.3s ease;
+}
+.tlg-dot {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: left 0.3s ease;
+}
+.tlg-dot.entering { animation: tlgFadeIn 0.3s ease; }
+/* 现在标记（贯穿高度） */
 .tlg-now {
   position: absolute;
   top: 0; bottom: 0;
   width: 2px;
   background: var(--accent);
   transform: translateX(-50%);
-  transition: left 0.3s ease;
 }
 .tlg-now.highlight {
   box-shadow: 0 0 8px var(--glow);
@@ -528,39 +575,9 @@ body {
   color: var(--muted);
   white-space: nowrap;
 }
-.tlg-dots { position: absolute; inset: 0; }
-.tlg-dot {
-  position: absolute;
-  top: 24%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  transition: left 0.3s ease;
-}
-.tlg-dot.entering { animation: tlgFadeIn 0.3s ease; }
-.tlg-dot-label {
-  font-size: 0.6rem;
-  color: var(--muted);
-  line-height: 1;
-  margin-bottom: 2px;
-  text-shadow: 0 0 4px #000;
-}
-.tlg-dot-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-.tlg-lines { position: absolute; inset: 0; }
-.tlg-line {
-  position: absolute;
-  height: 4px;
-  border-radius: 2px;
-  transition: left 0.3s ease, width 0.3s ease;
-}
 @keyframes tlgFadeIn {
-  from { opacity: 0; transform: translateX(-50%) scale(0.6); }
-  to   { opacity: 1; transform: translateX(-50%) scale(1); }
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
 .sidebar-section {
