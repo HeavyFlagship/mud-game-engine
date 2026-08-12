@@ -26,6 +26,10 @@ const TimelineGraphic = {
 
   // 容器引用
   _container: null,
+  // 已完成的行动点记录：actor -> [{ time, color }]（用于灰度展示在"现在"左侧）
+  _past: {},
+  // 是否已订阅 dispatchEvent 钩子
+  _subscribed: false,
 
   TOTAL_SEC() { return this.PAST_SEC + this.FUTURE_SEC; },
 
@@ -135,6 +139,24 @@ const TimelineGraphic = {
     return null;
   },
 
+  // 事件类型 → 颜色（非展示类型返回 null）
+  _eventColor(type) {
+    if (type === 'player_turn') return this.COLOR.player;
+    if (type === 'enemy_turn') return this.COLOR.enemy;
+    if (type === 'weapon_ready') return this.COLOR.weapon;
+    if (type === 'player_fire') return this.COLOR.fire;
+    return null;
+  },
+
+  // 记录已完成的行动点（用于灰度展示在"现在"左侧，保持动画连贯）
+  _recordPast(evt) {
+    const color = this._eventColor(evt.type);
+    if (!color || !evt.actor) return;
+    if (!this._past[evt.actor]) this._past[evt.actor] = [];
+    this._past[evt.actor].push({ time: evt.time, color });
+    if (this._past[evt.actor].length > 30) this._past[evt.actor].shift();
+  },
+
   // 增量更新单条轨道（复用节点保持平滑过渡）
   _renderLane(lane, actor) {
     const now = Timeline.time || 0;
@@ -179,6 +201,17 @@ const TimelineGraphic = {
         color: isPast ? this.COLOR.past : info.color
       });
     }
+    // 已完成的行动点（灰度，位于"现在"左侧，保持动画连贯）
+    const pastList = this._past[actor] || [];
+    pastList.forEach((p, i) => {
+      const left = (p.time - windowStart) / total * 100;
+      if (left < 0 || left > 100) return;
+      desired.set(`P|${actor}|${i}|${p.time}`, {
+        kind: 'dot',
+        left,
+        color: this.COLOR.past
+      });
+    });
 
     // 移除不再需要的节点
     for (const child of Array.from(lane.children)) {
@@ -246,6 +279,13 @@ const TimelineGraphic = {
   render() {
     this._ensureBase();
     if (!this._container) return;
+    // 订阅一次事件分发钩子，记录已完成的行动点
+    if (!this._subscribed) {
+      this._subscribed = true;
+      if (typeof Timeline !== 'undefined') {
+        Timeline.onEventDispatched = (evt) => this._recordPast(evt);
+      }
+    }
     this._renderTicks();
     this._renderTracks();
     this._updateNow();
@@ -260,5 +300,8 @@ const TimelineGraphic = {
       this._container.innerHTML = '';
       delete this._container.dataset.built;
     }
+    this._past = {};
+    this._subscribed = false;
+    if (typeof Timeline !== 'undefined') Timeline.onEventDispatched = null;
   }
 };

@@ -168,14 +168,28 @@ const Timeline = {
     if (handler) {
       handler(event);
     }
+    // 可选通知钩子（用于记录已完成的行动点等 UI 用途）
+    if (this.onEventDispatched) {
+      this.onEventDispatched(event);
+    }
   },
 
-  // 调度下一次推进
+  // 调度下一次推进：停顿与下一个行动点的游戏时间间隔成正比，使停顿对应行动点
   scheduleNext() {
     if (this.paused) return;
     this.stopLoop();
+    let delay = this.actionDelay;
+    if (this.eventQueue.length > 0) {
+      let next = this.eventQueue[0].time;
+      for (const e of this.eventQueue) {
+        if (e.time < next) next = e.time;
+      }
+      const gap = Math.max(0, next - this.time);
+      // 每游戏秒约 80ms 真实时间，限制在 300ms~1200ms
+      delay = Math.max(300, Math.min(1200, gap * 80));
+    }
     this.actionTimeout = setTimeout(() => {
       this.tick();
-    }, this.actionDelay);
+    }, delay);
   }
 };
