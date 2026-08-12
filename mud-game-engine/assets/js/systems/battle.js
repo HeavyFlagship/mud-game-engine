@@ -84,9 +84,7 @@ const Battle = {
     });
     Timeline.on('attack_complete', (e) => {
       this.currentActor = null;
-      const enemy = this.battlefield.enemies.find(en => en.instanceId === e.actor);
-      if (enemy) this.scheduleNextEnemyTurn(enemy);
-      else Timeline.scheduleNext();
+      Timeline.scheduleNext();
     });
     Timeline.on('npc_call', (e) => {
       BattleUI.removeCurrentAction('通信中...');
@@ -823,6 +821,8 @@ const Battle = {
     }
 
     Timeline.scheduleEvent({ type: 'attack_complete', actor: enemy.instanceId }, enemy.attackCooldown);
+    // 攻击后立即按 initiative 调度下一次行动，而非等 attackCooldown 结束
+    this.scheduleNextEnemyTurn(enemy);
   },
 
   calculateEnemyHitRate(enemy, dist) {

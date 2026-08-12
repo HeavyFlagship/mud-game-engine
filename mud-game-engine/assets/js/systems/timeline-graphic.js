@@ -149,7 +149,9 @@ const TimelineGraphic = {
   },
 
   // 记录已完成的行动点（用于灰度展示在"现在"左侧，保持动画连贯）
+  // player_turn / enemy_turn 是回合开始事件，此时行动尚未完成，不应立即变灰
   _recordPast(evt) {
+    if (evt.type === 'player_turn' || evt.type === 'enemy_turn') return;
     const color = this._eventColor(evt.type);
     if (!color || !evt.actor) return;
     if (!this._past[evt.actor]) this._past[evt.actor] = [];
