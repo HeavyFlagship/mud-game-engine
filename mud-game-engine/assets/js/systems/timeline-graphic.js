@@ -44,7 +44,7 @@ const TimelineGraphic = {
     html += '<div class="tlg-ticks">';
     for (let i = 0; i <= total; i++) {
       const pct = (i / total) * 100;
-      const label = i % 5 === 0 ? `<span class="tlg-tick-label">${i - this.PAST_MIN}</span>` : '';
+      const label = i % 5 === 0 ? `<span class="tlg-tick-label">${i}</span>` : '';
       html += `<div class="tlg-tick" style="left:${pct}%"><span class="tlg-tick-line"></span>${label}</div>`;
     }
     html += '</div>';
