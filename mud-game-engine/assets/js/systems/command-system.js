@@ -266,10 +266,20 @@ handleBaseCmd(parsed) {
           Msg.warning('等待时间过长，已限制为300秒。');
           waitTime = 300;
         }
-        // 先开始移动（setPlayerTask 会取消当前回合并启动移动）
+        // 基准时间：waitTime 必须相对 continue 执行时刻计算。
+        // startPlayerMove 内部 scheduleNext 会把 Timeline.time 推进一个移动时长，
+        // 若用推进后的时间 + waitTime 调度，player_turn 会晚 moveDuration，导致
+        // 第一次 continue 实际推进接近 moveDuration + waitTime（如 20 秒）。
+        const baseTime = Timeline.time;
+        // 清理旧玩家移动事件/动作，避免 startPlayerMove 重复入队 move_complete
+        Timeline.cancelEvents(e => e.type === 'move_complete' && e.actor === 'player');
+        Timeline.removeContinuousAction('player', 'move');
+        BattleUI.removeCurrentAction('移动中...');
+        // 开始移动（setPlayerTask 会取消当前回合并启动移动）
         Battle.setPlayerTask({ type: 'move', target: hint.pendingMove, autoExit: hint.autoExit });
-        // 调度 N 秒后重新询问开火
-        Timeline.scheduleEvent({ type: 'player_turn', actor: 'player' }, waitTime);
+        // 调度 N 秒后重新询问开火：精确排在 baseTime + waitTime
+        const delay = Math.max(0, (baseTime + waitTime) - Timeline.time);
+        Timeline.scheduleEvent({ type: 'player_turn', actor: 'player' }, delay);
         Timeline.paused = false;
         Timeline.scheduleNext();
         Msg.info(`移动中，${waitTime} 秒后重新询问开火...`);
@@ -277,6 +287,9 @@ handleBaseCmd(parsed) {
       }
       // continue 无参数：跳过开火，仅执行移动
       Battle.playerFireHint = null;
+      Timeline.cancelEvents(e => e.type === 'move_complete' && e.actor === 'player');
+      Timeline.removeContinuousAction('player', 'move');
+      BattleUI.removeCurrentAction('移动中...');
       Battle.setPlayerTask({ type: 'move', target: hint.pendingMove, autoExit: hint.autoExit });
       return;
     }
