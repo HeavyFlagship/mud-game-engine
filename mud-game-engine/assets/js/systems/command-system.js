@@ -486,11 +486,13 @@ handleBaseCmd(parsed) {
     if (/^\d+$/.test(first) && args.length >= 2 && /^\d+$/.test(args[1])) {
       targetX = parseInt(first);
       targetY = parseInt(args[1]);
-    } else if (/^[nsew]$/.test(first.toLowerCase()) || /^(ne|nw|se|sw)$/.test(first.toLowerCase())) {
+    } else if (/^(n|s|e|w|north|south|east|west|ne|nw|se|sw|northeast|northwest|southeast|southwest)$/i.test(first)) {
       const dir = first.toLowerCase();
       const dirMap = {
-        n:[0,-1], s:[0,1], e:[1,0], w:[-1,0],
-        ne:[0.707,-0.707], nw:[-0.707,-0.707], se:[0.707,0.707], sw:[-0.707,0.707]
+        n:[0,-1], north:[0,-1], s:[0,1], south:[0,1],
+        e:[1,0], east:[1,0], w:[-1,0], west:[-1,0],
+        ne:[0.707,-0.707], northeast:[0.707,-0.707], nw:[-0.707,-0.707], northwest:[-0.707,-0.707],
+        se:[0.707,0.707], southeast:[0.707,0.707], sw:[-0.707,0.707], southwest:[-0.707,0.707]
       };
       const d = dirMap[dir];
       if (!d) {
@@ -554,15 +556,23 @@ handleBaseCmd(parsed) {
     let moveLabel = '';
     const first = args[0];
 
+    // 方向映射：支持缩写与全称（n=north 等）
+    const dirMap = {
+      n:[0,-1], north:[0,-1], s:[0,1], south:[0,1],
+      e:[1,0], east:[1,0], w:[-1,0], west:[-1,0],
+      ne:[0.707,-0.707], northeast:[0.707,-0.707],
+      nw:[-0.707,-0.707], northwest:[-0.707,-0.707],
+      se:[0.707,0.707], southeast:[0.707,0.707],
+      sw:[-0.707,0.707], southwest:[-0.707,0.707]
+    };
+    const mainDirRe = /^(n|s|e|w|north|south|east|west)$/i;
+    const diagDirRe = /^(ne|nw|se|sw|northeast|northwest|southeast|southwest)$/i;
+
     if (/^\d+$/.test(first) && args.length >= 2 && /^\d+$/.test(args[1])) {
       targetX = parseInt(first);
       targetY = parseInt(args[1]);
-    } else if (/^[nsew]$/.test(first.toLowerCase()) || /^(ne|nw|se|sw)$/.test(first.toLowerCase())) {
+    } else if (mainDirRe.test(first) || diagDirRe.test(first)) {
       const dir = first.toLowerCase();
-      const dirMap = {
-        n:[0,-1], s:[0,1], e:[1,0], w:[-1,0],
-        ne:[0.707,-0.707], nw:[-0.707,-0.707], se:[0.707,0.707], sw:[-0.707,0.707]
-      };
       const d = dirMap[dir];
       if (!d) {
         Msg.error('方向无效。使用 n/s/e/w/ne/nw/se/sw');
@@ -577,15 +587,17 @@ handleBaseCmd(parsed) {
         }
         targetX = Player.position[0] + d[0] * dist;
         targetY = Player.position[1] + d[1] * dist;
-      } else if (/^[nsew]$/.test(dir)) {
+      } else if (mainDirRe.test(dir)) {
         // 主方向无距离：移动到该方向边界点（距边界5m），到达后自动切换场景
         const [bw, bh] = Battle.battlefield.size;
         const margin = 5;
-        switch (dir) {
-          case 'n': targetX = Player.position[0]; targetY = margin; autoExit = 'north'; break;
-          case 's': targetX = Player.position[0]; targetY = bh - margin; autoExit = 'south'; break;
-          case 'e': targetX = bw - margin; targetY = Player.position[1]; autoExit = 'east'; break;
-          case 'w': targetX = margin; targetY = Player.position[1]; autoExit = 'west'; break;
+        const exitMap = { n:'north', north:'north', s:'south', south:'south', e:'east', east:'east', w:'west', west:'west' };
+        autoExit = exitMap[dir];
+        switch (autoExit) {
+          case 'north': targetX = Player.position[0]; targetY = margin; break;
+          case 'south': targetX = Player.position[0]; targetY = bh - margin; break;
+          case 'east': targetX = bw - margin; targetY = Player.position[1]; break;
+          case 'west': targetX = margin; targetY = Player.position[1]; break;
         }
         Msg.info(`向${MapSystem.getDirectionName(autoExit)}边界移动，到达后自动切换场景...`);
       } else {
@@ -632,7 +644,8 @@ handleBaseCmd(parsed) {
     // 操作阶段：记录机体移动意图，等待 execute 提交（不立即开始移动）
     if (Battle.isPlayerActionPhase() && Battle.playerActionState) {
       if (!moveLabel) moveLabel = `移动至 (${Math.round(targetX)}, ${Math.round(targetY)})`;
-      Battle.setChassisAction('move', [targetX, targetY], moveLabel);
+      if (autoExit) moveLabel = `向${MapSystem.getDirectionName(autoExit)}边界移动（到达后切换场景）`;
+      Battle.setChassisAction('move', [targetX, targetY], moveLabel, 0, autoExit);
       Msg.hint(`机体：${moveLabel}（点击执行提交）。`);
       return;
     }
@@ -760,22 +773,28 @@ handleBaseCmd(parsed) {
   cmdBattleFire(args) {
     if (!Battle.battlefield) return;
     if (args.length < 1) {
-      const enemies = Battle.battlefield.enemies.filter(e => e.hp > 0);
-      if (enemies.length === 0) {
-        Msg.info('附近没有敌人。');
+      // 有锁定目标时默认使用锁定目标（fire 无参 = fire <锁定目标>）
+      const locked = Battle.getLockedEnemy();
+      if (locked) {
+        args = [locked.instanceId];
+      } else {
+        const enemies = Battle.battlefield.enemies.filter(e => e.hp > 0);
+        if (enemies.length === 0) {
+          Msg.info('附近没有敌人。');
+          return;
+        }
+        let info = '可用目标：\n';
+        for (const e of enemies) {
+          const dist = Battle.getDistance(Player.position, e.position);
+          const primaryWeapon = Player.getEquippedWeapons()[0];
+          const inRange = primaryWeapon && dist <= primaryWeapon.range;
+          info += `  ${e.instanceId} - ${e.name} (距离${dist.toFixed(0)}m) ${inRange ? '[射程内]' : '[超射程]'}\n`;
+        }
+        info += '用法：fire <目标编号> [武器槽]\n';
+        info += '  武器槽: all(默认) 或接口编号（见 bag），默认所有就绪武器开火';
+        Msg.info(info);
         return;
       }
-      let info = '可用目标：\n';
-      for (const e of enemies) {
-        const dist = Battle.getDistance(Player.position, e.position);
-        const primaryWeapon = Player.getEquippedWeapons()[0];
-        const inRange = primaryWeapon && dist <= primaryWeapon.range;
-        info += `  ${e.instanceId} - ${e.name} (距离${dist.toFixed(0)}m) ${inRange ? '[射程内]' : '[超射程]'}\n`;
-      }
-      info += '用法：fire <目标编号> [武器槽]\n';
-      info += '  武器槽: all(默认) 或接口编号（见 bag），默认所有就绪武器开火';
-      Msg.info(info);
-      return;
     }
     const targetId = args[0].toUpperCase();
     const slotArg = args[1] || 'all';

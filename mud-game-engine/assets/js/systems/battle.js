@@ -962,7 +962,7 @@ const Battle = {
     if (!this.hasLiveEnemies()) return;
     this.playerActionState = {
       active: true,
-      chassis: { action: null, target: null, targetLabel: null, holdFor: 0 },
+      chassis: { action: null, target: null, targetLabel: null, holdFor: 0, autoExit: null },
       weapons: {}
     };
 
@@ -1025,12 +1025,13 @@ const Battle = {
   },
 
   /** 记录机体操作意图 */
-  setChassisAction(action, target, targetLabel, holdFor = 0) {
+  setChassisAction(action, target, targetLabel, holdFor = 0, autoExit = null) {
     if (!this.isPlayerActionPhase() || !this.playerActionState) return;
     this.playerActionState.chassis.action = action;
     this.playerActionState.chassis.target = target || null;
     this.playerActionState.chassis.targetLabel = targetLabel || null;
     this.playerActionState.chassis.holdFor = holdFor > 0 ? holdFor : 0;
+    this.playerActionState.chassis.autoExit = autoExit || null;
     BattleUI.update();
   },
 
@@ -1149,7 +1150,7 @@ const Battle = {
       Timeline.cancelEvents(e => e.type === 'move_complete' && e.actor === 'player');
       Timeline.removeContinuousAction('player', 'move');
       BattleUI.removeCurrentAction('移动中...');
-      this.setPlayerTask({ type: 'move', target: state.chassis.target, autoExit: null });
+      this.setPlayerTask({ type: 'move', target: state.chassis.target, autoExit: state.chassis.autoExit || null });
     }
 
     // 提交武器开火（调度 player_fire 事件，与移动并行）
