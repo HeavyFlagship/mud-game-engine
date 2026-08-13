@@ -781,14 +781,20 @@ const Battle = {
     Timeline.addContinuousAction(moveAction);
     BattleUI.addCurrentAction(`${enemy.name}[${enemy.instanceId}]移动中...`, '#8f8');
     Timeline.scheduleEvent({ type: 'move_complete', actor: enemy.instanceId }, time);
+    // 移动一开始就生成下一次行动间隔（移动时长 + initiative），
+    // 让敌人轨道在移动期间就始终有可见的下次行动点，而非等移动完成后才生成。
+    Timeline.scheduleEvent({ type: 'enemy_turn', actor: enemy.instanceId, enemyId: enemy.templateId },
+      time + this.calculateInitiative(enemy.speed));
   },
 
   onEnemyMoveComplete(enemy) {
+    // 下一次 enemy_turn 已在 startEnemyMove 中预先调度（time + initiative），
+    // 这里若再次 scheduleNextEnemyTurn 会产生重复的 enemy_turn，导致怪物连续行动两次。
     if (enemy.hp <= 0) {
       Timeline.scheduleNext();
       return;
     }
-    this.scheduleNextEnemyTurn(enemy);
+    Timeline.scheduleNext();
   },
 
   enemyAttack(enemy, targetPos) {
@@ -855,8 +861,8 @@ const Battle = {
   },
 
   scheduleNextEnemyTurn(enemy) {
-    Timeline.scheduleEvent({ type: 'enemy_turn', actor: enemy.instanceId, enemyId: enemy.templateId },
-      this.calculateInitiative(enemy.speed));
+    const d = this.calculateInitiative(enemy.speed);
+    Timeline.scheduleEvent({ type: 'enemy_turn', actor: enemy.instanceId, enemyId: enemy.templateId }, d);
     Timeline.scheduleNext();
   },
 
