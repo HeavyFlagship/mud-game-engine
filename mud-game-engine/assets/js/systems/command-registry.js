@@ -31,10 +31,10 @@ const CommandRegistry = {
     move: { cmd: 'move', handler: 'cmdMove', desc: '移动', args: '<方向>' },
     gather: { cmd: 'gather', handler: 'cmdGather', desc: '采集资源点' },
     采集: { cmd: '采集', handler: 'cmdGather', desc: '采集资源点' },
+    call: { cmd: 'call', handler: 'cmdBattleCall', desc: '与NPC通信', args: '[目标]' },
   },
   battle: {
     fire: { cmd: 'fire', handler: 'cmdBattleFire', desc: '攻击目标', args: '<目标编号> [武器槽]' },
-    call: { cmd: 'call', handler: 'cmdBattleCall', desc: '与NPC通信', args: '<目标>' },
     retreat: { cmd: 'retreat', handler: 'cmdBattleRetreat', desc: '撤退' },
     timeline: { cmd: 'timeline', handler: 'cmdTimeline', desc: '查看时间轴' },
     wait: { cmd: 'wait', handler: 'cmdBattleWait', desc: '等待', args: '[秒数]' },

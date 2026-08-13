@@ -328,7 +328,11 @@ handleBaseCmd(parsed) {
   },
  
   cmdBattleCall(args) {
-    if (!Battle.battlefield) return;
+    // call 在战场与安全区（基地）均可用；无战场时走基地 NPC 对话
+    if (!Battle.battlefield) {
+      Game.callNPC(args.join(' '));
+      return;
+    }
     if (!args[0]) {
       const npcs = Battle.battlefield.npcs || [];
       if (npcs.length === 0) {

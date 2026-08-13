@@ -60,6 +60,7 @@ const GlobalCommands = {
   cmdMap() { Game.showMap(); },
   cmdClear() { Msg.clear(); },
   cmdTalk(args) { Game.talk(args.join(' ')); },
+  cmdBattleCall(args) { CommandSystem.cmdBattleCall(args); },
   cmdScore() { Game.showStats(); },
   cmdPick(args) { Game.pickItem(args.join(' ')); },
   cmdDrop(args) { Game.dropItem(args.join(' ')); },
