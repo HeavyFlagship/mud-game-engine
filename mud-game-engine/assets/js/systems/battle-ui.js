@@ -67,6 +67,7 @@ const BattleUI = {
       const primaryWeapon = Player.getEquippedWeapons()[0];
       const inRange = primaryWeapon && dist <= primaryWeapon.range;
       actions = [
+        { label: 'lock 锁定', cmd: `lock ${target.id}`, disabled: target.dead },
         { label: 'fire 开火', cmd: `fire ${target.id}`, disabled: !inRange || target.dead },
         { label: 'look 查看', cmd: `look ${target.id}`, disabled: target.dead },
         { label: 'move 靠近', cmd: `move ${target.id}`, disabled: target.dead }
@@ -515,7 +516,8 @@ const BattleUI = {
       const id = enemy.instanceId;
       const fireDisabled = !inRange || dead ? ' disabled' : '';
       const disabledStyle = dead ? 'background:#222;opacity:0.5;' : '';
-      html += `<div class="enemy-card" style="${disabledStyle}">
+      const locked = Battle.lockedTarget === enemy.instanceId;
+      html += `<div class="enemy-card${locked ? ' locked' : ''}" style="${disabledStyle}">
         <div class="unit-card-header">
           <span class="name" style="color:${dead ? '#666' : '#f66'};" title="${nameText}">${nameText}</span>
           <span class="dist" style="color:var(--muted);font-size:var(--font-enemy-header);">${distText}</span>
@@ -530,6 +532,7 @@ const BattleUI = {
         </span>
         ${this.getStatusEffectsHTML(enemy.statusEffects)}
         <div class="unit-quick-actions">
+          <button class="quick-action-btn lock${locked ? ' active' : ''}" onclick="BattleUI.execCmd('lock ${id}')" title="锁定/取消锁定目标">锁定</button>
           <button class="quick-action-btn fire${fireDisabled}" onclick="BattleUI.execCmd('fire ${id}')"${fireDisabled ? ' disabled' : ''} title="开火">开火</button>
           <button class="quick-action-btn" onclick="BattleUI.execCmd('move ${id}')"${dead ? ' disabled' : ''} title="靠近">靠近</button>
           <button class="quick-action-btn" onclick="BattleUI.execCmd('look ${id}')" title="查看">查看</button>

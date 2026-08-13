@@ -42,6 +42,9 @@ const CommandRegistry = {
     enter: { cmd: 'enter', handler: 'cmdBattleEnter', desc: '切换场景', args: '<方向>' },
     continue: { cmd: 'continue', handler: 'cmdBattleContinue', desc: '继续', args: '[秒数]' },
     movepredict: { cmd: 'movepredict', handler: 'cmdBattleMovePredict', desc: '预测移动时间', args: '<坐标>' },
+    execute: { cmd: 'execute', handler: 'cmdBattleExecute', desc: '执行待操作并推进时间轴', args: '[force]' },
+    lock: { cmd: 'lock', handler: 'cmdBattleLock', desc: '锁定目标', args: '<目标编号>' },
+    hold: { cmd: 'hold', handler: 'cmdBattleHold', desc: '待命', args: '<机体|接口编号>' },
   },
   base: {
     shop: { cmd: 'shop', handler: 'cmdShop', desc: '商店（装备库）', args: '[物品名]' },

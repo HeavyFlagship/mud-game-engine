@@ -79,15 +79,10 @@
   <!-- 列3行4：装备 -->
   <section class="panel panel-equip">
     <div class="sidebar-title">装备</div>
-    <div id="equip-info"><div class="equip-item" style="border-bottom: 1px solid var(--border);padding-bottom:0.5rem;margin-bottom:0.5rem;"><div class="equip-slot"><span class="equip-slot-name">机体</span><span class="equip-slot-item" style="color:var(--accent);font-weight:bold;">侦察机体 MK-I</span></div></div><div class="equip-item"><div class="equip-slot"><span class="equip-slot-name">#1</span><span class="equip-slot-item">MK-I 自动机炮</span></div>
-            <div class="weapon-ammo">
-              <div class="weapon-ammo-bar"><div class="weapon-ammo-fill" style="width:100%"></div></div>
-              <div class="weapon-ammo-text">20mm弹: 50/50 (+150备弹)</div>
-            </div>
-          <div class="weapon-cooldown">
-            <div class="weapon-cooldown-bar"><div class="weapon-cooldown-fill ready" style="width:100%"></div></div>
-            <div class="weapon-cooldown-status ready">就绪</div>
-          </div></div><div class="equip-item"><div class="equip-slot"><span class="equip-slot-name">#8</span><span class="equip-slot-item">轻型合金装甲板</span></div></div></div>
+    <div id="equip-info"></div>
+    <div class="action-execute-bar" id="action-execute-bar" style="display:none;">
+      <button class="execute-btn" id="execute-btn" onclick="Battle.executeActions()">▶ 执行</button>
+    </div>
   </section>
 
   <!-- 列4行4：历史记录 -->
@@ -117,6 +112,10 @@
         <div class="battle-menu" id="battle-potion-menu"></div>
       </div>
       <div class="input-area">
+        <div class="hint-bar" id="hint-bar" style="display:none;">
+          <span class="hint-text" id="hint-text"></span>
+          <button class="hint-close" id="hint-close" onclick="Msg.hintClose()" title="关闭提示">✕</button>
+        </div>
         <div class="input-row">
           <span class="input-prompt">&gt;</span>
           <input type="text" class="input-field" id="input" placeholder="输入指令... (输入 help 查看帮助)" autocomplete="off">

@@ -1338,30 +1338,52 @@ const Game = {
     const el = document.getElementById('equip-info');
     if (!el) return;
 
+    const actionPhase = typeof Battle !== 'undefined' && Battle.isPlayerActionPhase();
+    const st = (actionPhase && Battle.playerActionState) ? Battle.playerActionState : null;
+    const lockedEnemy = typeof Battle !== 'undefined' ? Battle.getLockedEnemy() : null;
+    const lockedId = lockedEnemy ? lockedEnemy.instanceId : '';
+
     let html = '';
 
-    // 显示当前载具型号
+    // 机体卡片：状态显示在机体名称下方
     const vehicle = VehicleDB[Player.vehicleId];
     if (vehicle) {
-      html += `<div class="equip-item" style="border-bottom: 1px solid var(--border);padding-bottom:0.5rem;margin-bottom:0.5rem;">`;
-      html += `<div class="equip-slot">`;
-      html += `<span class="equip-slot-name">机体</span>`;
-      html += `<span class="equip-slot-item" style="color:var(--accent);font-weight:bold;">${vehicle.name}</span>`;
-      html += `</div></div>`;
+      const cs = (typeof Battle !== 'undefined') ? Battle.getChassisState() : { text: '待命', cls: 'idle' };
+      const chassisActionable = !!actionPhase;
+      html += `<div class="equip-card${chassisActionable ? ' actionable' : ''}">`;
+      html += `<div class="equip-card-header">`;
+      html += `<span class="equip-card-name">机体</span>`;
+      html += `<span class="equip-card-slot">${vehicle.name}</span>`;
+      html += `</div>`;
+      html += `<div class="equip-card-sub"><span class="chassis-status ${cs.cls}">${cs.text}</span></div>`;
+      if (chassisActionable && st) {
+        const chassisAction = st.chassis.action;
+        html += `<div class="equip-actions">`;
+        html += `<button class="equip-action-btn${chassisAction === 'move' ? ' active' : ''}" ${lockedEnemy ? '' : 'disabled'} title="${lockedEnemy ? '向锁定目标移动' : '需先锁定目标'}" onclick="Battle.setChassisMoveToEnemy('${lockedId}')">靠近目标</button>`;
+        html += `<button class="equip-action-btn${chassisAction === 'hold' && !st.chassis.holdFor ? ' active' : ''}" onclick="Battle.setChassisAction('hold')">待命</button>`;
+        html += `<input type="number" class="hold-sec-input" id="hold-sec-chassis" value="5" min="1" max="300" title="待命秒数">`;
+        html += `<button class="equip-action-btn${chassisAction === 'hold' && st.chassis.holdFor > 0 ? ' active' : ''}" onclick="Battle.setChassisHoldFromInput()">待命X秒</button>`;
+        html += `</div>`;
+      }
+      html += `</div>`;
     }
 
-    // 接口装备
+    // 接口装备卡片
     const slotKeys = Object.keys(Player.equipment);
     for (let i = 0; i < slotKeys.length; i++) {
       const key = slotKeys[i];
       const slot = Player.equipment[key];
       const item = slot.equip;
       if (!item) continue;
-
       const slotNum = i + 1;
-      let extraHtml = '';
 
+      // 武器卡片：弹药+冷却横向一行，状态集成在冷却上，操作按钮集成在卡片内
       if (item.category === 'weapon') {
+        const ws = (typeof Battle !== 'undefined') ? Battle.getWeaponState(key) : { text: '就绪', cls: 'ready' };
+        const wState = st && st.weapons[key];
+        const weaponActionable = !!(actionPhase && wState && wState.ready);
+
+        // 弹药显示
         const ammoMap = {
           '火炮': { type: '20mm_ap', name: '20mm弹' },
           '电磁炮': { type: 'railgun_slug', name: '轨道弹' },
@@ -1371,40 +1393,57 @@ const Game = {
           '近战': null
         };
         const ammoInfo = ammoMap[item.subCategory];
+        let ammoHtml = '';
         if (ammoInfo) {
           const magCurrent = Player.magazines[key] || 0;
           const magMax = item.magazine || 0;
           const reserve = Player.ammo[ammoInfo.type] || 0;
           const pct = magMax > 0 ? (magCurrent / magMax * 100) : (reserve > 0 ? 100 : 0);
           const magDisplay = magMax > 0 ? `${magCurrent}/${magMax}` : `${magCurrent}`;
-          extraHtml += `
+          ammoHtml += `
             <div class="weapon-ammo">
               <div class="weapon-ammo-bar"><div class="weapon-ammo-fill" style="width:${Math.min(100, pct)}%"></div></div>
-              <div class="weapon-ammo-text">${ammoInfo.name}: ${magDisplay}${reserve > 0 ? ` (+${reserve}备弹)` : ''}</div>
+              <div class="weapon-ammo-text">${ammoInfo.name}: ${magDisplay}${reserve > 0 ? ` +${reserve}` : ''}</div>
             </div>`;
         }
 
+        // 冷却进度 + 状态
         const cd = Player.weaponCooldowns[key] || 0;
         const maxCd = item.cooldown || 1;
         const isReady = cd <= 0;
-        const pct = isReady ? 100 : Math.max(0, Math.min(100, (1 - cd / maxCd) * 100));
-        const statusText = isReady ? '就绪' : `冷却 ${cd.toFixed(1)}s`;
-        const fillClass = isReady ? 'ready' : 'cooling';
-        const statusClass = isReady ? 'ready' : 'cooling';
-        extraHtml += `
-          <div class="weapon-cooldown">
-            <div class="weapon-cooldown-bar"><div class="weapon-cooldown-fill ${fillClass}" style="width:${pct}%"></div></div>
-            <div class="weapon-cooldown-status ${statusClass}">${statusText}</div>
-          </div>`;
-      }
+        const cdPct = isReady ? 100 : Math.max(0, Math.min(100, (1 - cd / maxCd) * 100));
+        const fillCls = isReady ? 'ready' : 'cooling';
 
-      html += `<div class="equip-item">`;
-      html += `<div class="equip-slot">`;
-      html += `<span class="equip-slot-name">#${slotNum}</span>`;
-      html += `<span class="equip-slot-item">${item.name}</span>`;
-      html += `</div>`;
-      html += `${extraHtml}`;
-      html += `</div>`;
+        html += `<div class="equip-card${weaponActionable ? ' actionable' : ''}">`;
+        html += `<div class="equip-card-header">`;
+        html += `<span class="equip-card-name">${item.name}</span>`;
+        html += `<span class="equip-card-slot">#${slotNum}</span>`;
+        html += `</div>`;
+        html += `<div class="weapon-metrics">`;
+        html += `${ammoHtml}`;
+        html += `<div class="weapon-cooldown">
+          <div class="weapon-cooldown-bar"><div class="weapon-cooldown-fill ${fillCls}" style="width:${cdPct}%"></div></div>
+          <div class="weapon-cooldown-status"><span class="weapon-status-tag ${ws.cls}">${ws.text}</span></div>
+        </div>`;
+        html += `</div>`;
+        if (weaponActionable) {
+          html += `<div class="equip-actions">`;
+          html += `<button class="equip-action-btn fire${wState.action === 'fire' ? ' active' : ''}" ${lockedEnemy ? '' : 'disabled'} title="${lockedEnemy ? '向锁定目标开火' : '需先锁定目标'}" onclick="Battle.setWeaponAction('${key}','fire','${lockedId}')">开火</button>`;
+          html += `<button class="equip-action-btn${wState.action === 'hold' && !wState.holdFor ? ' active' : ''}" onclick="Battle.setWeaponAction('${key}','hold')">待命</button>`;
+          html += `<input type="number" class="hold-sec-input" id="hold-sec-${key}" value="5" min="1" max="300" title="待命秒数">`;
+          html += `<button class="equip-action-btn${wState.action === 'hold' && wState.holdFor > 0 ? ' active' : ''}" onclick="Battle.setWeaponHoldFromInput('${key}')">待命X秒</button>`;
+          html += `</div>`;
+        }
+        html += `</div>`;
+      } else {
+        // 被动装备（装甲板等）：无状态显示，仅展示名称
+        html += `<div class="equip-card">`;
+        html += `<div class="equip-card-header">`;
+        html += `<span class="equip-card-name">${item.name}</span>`;
+        html += `<span class="equip-card-slot">#${slotNum}</span>`;
+        html += `</div>`;
+        html += `</div>`;
+      }
     }
 
     if (html === '') {
@@ -1412,6 +1451,10 @@ const Game = {
     }
 
     el.innerHTML = html;
+
+    // 执行栏：操作阶段显示，否则隐藏
+    const execBar = document.getElementById('action-execute-bar');
+    if (execBar) execBar.style.display = actionPhase ? '' : 'none';
   },
  
   updateRegionMap() {

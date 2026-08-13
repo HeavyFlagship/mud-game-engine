@@ -335,6 +335,20 @@ body {
   background: rgba(107, 197, 255, 0.1);
   color: var(--accent4);
 }
+.quick-action-btn.lock:not(:disabled) {
+  color: var(--accent3);
+  border-color: rgba(255, 200, 0, 0.4);
+}
+.quick-action-btn.lock:hover:not(:disabled) {
+  background: rgba(255, 200, 0, 0.1);
+  color: var(--accent3);
+  box-shadow: 0 0 6px rgba(255, 200, 0, 0.3);
+}
+.quick-action-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(0, 255, 136, 0.12);
+}
 
 /* 状态效果标签 */
 .status-tag {
@@ -696,6 +710,195 @@ body {
 }
 .weapon-cooldown-status.ready { color: var(--accent2); }
 .weapon-cooldown-status.cooling { color: var(--accent4); }
+
+/* ===== 装备卡片（操作阶段 UI） ===== */
+.equip-card {
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.35rem 0.5rem;
+  margin-bottom: 0.4rem;
+  background: var(--bg);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.equip-card.actionable {
+  border-color: rgba(0, 255, 136, 0.4);
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.12);
+}
+.equip-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--font-equip);
+}
+.equip-card-name { color: var(--accent); font-weight: 600; }
+.equip-card-slot { color: var(--muted); font-size: var(--font-hint); flex-shrink: 0; }
+
+/* 机体/武器状态徽标 */
+.chassis-status, .weapon-status-tag {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 3px;
+  font-size: var(--font-hint);
+  white-space: nowrap;
+}
+.chassis-status.idle { color: var(--accent); border: 1px solid rgba(0, 255, 136, 0.35); }
+.chassis-status.moving { color: #4f8; border: 1px solid rgba(79, 255, 136, 0.4); }
+.chassis-status.abnormal { color: var(--accent2); border: 1px solid rgba(255, 107, 107, 0.4); }
+.chassis-status.hold { color: var(--accent4); border: 1px solid rgba(107, 197, 255, 0.4); }
+.chassis-status.moving::before { content: '🚀 '; }
+.chassis-status.abnormal::before { content: '⚠ '; }
+
+.weapon-status-tag.ready { color: var(--accent2); border: 1px solid rgba(0, 255, 136, 0.35); }
+.weapon-status-tag.cooling { color: var(--accent4); border: 1px solid rgba(107, 197, 255, 0.35); }
+.weapon-status-tag.hold { color: var(--accent4); border: 1px solid rgba(107, 197, 255, 0.4); }
+
+/* 武器弹药+冷却横向一行 */
+.weapon-metrics {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+}
+.weapon-metrics .weapon-ammo {
+  margin: 0;
+  flex: 1 1 50%;
+  min-width: 0;
+}
+.weapon-metrics .weapon-cooldown {
+  margin: 0;
+  flex: 1 1 50%;
+  min-width: 0;
+}
+.weapon-metrics .weapon-cooldown-status {
+  position: relative;
+}
+.weapon-metrics .weapon-ammo-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.weapon-cooldown-status .weapon-status-tag {
+  margin-left: auto;
+}
+
+/* 装备操作按钮组 */
+.equip-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 0.25rem;
+  flex-wrap: wrap;
+}
+.equip-action-btn {
+  flex: 1;
+  background: var(--bg2);
+  border: 1px solid var(--rule);
+  color: var(--muted);
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.equip-action-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--bg3);
+}
+.equip-action-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.equip-action-btn.fire:not(:disabled) {
+  color: var(--accent2);
+  border-color: rgba(255, 107, 107, 0.4);
+}
+.equip-action-btn.fire:hover:not(:disabled) {
+  background: rgba(255, 107, 107, 0.1);
+  color: var(--accent2);
+  box-shadow: 0 0 6px rgba(255, 107, 107, 0.3);
+}
+.equip-action-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(0, 255, 136, 0.08);
+}
+
+/* 执行栏 */
+.action-execute-bar {
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--rule);
+  text-align: center;
+}
+.execute-btn {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: var(--bg);
+  border: none;
+  padding: 0.4rem 1.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--font-btn-battle);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  transition: all 0.2s;
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.25);
+}
+.execute-btn:hover {
+  box-shadow: 0 0 16px rgba(0, 255, 136, 0.45);
+  transform: translateY(-1px);
+}
+.execute-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* 提示栏 */
+.hint-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  margin-bottom: 0.5rem;
+  background: var(--bg);
+  border: 1px solid rgba(255, 200, 0, 0.4);
+  border-radius: 4px;
+  font-size: var(--font-hint);
+  color: var(--accent3);
+}
+.hint-text { flex: 1; line-height: 1.5; }
+.hint-close {
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--muted);
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.hint-close:hover {
+  border-color: var(--accent2);
+  color: var(--accent2);
+}
+
+/* 敌人卡片锁定态 */
+.enemy-card.locked {
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.25);
+}
+.enemy-card.locked .name::after {
+  content: ' 🔒';
+}
 
 .region-map-wrap {
   display: flex;

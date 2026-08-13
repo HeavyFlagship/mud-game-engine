@@ -172,6 +172,12 @@ handleBaseCmd(parsed) {
         this.cmdBattleIdle(parsed.args); break;
       case 'continue': case 'cont':
         this.cmdBattleContinue(parsed.args); break;
+      case 'execute':
+        this.cmdBattleExecute(parsed.args); break;
+      case 'lock':
+        this.cmdBattleLock(parsed.args); break;
+      case 'hold':
+        this.cmdBattleHold(parsed.args); break;
       case 'use': case '使用':
         Game.useItem(parsed.args); break;
       default:
@@ -339,6 +345,93 @@ handleBaseCmd(parsed) {
     Timeline.scheduleNext();
     Msg.info(`时间轴推进至 ${wName} 冷却完成（约${waitTime.toFixed(1)}秒后），不打断当前动作。`);
   },
+
+  /** 执行待操作并推进时间轴 */
+  cmdBattleExecute(args) {
+    if (!Battle.battlefield) return;
+    if (!Battle.isPlayerActionPhase() || !Battle.playerActionState) {
+      Msg.warning('当前没有待执行的操作。');
+      return;
+    }
+    // execute force：未指定操作的项自动待命
+    if (args.includes('force')) {
+      const st = Battle.playerActionState;
+      if (st.chassis.action === null) Battle.setChassisAction('hold');
+      for (const [slot, w] of Object.entries(st.weapons)) {
+        if (w.ready && !w.action) Battle.setWeaponAction(slot, 'hold');
+      }
+    }
+    Battle.executeActions();
+  },
+
+  /** 锁定/取消锁定目标 */
+  cmdBattleLock(args) {
+    if (!Battle.battlefield) return;
+    if (args.length < 1) {
+      const cur = Battle.getLockedEnemy();
+      if (cur) Msg.info(`当前锁定：${cur.name}[${cur.instanceId}]（再次 lock <编号> 可切换）。`);
+      else Msg.info('未锁定目标。用法：lock <目标编号>（如 lock E1）。');
+      return;
+    }
+    const targetId = args[0].toUpperCase();
+    const enemy = Battle.battlefield.enemies.find(e => e.instanceId === targetId);
+    if (!enemy || enemy.hp <= 0) {
+      Msg.error(`未找到目标 ${targetId}`);
+      return;
+    }
+    Battle.setLockedTarget(targetId);
+    const locked = Battle.getLockedEnemy();
+    if (locked) Msg.info(`🔒 已锁定 ${locked.name}[${locked.instanceId}]。`);
+    else Msg.info('已取消锁定。');
+  },
+
+  /** 待命（操作阶段）：hold [机体|接口编号] [秒数] */
+  cmdBattleHold(args) {
+    if (!Battle.battlefield) return;
+    if (!Battle.isPlayerActionPhase() || !Battle.playerActionState) {
+      Msg.warning('hold 指令仅在操作阶段可用（移动/开火等操作出现时）。');
+      return;
+    }
+    // 解析秒数：最后一个数字参数视为秒数
+    let seconds = 0;
+    const rest = args.slice();
+    const last = rest[rest.length - 1];
+    if (last && /^\d+$/.test(last)) {
+      seconds = parseInt(last, 10);
+      rest.pop();
+    }
+    const target = rest[0] ? rest[0].toLowerCase() : null;
+
+    if (!target) {
+      // hold：全部未指定的可操作项待命
+      const st = Battle.playerActionState;
+      if (st.chassis.action === null) Battle.setChassisAction('hold', null, null, seconds);
+      for (const [slot, w] of Object.entries(st.weapons)) {
+        if (w.ready && !w.action) Battle.setWeaponAction(slot, 'hold', null, seconds);
+      }
+      Msg.hint(`全部待命${seconds > 0 ? ` ${seconds} 秒` : ''}（点击执行提交）。`);
+      return;
+    }
+    if (target === 'chassis' || target === '机体') {
+      Battle.setChassisAction('hold', null, null, seconds);
+      Msg.hint(`机体待命${seconds > 0 ? ` ${seconds} 秒` : ''}。`);
+      return;
+    }
+    const num = parseInt(target, 10);
+    if (!isNaN(num) && num >= 1) {
+      const keys = Object.keys(Player.equipment);
+      const slotKey = keys[num - 1];
+      if (slotKey && Battle.playerActionState.weapons[slotKey]) {
+        const weapon = Player.equipment[slotKey]?.equip;
+        Battle.setWeaponAction(slotKey, 'hold', null, seconds);
+        Msg.hint(`${weapon ? weapon.name : '武器槽' + num}待命${seconds > 0 ? ` ${seconds} 秒` : ''}。`);
+      } else {
+        Msg.warning(`武器槽 ${num} 不存在或不可操作。`);
+      }
+      return;
+    }
+    Msg.warning('用法：hold [机体|接口编号] [秒数]（如 hold 2 5 = 2号武器待命5秒）。');
+  },
  
   cmdBattleCall(args) {
     // call 在战场与安全区（基地）均可用；无战场时走基地 NPC 对话
@@ -458,6 +551,7 @@ handleBaseCmd(parsed) {
     }
 
     let targetX, targetY, autoExit = null;
+    let moveLabel = '';
     const first = args[0];
 
     if (/^\d+$/.test(first) && args.length >= 2 && /^\d+$/.test(args[1])) {
@@ -513,6 +607,7 @@ handleBaseCmd(parsed) {
         const ratio = approachDist / dist;
         targetX = Player.position[0] + (enemy.position[0] - Player.position[0]) * ratio;
         targetY = Player.position[1] + (enemy.position[1] - Player.position[1]) * ratio;
+        moveLabel = `靠近 ${enemy.name}[${enemy.instanceId}]`;
         Msg.info(`向 ${enemy.name}[${enemy.instanceId}] 移动，接近到 ${approachDist.toFixed(0)}m`);
       } else if (npc) {
         const dx = npc.position[0] - Player.position[0];
@@ -526,11 +621,20 @@ handleBaseCmd(parsed) {
         const ratio = (dist - stopDist) / dist;
         targetX = Player.position[0] + dx * ratio;
         targetY = Player.position[1] + dy * ratio;
+        moveLabel = `靠近 ${npc.name}[${npc.instanceId}]`;
         Msg.info(`向 ${npc.name}[${npc.instanceId}] 移动...`);
       } else {
         Msg.error(`未找到目标 ${first}。用法：move <x> <y> 或 move <方向> [距离] 或 move <目标编号>`);
         return;
       }
+    }
+
+    // 操作阶段：记录机体移动意图，等待 execute 提交（不立即开始移动）
+    if (Battle.isPlayerActionPhase() && Battle.playerActionState) {
+      if (!moveLabel) moveLabel = `移动至 (${Math.round(targetX)}, ${Math.round(targetY)})`;
+      Battle.setChassisAction('move', [targetX, targetY], moveLabel);
+      Msg.hint(`机体：${moveLabel}（点击执行提交）。`);
+      return;
     }
 
     // 仅当目标超出边界（非 autoExit 模式）才尝试立即切换场景
@@ -720,6 +824,25 @@ handleBaseCmd(parsed) {
         return `${w ? w.name : s}:${(Player.weaponCooldowns[s]||0).toFixed(1)}s`;
       }).join(', ');
       Msg.warn(`所有指定武器都在冷却中（${cdInfo}）。`);
+      return;
+    }
+
+    // 操作阶段：记录武器开火意图，等待 execute 提交（不立即开火）
+    if (Battle.isPlayerActionPhase() && Battle.playerActionState) {
+      let assigned = 0;
+      for (const s of readySlots) {
+        const w = Battle.playerActionState.weapons[s];
+        if (w && w.ready) {
+          Battle.setWeaponAction(s, 'fire', targetId);
+          assigned++;
+        }
+      }
+      if (assigned > 0) {
+        const names = readySlots.map(s => Player.equipment[s]?.equip?.name).filter(Boolean).join('/');
+        Msg.hint(`已指定 ${names} 开火 → ${enemy.name}[${targetId}]（点击执行提交）。`);
+      } else {
+        Msg.hint('没有就绪武器可指定开火。');
+      }
       return;
     }
 

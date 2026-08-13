@@ -11,6 +11,10 @@ const Battle = {
   playerIdleEnd: null,
   isProcessing: false,
   playerFireHint: null,
+  // 操作阶段状态：{ active, chassis: {action,target,targetLabel}, weapons: {slot:{action,target}} }
+  playerActionState: null,
+  // 锁定目标：敌人 instanceId 或 null
+  lockedTarget: null,
 
   start(roomId, entryDir = 'south', prevPos = null) {
     const room = MapSystem.getRoom(roomId);
@@ -35,6 +39,8 @@ const Battle = {
     this.playerIdleEnd = null;
     this.isProcessing = false;
     this.playerFireHint = null;
+    this.playerActionState = null;
+    this.lockedTarget = null;
 
     // 显示环境危险警告
     if (this.battlefield.hazards && this.battlefield.hazards.length > 0) {
@@ -109,15 +115,16 @@ const Battle = {
     Timeline.on('weapon_ready', (e) => {
       const weapon = Player.equipment[e.slot]?.equip;
       const wName = weapon ? weapon.name : e.slot;
-      Msg.info(`🔫 ${wName} 冷却完成，已就绪。`);
+      Msg.hint(`${wName} 冷却完成，已就绪（可在装备面板选择开火/待命）。`);
       BattleUI.update();
       const isMoving = Timeline.continuousActions.some(a => a.actor === 'player' && a.type === 'move');
       const hasIdle = !!this.playerIdleEnd;
       if (isMoving) {
+        // 移动中：武器就绪仅更新 UI；无论是否暂停都需继续推进时间轴，否则循环中断
         if (Timeline.paused) {
           Timeline.paused = false;
-          Timeline.scheduleNext();
         }
+        Timeline.scheduleNext();
       } else if (hasIdle) {
         this.cancelPlayerIdle();
         this.triggerPlayerDecision();
@@ -150,6 +157,8 @@ const Battle = {
     this.playerIdleEnd = null;
     this.isProcessing = false;
     this.playerFireHint = null;
+    this.playerActionState = null;
+    this.lockedTarget = null;
     // 恢复视野（EMI区域效果清除）
     if (Player._originalVisionRadius) {
       Player.visionRadius = Player._originalVisionRadius;
@@ -230,8 +239,10 @@ const Battle = {
     Timeline.paused = true;
     // 移动已完成，开火提示不再适用
     this.playerFireHint = null;
+    // 进入操作阶段：初始化操作序列（机体 + 就绪武器），装备 UI 高亮可操作项
+    this.beginActionPhase();
     const hint = this.combatActive
-      ? '> 战斗中（输入 move/fire/look/use/status/retreat 等）'
+      ? '> 战斗中（输入 move/fire/lock/hold/execute 等）'
       : '> 场景中（输入 move/call/fire/status/look 等）';
     Msg.prompt(hint);
   },
@@ -386,18 +397,14 @@ const Battle = {
       this.executePlayerTask();
     } else {
       Timeline.paused = true;
-      // 保留的开火提示：重新询问
+      // 移动中开火提示（continue <秒数> 延迟重询等）：进入操作阶段，移动保持“继续移动”
       if (this.playerFireHint && this.playerFireHint.pendingMove) {
-        const readyNames = Player.getEquippedWeapons()
-          .filter(w => (Player.weaponCooldowns[w.slot] || 0) <= 0)
-          .map(w => w.name);
-        if (readyNames.length > 0) {
-          Msg.prompt(`武器已就绪（${readyNames.join('、')}）：输入 fire <目标> 移动开火，或 continue 跳过开火，或 continue <秒数> 延迟后重新询问。`);
-          return;
-        }
-        // 武器已全部冷却中，清除提示
-        this.playerFireHint = null;
+        this.beginActionPhase();
+        return;
       }
+      // 保留的开火提示字段：无待处理意图时清除
+      this.playerFireHint = null;
+      this.beginActionPhase();
       const hint = this.combatActive
         ? '> 战斗中（输入 move/fire/look/use/status/retreat 等）'
         : '> 场景中（输入 move/call/fire/status/look 等）';
@@ -935,6 +942,272 @@ const Battle = {
       Math.max(10, Math.min(w - 10, pos[0])),
       Math.max(10, Math.min(h - 10, pos[1]))
     ];
+  },
+
+  /** 操作阶段相关方法 ===== */
+
+  /** 战场中是否存在存活敌人（安全区/无敌人时不进入操作阶段） */
+  hasLiveEnemies() {
+    return !!(this.battlefield && this.battlefield.enemies && this.battlefield.enemies.some(e => e.hp > 0));
+  },
+
+  /** 是否处于玩家操作阶段 */
+  isPlayerActionPhase() {
+    return this.active && Timeline.paused && this.currentActor === 'player' && this.hasLiveEnemies();
+  },
+
+  /** 初始化操作阶段：构建 playerActionState（机体项 + 就绪武器项） */
+  beginActionPhase() {
+    // 安全区/无存活敌人：不进入操作阶段，避免装备操作 UI 干扰场景移动
+    if (!this.hasLiveEnemies()) return;
+    this.playerActionState = {
+      active: true,
+      chassis: { action: null, target: null, targetLabel: null, holdFor: 0 },
+      weapons: {}
+    };
+
+    // 遍历武器槽，为每个就绪或冷却中的武器创建项
+    const slotKeys = Object.keys(Player.equipment);
+    for (let i = 0; i < slotKeys.length; i++) {
+      const key = slotKeys[i];
+      const slot = Player.equipment[key];
+      const item = slot.equip;
+      if (!item) continue;
+      if (item.category === 'weapon') {
+        const cd = Player.weaponCooldowns[key] || 0;
+        this.playerActionState.weapons[key] = {
+          action: null,
+          target: null,
+          holdFor: 0,
+          ready: cd <= 0
+        };
+      }
+    }
+
+    Msg.hint('操作阶段：请在装备面板选择机体/武器操作（开火需先锁定目标），完成后点击「执行」。');
+    // 同步 UI：显示执行栏、装备卡片高亮
+    BattleUI.update();
+  },
+
+  /** 机体状态文本 */
+  getChassisState() {
+    if (!this.active) return { text: '离线', cls: 'abnormal' };
+    if (Timeline.continuousActions.some(a => a.actor === 'player' && a.type === 'move')) {
+      return { text: '移动中', cls: 'moving' };
+    }
+    const hasNegative = Player.statusEffects.some(e => ['slow','stun','poison','corrosion','ion_disrupt'].includes(e.type));
+    if (hasNegative) {
+      return { text: '异常', cls: 'abnormal' };
+    }
+    if (this.isPlayerActionPhase()) {
+      if (this.playerActionState && this.playerActionState.chassis.action) {
+        if (this.playerActionState.chassis.action === 'hold') return { text: '待命', cls: 'hold' };
+        if (this.playerActionState.chassis.action === 'move') return { text: '待移动', cls: 'idle' };
+      }
+      return { text: '就绪', cls: 'idle' };
+    }
+    return { text: '待命', cls: 'idle' };
+  },
+
+  /** 武器状态文本 */
+  getWeaponState(slotKey) {
+    const cd = Player.weaponCooldowns[slotKey] || 0;
+    if (cd > 0) return { text: `冷却 ${cd.toFixed(1)}s`, cls: 'cooling' };
+
+    if (this.isPlayerActionPhase() && this.playerActionState) {
+      const w = this.playerActionState.weapons[slotKey];
+      if (w) {
+        if (w.action === 'hold') return { text: '待命', cls: 'hold' };
+        if (w.action === 'fire') return { text: '待开火', cls: 'ready' };
+      }
+    }
+    return { text: '就绪', cls: 'ready' };
+  },
+
+  /** 记录机体操作意图 */
+  setChassisAction(action, target, targetLabel, holdFor = 0) {
+    if (!this.isPlayerActionPhase() || !this.playerActionState) return;
+    this.playerActionState.chassis.action = action;
+    this.playerActionState.chassis.target = target || null;
+    this.playerActionState.chassis.targetLabel = targetLabel || null;
+    this.playerActionState.chassis.holdFor = holdFor > 0 ? holdFor : 0;
+    BattleUI.update();
+  },
+
+  /** 记录武器操作意图 */
+  setWeaponAction(slot, action, target, holdFor = 0) {
+    if (!this.isPlayerActionPhase() || !this.playerActionState) return;
+    if (!this.playerActionState.weapons[slot]) return;
+    this.playerActionState.weapons[slot].action = action;
+    this.playerActionState.weapons[slot].target = target || null;
+    this.playerActionState.weapons[slot].holdFor = holdFor > 0 ? holdFor : 0;
+    BattleUI.update();
+  },
+
+  /** UI 辅助：机体向锁定目标靠近 */
+  setChassisMoveToEnemy(targetId) {
+    const enemy = this.battlefield.enemies.find(e => e.instanceId === targetId);
+    if (!enemy || enemy.hp <= 0) {
+      Msg.hint('目标无效或已被击毁。');
+      return false;
+    }
+    const dist = this.getDistance(Player.position, enemy.position);
+    const weapon = Player.getEquippedWeapons()[0];
+    const approachDist = weapon ? Math.min(dist - 10, weapon.range * 0.9) : Math.max(dist - 20, 50);
+    const ratio = approachDist / dist;
+    const targetX = Player.position[0] + (enemy.position[0] - Player.position[0]) * ratio;
+    const targetY = Player.position[1] + (enemy.position[1] - Player.position[1]) * ratio;
+    this.setChassisAction('move', [targetX, targetY], `靠近 ${enemy.name}[${enemy.instanceId}]`);
+    return true;
+  },
+
+  /** UI 辅助：从秒数输入框读取机体待命秒数 */
+  setChassisHoldFromInput() {
+    const inp = document.getElementById('hold-sec-chassis');
+    const v = inp ? parseInt(inp.value, 10) : 0;
+    this.setChassisAction('hold', null, null, v > 0 ? v : 0);
+  },
+
+  /** UI 辅助：从秒数输入框读取武器待命秒数 */
+  setWeaponHoldFromInput(slot) {
+    const inp = document.getElementById('hold-sec-' + slot);
+    const v = inp ? parseInt(inp.value, 10) : 0;
+    this.setWeaponAction(slot, 'hold', null, v > 0 ? v : 0);
+  },
+
+  /** 切换锁定目标 */
+  setLockedTarget(id) {
+    if (this.lockedTarget === id) {
+      this.lockedTarget = null;
+    } else {
+      // 验证目标存在
+      const enemy = this.battlefield.enemies.find(e => e.instanceId === id);
+      if (!enemy || enemy.hp <= 0) {
+        this.lockedTarget = null;
+        return;
+      }
+      this.lockedTarget = id;
+    }
+    BattleUI.update();
+  },
+
+  /** 获取锁定目标的敌人对象 */
+  getLockedEnemy() {
+    if (!this.lockedTarget || !this.battlefield) return null;
+    return this.battlefield.enemies.find(e => e.instanceId === this.lockedTarget && e.hp > 0);
+  },
+
+  /** 执行操作序列：提交所有操作并推进时间轴 */
+  executeActions() {
+    if (!this.isPlayerActionPhase() || !this.playerActionState) {
+      Msg.hint('当前没有待执行的操作。');
+      return;
+    }
+
+    // 检查是否有未指定操作的项
+    const pendingHints = [];
+    const chassis = this.playerActionState.chassis;
+    if (!chassis.action) {
+      pendingHints.push('机体（请选择移动或待命）');
+    }
+    for (const [slot, w] of Object.entries(this.playerActionState.weapons)) {
+      if (w.ready && !w.action) {
+        const weapon = Player.equipment[slot]?.equip;
+        pendingHints.push(`${weapon ? weapon.name : slot}（请选择开火或待命）`);
+      }
+    }
+
+    if (pendingHints.length > 0) {
+      Msg.hint(`未指定操作：${pendingHints.join('、')}`);
+      return;
+    }
+
+    // 记录操作阶段结束
+    this.playerFireHint = null;
+    this.playerActionState.active = false;
+    const state = this.playerActionState;
+    this.playerActionState = null;
+    // 清除操作阶段提示（后续「待命X秒」「超出射程」等提示会重新显示）
+    Msg.hintClose();
+
+    // 收集所有「待命X秒」的最大延迟：执行后 N 秒重新询问玩家
+    const baseTime = Timeline.time;
+    let maxHoldFor = 0;
+    if (state.chassis.action === 'hold' && state.chassis.holdFor > 0) {
+      maxHoldFor = Math.max(maxHoldFor, state.chassis.holdFor);
+    }
+    for (const [slot, w] of Object.entries(state.weapons)) {
+      if (w.action === 'hold' && w.holdFor > 0) {
+        maxHoldFor = Math.max(maxHoldFor, w.holdFor);
+      }
+    }
+
+    // 提交机体移动（若设置了移动；setPlayerTask 会解除暂停并启动移动）
+    let hasMove = false;
+    if (state.chassis.action === 'move' && state.chassis.target) {
+      hasMove = true;
+      Timeline.cancelEvents(e => e.type === 'move_complete' && e.actor === 'player');
+      Timeline.removeContinuousAction('player', 'move');
+      BattleUI.removeCurrentAction('移动中...');
+      this.setPlayerTask({ type: 'move', target: state.chassis.target, autoExit: null });
+    }
+
+    // 提交武器开火（调度 player_fire 事件，与移动并行）
+    let hasFire = false;
+    for (const [slot, w] of Object.entries(state.weapons)) {
+      if (w.action === 'fire' && w.target) {
+        hasFire = true;
+        const weapon = Player.equipment[slot]?.equip;
+        if (!weapon) continue;
+        if (Player.weaponCooldowns[slot] > 0) continue;
+        // 验证目标
+        const enemy = this.battlefield.enemies.find(e => e.instanceId === w.target);
+        if (!enemy || enemy.hp <= 0) continue;
+        const dist = this.getDistance(Player.position, enemy.position);
+        if (dist > weapon.range) {
+          Msg.hint(`${weapon.name} 目标 ${enemy.name} 超出射程。`);
+          continue;
+        }
+        // 调度开火事件
+        Timeline.scheduleEvent({ type: 'player_fire', actor: 'player', target: w.target, slot, label: `攻击 ${w.target}` }, 0.3);
+      }
+    }
+
+    // 调度「待命X秒」的重询问事件（需在 baseTime 基础上计算，避免被移动/开火推进的时间带偏）
+    // 若全部待命且无待命X秒：按 initiative 重新调度玩家回合，保证玩家仍能获得决策权
+    const scheduleReask = () => {
+      if (maxHoldFor <= 0) {
+        Timeline.cancelEvents(e => e.type === 'player_turn' && e.actor === 'player');
+        Timeline.scheduleEvent({ type: 'player_turn', actor: 'player' }, this.calculateInitiative(Player.currentSpeed));
+        return;
+      }
+      const delay = Math.max(0, (baseTime + maxHoldFor) - Timeline.time);
+      Timeline.cancelEvents(e => e.type === 'player_turn' && e.actor === 'player');
+      Timeline.scheduleEvent({ type: 'player_turn', actor: 'player' }, delay);
+      Msg.hint(`${maxHoldFor} 秒后重新进入操作阶段。`);
+    };
+
+    // 全部待命：等价 continue（跳到下一事件；若有待命X秒则等待指定秒数）
+    if (!hasMove && !hasFire) {
+      scheduleReask();
+      BattleUI.clearCurrentActions();
+      this.currentActor = null;
+      Timeline.paused = false;
+      Timeline.scheduleNext();
+      BattleUI.update();
+      return;
+    }
+
+    // 无移动但有开火：解除暂停推进时间轴
+    if (!hasMove && hasFire) {
+      scheduleReask();
+      if (Timeline.paused) Timeline.paused = false;
+      this.currentActor = null;
+      BattleUI.clearCurrentActions();
+      Timeline.scheduleNext();
+    }
+    // 有移动时 setPlayerTask 已解除暂停并推进时间轴；移动完成后会自然回到操作阶段
+    BattleUI.update();
   },
 
   setPlayerTask(task) {

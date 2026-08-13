@@ -43,6 +43,19 @@ const Msg = {
   queryCmd(t) { this.add(t, 'command', 'query'); },
   divider() { this.add('─'.repeat(40), 'divider'); },
   clear() { if (this.el) this.el.innerHTML = ''; },
+  // 提示栏：显示在命令输入框上方，不进入命令行记录
+  hint(t) {
+    const bar = document.getElementById('hint-bar');
+    const text = document.getElementById('hint-text');
+    if (bar && text) {
+      text.innerHTML = t;
+      bar.style.display = '';
+    }
+  },
+  hintClose() {
+    const bar = document.getElementById('hint-bar');
+    if (bar) bar.style.display = 'none';
+  },
   clearQuery() {
     if (this.queryEl) this.queryEl.innerHTML = '<div class="msg system">查询类指令的信息会显示在这里。</div>';
     if (this.queryTitleEl) this.queryTitleEl.textContent = '查询窗口';
