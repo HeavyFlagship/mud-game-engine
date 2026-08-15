@@ -293,14 +293,6 @@ const TimelineGraphic = {
     nowEl.classList.toggle('highlight', isPlayerTurn);
   },
 
-  // 控制跳过按钮显示
-  _updateSkip() {
-    const btn = document.getElementById('tl-skip-btn');
-    if (!btn) return;
-    const show = Battle.active && Timeline.paused && Battle.currentActor === 'player';
-    btn.style.display = show ? 'inline-block' : 'none';
-  },
-
   // 主渲染入口（由 BattleUI.update 调用）
   render() {
     this._ensureBase();
@@ -315,13 +307,10 @@ const TimelineGraphic = {
     this._renderTicks();
     this._renderTracks();
     this._updateNow();
-    this._updateSkip();
   },
 
   // 清空（战斗结束）
   clear() {
-    const btn = document.getElementById('tl-skip-btn');
-    if (btn) btn.style.display = 'none';
     if (this._container) {
       this._container.innerHTML = '';
       delete this._container.dataset.built;

@@ -1353,9 +1353,11 @@ const Game = {
       html += `<div class="equip-card${chassisActionable ? ' actionable' : ''}">`;
       html += `<div class="equip-card-header">`;
       html += `<span class="equip-card-name">机体</span>`;
+      html += `<span class="equip-card-header-right">`;
       html += `<span class="equip-card-slot">${vehicle.name}</span>`;
+      html += `<span class="chassis-status ${cs.cls}">${cs.text}</span>`;
+      html += `</span>`;
       html += `</div>`;
-      html += `<div class="equip-card-sub"><span class="chassis-status ${cs.cls}">${cs.text}</span></div>`;
       if (chassisActionable && st) {
         const chassisAction = st.chassis.action;
         html += `<div class="equip-actions">`;

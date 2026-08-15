@@ -71,7 +71,6 @@
     <div class="tl-graphic-header">
       <span class="tl-graphic-title">时间轴</span>
       <span id="battle-time" class="battle-time">00:00:46</span>
-      <button class="skip-action-btn" id="tl-skip-btn" onclick="BattleUI.execCmd('continue')" style="display: inline-block;">跳过</button>
     </div>
     <div class="tl-graphic" id="tl-graphic" data-built="player"><div class="tlg-scale"><div class="tlg-tick" data-w="30" style="left: -9.04762%;"><span class="tlg-tick-line"></span><span class="tlg-tick-label">30</span></div><div class="tlg-tick" data-w="40" style="left: 5.2381%;"><span class="tlg-tick-line"></span><span class="tlg-tick-label">40</span></div><div class="tlg-tick" data-w="50" style="left: 19.5238%;"><span class="tlg-tick-line"></span><span class="tlg-tick-label">50</span></div><div class="tlg-tick" data-w="60" style="left: 33.8095%;"><span class="tlg-tick-line"></span><span class="tlg-tick-label">01:00</span></div><div class="tlg-tick" data-w="70" style="left: 48.0952%;"><span class="tlg-tick-line"></span><span class="tlg-tick-label">10</span></div><div class="tlg-tick" data-w="80" style="left: 62.381%;"><span class="tlg-tick-line"></span><span class="tlg-tick-label">20</span></div><div class="tlg-tick" data-w="90" style="left: 76.6667%;"><span class="tlg-tick-line"></span><span class="tlg-tick-label">30</span></div><div class="tlg-tick" data-w="100" style="left: 90.9524%;"><span class="tlg-tick-line"></span><span class="tlg-tick-label">40</span></div></div><div class="tlg-track" data-actor="player" style="top:18px"><span class="tlg-track-label">你</span><span class="tlg-track-line"></span><span class="tlg-track-lane"></span></div><div class="tlg-now highlight" style="left:14.285714285714285%"><span class="tlg-now-marker">▼</span><span class="tlg-now-label" style="color: rgb(0, 255, 255);">你的行动</span></div></div>
   </section>
@@ -133,15 +132,6 @@
     </div>
   </section>
 
-  <!-- 列6：查询窗口（行1-4） -->
-  <aside class="panel panel-query query-panel" id="query-panel" aria-label="查询窗口">
-    <div class="query-header">
-      <span id="query-title">查询窗口</span>
-      <button class="query-clear" onclick="Msg.clearQuery()" title="清空查询窗口">清空</button>
-    </div>
-    <div class="query-output" id="query-output"><div class="msg system">查询类指令的信息会显示在这里。</div></div>
-  </aside>
-
   <!-- 角色信息：列1，行2-4 -->
   <section class="panel panel-player">
     <div class="sidebar-title">角色状态信息</div>
@@ -165,6 +155,19 @@
     </div>
   </section>
 </div>
+
+<!-- 悬浮查询窗口：仅在显示信息时浮出，可收起到右侧边 -->
+<aside class="panel query-panel" id="query-panel" aria-label="查询窗口">
+  <div class="query-header">
+    <span id="query-title">查询窗口</span>
+    <div class="query-header-actions">
+      <button class="query-collapse" onclick="Msg.collapseQuery()" title="收起查询窗口">▸</button>
+      <button class="query-clear" onclick="Msg.clearQuery()" title="清空查询窗口">清空</button>
+    </div>
+  </div>
+  <div class="query-output" id="query-output"><div class="msg system">查询类指令的信息会显示在这里。</div></div>
+</aside>
+<button class="query-tab" id="query-tab" onclick="Msg.openQuery()" title="显示查询窗口">查询</button>
 
 <div class="unit-context-menu" id="unit-context-menu" role="menu"></div>
 

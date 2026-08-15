@@ -70,7 +70,7 @@ body {
 }
 .main.grid-layout {
   display: grid;
-  grid-template-columns: 1fr 1fr 1.5fr 1fr 1.5fr 1fr;
+  grid-template-columns: 1fr 1fr 1.5fr 1fr 1.5fr;
   grid-template-rows: 1fr 1fr 120px 1fr;
   gap: 1px;
   background: var(--rule);
@@ -96,7 +96,6 @@ body {
 .panel-timeline    { grid-column: 4; grid-row: 4; display: none; padding: 0; flex-direction: column; }
 .panel-timeline.active { display: flex; animation: fadeIn 0.25s ease; }
 .panel-console     { grid-column: 5; grid-row: 1 / span 4; padding: 0; background: var(--bg); }
-.panel-query       { grid-column: 6; grid-row: 1 / span 4; padding: 0; }
 
 /* ===== INNER PANEL ADJUSTMENTS ===== */
 .panel-region-map {
@@ -446,22 +445,6 @@ body {
 }
 /* Ready list – separate section above timeline */
 /* (已移除就绪武器显示，样式保留占位) */
-/* Skip button in timeline */
-.skip-action-btn {
-  background: rgba(255, 100, 50, 0.15);
-  border: 1px solid rgba(255, 100, 50, 0.4);
-  color: #f82;
-  font-size: var(--font-hint);
-  padding: 1px 8px;
-  border-radius: 3px;
-  cursor: pointer;
-  margin-left: 8px;
-  transition: background 0.2s, border-color 0.2s;
-}
-.skip-action-btn:hover {
-  background: rgba(255, 100, 50, 0.3);
-  border-color: #f82;
-}
 
 /* ===== GRAPHIC TIMELINE ===== */
 .tl-graphic-header {
@@ -665,7 +648,7 @@ body {
 }
 .weapon-ammo-bar {
   width: 100%;
-  height: 4px;
+  height: 5px;
   background: var(--bg);
   border-radius: 2px;
   overflow: hidden;
@@ -733,6 +716,12 @@ body {
 }
 .equip-card-name { color: var(--accent); font-weight: 600; }
 .equip-card-slot { color: var(--muted); font-size: var(--font-hint); flex-shrink: 0; }
+.equip-card-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
 
 /* 机体/武器状态徽标 */
 .chassis-status, .weapon-status-tag {
@@ -899,6 +888,56 @@ body {
 .enemy-card.locked .name::after {
   content: ' 🔒';
 }
+/* 敌人结构/装甲双条：同一行，数值显示在条上 */
+.enemy-bars {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 3px;
+}
+.enemy-bar {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.enemy-bar-label {
+  font-size: var(--font-hint);
+  color: var(--muted-bright);
+  flex-shrink: 0;
+  width: 2em;
+}
+.enemy-bar-track {
+  position: relative;
+  flex: 1;
+  height: 11px;
+  background: #333;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.enemy-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s linear;
+}
+.enemy-bar-fill.hp { background: linear-gradient(90deg, var(--accent2), var(--hp-bar-end)); }
+.enemy-bar-fill.ar { background: linear-gradient(90deg, var(--mp-bar-start), var(--accent4)); }
+.enemy-bar-text {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 100%;
+  line-height: 11px;
+  text-align: center;
+  font-size: 8px;
+  color: #fff;
+  text-shadow: 0 0 2px #000, 0 0 2px #000;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.enemy-card .status-effects-tags {
+  grid-column: 1 / -1;
+}
 
 .region-map-wrap {
   display: flex;
@@ -1025,15 +1064,25 @@ body {
 .output::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 3px; }
 .output::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
-/* ===== QUERY PANEL ===== */
+/* ===== QUERY FLOATING PANEL ===== */
 .query-panel {
-  width: 330px;
-  flex-shrink: 0;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 340px;
+  z-index: 400;
   display: flex;
   flex-direction: column;
   background: var(--bg2);
   border-left: 1px solid var(--rule);
+  box-shadow: -6px 0 24px rgba(0, 0, 0, 0.55);
   overflow: hidden;
+  transform: translateX(100%);
+  transition: transform 0.28s ease;
+}
+.query-panel.open {
+  transform: translateX(0);
 }
 .query-header {
   height: 42px;
@@ -1048,7 +1097,13 @@ body {
   font-weight: 700;
   letter-spacing: 0.12em;
 }
-.query-clear {
+.query-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.query-clear,
+.query-collapse {
   background: var(--bg);
   border: 1px solid var(--rule);
   color: var(--muted);
@@ -1059,9 +1114,41 @@ body {
   font-size: var(--font-hint-sm);
   transition: all 0.2s;
 }
-.query-clear:hover {
+.query-clear:hover,
+.query-collapse:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+.query-collapse {
+  font-size: 11px;
+  padding: 0.15rem 0.4rem;
+}
+/* 收起后右侧边缘的伸出把手 */
+.query-tab {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 399;
+  background: var(--bg2);
+  border: 1px solid var(--rule);
+  border-right: none;
+  color: var(--accent);
+  padding: 14px 5px;
+  border-radius: 4px 0 0 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--font-hint);
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  writing-mode: vertical-rl;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.45);
+  transition: all 0.2s;
+}
+.query-tab:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: -2px 0 8px rgba(0, 255, 136, 0.35);
 }
 .query-output {
   flex: 1;
@@ -1366,7 +1453,7 @@ body {
 
 /* ===== RESPONSIVE ===== */
 @media (max-width: 1100px) {
-  .query-panel { width: 100%; }
+  .query-panel { width: min(340px, 90vw); }
 }
 
 /* ===== GRID LAYOUT OVERRIDES ===== */
@@ -1381,11 +1468,6 @@ body {
 }
 .main.grid-layout .timeline-content {
   padding: 0.35rem 0.7rem;
-}
-
-.main.grid-layout .query-panel {
-  width: auto;
-  border-left: none;
 }
 
 .main.grid-layout .game-area--grid {
@@ -1420,6 +1502,5 @@ body {
   .main.grid-layout .panel-equip       { grid-column: 1 / span 2; grid-row: 5; min-height: 160px; }
   .main.grid-layout .panel-timeline    { grid-column: 1 / span 2; grid-row: auto; min-height: 180px; }
   .main.grid-layout .panel-console     { grid-column: 1 / span 2; grid-row: auto; min-height: 40vh; }
-  .main.grid-layout .panel-query       { grid-column: 1 / span 2; grid-row: auto; min-height: 30vh; }
   .main.grid-layout .game-area--grid .output { padding: 0.6rem 0.8rem; }
 }

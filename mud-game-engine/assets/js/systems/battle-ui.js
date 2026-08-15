@@ -504,7 +504,9 @@ const BattleUI = {
     const enemyEl = document.getElementById('enemy-list');
     if (!enemyEl || !Battle.battlefield) return;
     let html = `<div style="color:var(--muted);font-size:var(--font-enemy-header);margin-bottom:6px;">存活 ${Battle.battlefield.enemies.filter(e => e.hp > 0).length}/${Battle.battlefield.enemies.length}</div>`;
-    for (const enemy of Battle.battlefield.enemies) {
+    // 从下向上排列：数组首位的敌人显示在列表底部（靠近装备区）
+    const enemies = [...Battle.battlefield.enemies].reverse();
+    for (const enemy of enemies) {
       const dist = Battle.getDistance(Player.position, enemy.position);
       const hpPct = (enemy.hp / enemy.maxHp * 100).toFixed(0);
       const arPct = enemy.maxArmor > 0 ? (enemy.armor / enemy.maxArmor * 100).toFixed(0) : 0;
@@ -514,7 +516,6 @@ const BattleUI = {
       const nameText = `${enemy.instanceId} ${enemy.name}`;
       const distText = `${dist.toFixed(0)}m ${inRange ? '🎯' : '📏'}`;
       const id = enemy.instanceId;
-      const fireDisabled = !inRange || dead ? ' disabled' : '';
       const disabledStyle = dead ? 'background:#222;opacity:0.5;' : '';
       const locked = Battle.lockedTarget === enemy.instanceId;
       html += `<div class="enemy-card${locked ? ' locked' : ''}" style="${disabledStyle}">
@@ -522,19 +523,19 @@ const BattleUI = {
           <span class="name" style="color:${dead ? '#666' : '#f66'};" title="${nameText}">${nameText}</span>
           <span class="dist" style="color:var(--muted);font-size:var(--font-enemy-header);">${distText}</span>
         </div>
-        <span class="sub" style="color:var(--muted-bright);">结构: ${enemy.hp}/${enemy.maxHp}
-          <div style="display:inline-block;width:90px;height:7px;background:#333;border-radius:2px;vertical-align:middle;margin-left:4px;">
-          <div style="width:${hpPct}%;height:7px;background:${hpPct>50?'#4f4':hpPct>25?'#fa2':'#f44'};border-radius:2px;"></div></div>
-        </span>
-        <span class="sub" style="color:var(--muted-bright);">装甲: ${enemy.armor}/${enemy.maxArmor}
-          <div style="display:inline-block;width:90px;height:7px;background:#333;border-radius:2px;vertical-align:middle;margin-left:4px;">
-          <div style="width:${arPct}%;height:7px;background:#88f;border-radius:2px;"></div></div>
-        </span>
+        <div class="enemy-bars">
+          <div class="enemy-bar">
+            <span class="enemy-bar-label">结构</span>
+            <div class="enemy-bar-track"><div class="enemy-bar-fill hp" style="width:${hpPct}%"></div><span class="enemy-bar-text">${enemy.hp}/${enemy.maxHp}</span></div>
+          </div>
+          <div class="enemy-bar">
+            <span class="enemy-bar-label">装甲</span>
+            <div class="enemy-bar-track"><div class="enemy-bar-fill ar" style="width:${arPct}%"></div><span class="enemy-bar-text">${enemy.armor}/${enemy.maxArmor}</span></div>
+          </div>
+        </div>
         ${this.getStatusEffectsHTML(enemy.statusEffects)}
         <div class="unit-quick-actions">
           <button class="quick-action-btn lock${locked ? ' active' : ''}" onclick="BattleUI.execCmd('lock ${id}')" title="锁定/取消锁定目标">锁定</button>
-          <button class="quick-action-btn fire${fireDisabled}" onclick="BattleUI.execCmd('fire ${id}')"${fireDisabled ? ' disabled' : ''} title="开火">开火</button>
-          <button class="quick-action-btn" onclick="BattleUI.execCmd('move ${id}')"${dead ? ' disabled' : ''} title="靠近">靠近</button>
           <button class="quick-action-btn" onclick="BattleUI.execCmd('look ${id}')" title="查看">查看</button>
         </div>
       </div>`;
