@@ -82,13 +82,14 @@ const GlobalCommands = {
     const isDirection = ['north','south','east','west','up','down'].includes(direction);
 
     if (isSafe) {
-      // 安全区：方向用于切换房间，坐标/目标用于场景内移动
-      if (isDirection) {
-        Game.move(direction);
-        return;
-      }
+      // 安全区：复用战场移动逻辑——主方向先移动到边缘（移动动画）再切换场景，与战斗区一致；
+      // 仅当尚未进入战场（无 battlefield）时才退化为直接切换房间
       if (Battle.active && Battle.battlefield) {
         CommandSystem.cmdBattleMove(args);
+        return;
+      }
+      if (isDirection) {
+        Game.move(direction);
         return;
       }
       Msg.info('用法：move <方向> (north/south/east/west) 或 move <x> <y>');

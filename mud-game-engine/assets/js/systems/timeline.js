@@ -121,7 +121,7 @@ const Timeline = {
   // ===== 60fps 连续推进循环 =====
 
   /** 真实秒 → 游戏秒倍率（可配置） */
-  TIMESCALE: 3,
+  TIMESCALE: 10,
   /** 防止卡顿时 delta 过大（100ms 封顶） */
   MAX_FRAME_DELTA: 0.1,
 

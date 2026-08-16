@@ -381,7 +381,8 @@ const Battle = {
 
   buildInitialTimeline() {
     Timeline.eventQueue = [];
-    Timeline.scheduleEvent({ type: 'player_turn', actor: 'player' }, this.calculateInitiative(Player.speed));
+    // 进入场景立即轮到玩家（0 延迟），时间轴暂停等待玩家输入，避免开场空等约一次行动间隔
+    Timeline.scheduleEvent({ type: 'player_turn', actor: 'player' }, 0);
     for (const enemy of this.battlefield.enemies) {
       Timeline.scheduleEvent({ type: 'enemy_turn', actor: enemy.instanceId, enemyId: enemy.templateId },
         this.calculateInitiative(enemy.speed));

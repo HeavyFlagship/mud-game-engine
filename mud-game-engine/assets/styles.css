@@ -839,6 +839,13 @@ body {
   color: var(--accent);
   background: rgba(0, 255, 136, 0.08);
 }
+/* 开火按钮选中态：优先使用统一的 active 高亮，而非恒常红色 */
+.equip-action-btn.fire.active:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(0, 255, 136, 0.08);
+  box-shadow: none;
+}
 
 /* 执行栏 */
 .action-execute-bar {

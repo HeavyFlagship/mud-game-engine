@@ -175,13 +175,19 @@ const TimelineGraphic = {
         const l = (act.startTime - windowStart) / total * 100;
         const r = (Math.min(act.endTime, now) - windowStart) / total * 100;
         if (r > 0 && l < 100) {
-          desired.set(`Lp|${act.actor}|${act.type}|${act.startTime}`, {
-            kind: 'line',
-            left: Math.max(0, l),
-            width: Math.min(100 - Math.max(0, l), r - l),
-            color: this.COLOR.past,
-            zIndex: 0
-          });
+          // 宽度须基于钳制后的 left 计算：当动作开始时间早于窗口起点时，l 为负，
+          // 直接用 r - l 会把灰色条向右超出"现在"标记反向延长（长持续动作在临近结束时尤明显）
+          const left = Math.max(0, l);
+          const width = Math.min(100 - left, r - left);
+          if (width > 0) {
+            desired.set(`Lp|${act.actor}|${act.type}|${act.startTime}`, {
+              kind: 'line',
+              left,
+              width,
+              color: this.COLOR.past,
+              zIndex: 0
+            });
+          }
         }
       }
       // 未来部分（现在右侧）画主题色，zIndex=1 确保在灰色之上
