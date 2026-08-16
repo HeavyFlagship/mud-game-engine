@@ -41,6 +41,7 @@ const Battle = {
     this.playerFireHint = null;
     this.playerActionState = null;
     this.lockedTarget = null;
+    this.lastActions = null;
 
     // 显示环境危险警告
     if (this.battlefield.hazards && this.battlefield.hazards.length > 0) {
@@ -159,6 +160,7 @@ const Battle = {
     this.playerFireHint = null;
     this.playerActionState = null;
     this.lockedTarget = null;
+    this.lastActions = null;
     // 恢复视野（EMI区域效果清除）
     if (Player._originalVisionRadius) {
       Player.visionRadius = Player._originalVisionRadius;
@@ -1062,18 +1064,13 @@ const Battle = {
     return true;
   },
 
-  /** UI 辅助：从秒数输入框读取机体待命秒数 */
-  setChassisHoldFromInput() {
-    const inp = document.getElementById('hold-sec-chassis');
-    const v = inp ? parseInt(inp.value, 10) : 0;
-    this.setChassisAction('hold', null, null, v > 0 ? v : 0);
-  },
-
-  /** UI 辅助：从秒数输入框读取武器待命秒数 */
-  setWeaponHoldFromInput(slot) {
-    const inp = document.getElementById('hold-sec-' + slot);
-    const v = inp ? parseInt(inp.value, 10) : 0;
-    this.setWeaponAction(slot, 'hold', null, v > 0 ? v : 0);
+  /** UI 辅助：把待命指令置入命令行输入框，由玩家编辑秒数后回车提交 */
+  fillHoldCommand(target, seconds = 5) {
+    const inp = document.getElementById('input');
+    if (!inp) return;
+    inp.value = `hold ${target} ${seconds}`;
+    inp.focus();
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
   },
 
   /** 切换锁定目标 */
@@ -1121,6 +1118,20 @@ const Battle = {
     if (pendingHints.length > 0) {
       Msg.hint(`未指定操作：${pendingHints.join('、')}`);
       return;
+    }
+
+    // 记录本次提交的操作序列，供「上次指令」快速重放
+    this.lastActions = {
+      chassis: { ...this.playerActionState.chassis },
+      weapons: {}
+    };
+    for (const [slot, w] of Object.entries(this.playerActionState.weapons)) {
+      this.lastActions.weapons[slot] = {
+        action: w.action,
+        target: w.target,
+        holdFor: w.holdFor,
+        ready: w.ready
+      };
     }
 
     // 记录操作阶段结束
@@ -1209,6 +1220,100 @@ const Battle = {
     }
     // 有移动时 setPlayerTask 已解除暂停并推进时间轴；移动完成后会自然回到操作阶段
     BattleUI.update();
+  },
+
+  /** 从 targetLabel 解析被靠近的敌人编号（如「靠近 工虫[A1]」→ A1） */
+  _extractApproachTargetId(label) {
+    if (!label || !label.startsWith('靠近 ')) return null;
+    const m = label.match(/\[(.+)\]$/);
+    return m ? m[1] : null;
+  },
+
+  /** UI 辅助：把上次指令重放设置到装备面板，监测条件变化并提示 */
+  replayLastActions() {
+    if (!this.isPlayerActionPhase() || !this.playerActionState) {
+      Msg.hint('当前不在操作阶段，无法重放上次指令。');
+      return false;
+    }
+    if (!this.lastActions) {
+      Msg.hint('还没有可重放的上次指令。');
+      return false;
+    }
+    const notes = [];
+    const la = this.lastActions;
+    const st = this.playerActionState;
+
+    // 先清空当前操作意图，再按上次指令重放（保证结果与上次指令一致）
+    st.chassis.action = null;
+    st.chassis.target = null;
+    st.chassis.targetLabel = null;
+    st.chassis.holdFor = 0;
+    st.chassis.autoExit = null;
+    for (const slot of Object.keys(st.weapons)) {
+      st.weapons[slot].action = null;
+      st.weapons[slot].target = null;
+      st.weapons[slot].holdFor = 0;
+    }
+
+    // 机体
+    const ch = la.chassis;
+    if (ch && ch.action === 'move') {
+      const targetId = this._extractApproachTargetId(ch.targetLabel);
+      if (targetId) {
+        const enemy = this.battlefield.enemies.find(e => e.instanceId === targetId && e.hp > 0);
+        if (!enemy) {
+          notes.push('上次靠近目标已丢失，机体移动已跳过');
+        } else {
+          this.setChassisMoveToEnemy(targetId);
+        }
+      } else if (ch.target) {
+        st.chassis.action = 'move';
+        st.chassis.target = ch.target;
+        st.chassis.targetLabel = ch.targetLabel;
+        st.chassis.holdFor = ch.holdFor;
+        st.chassis.autoExit = ch.autoExit;
+      }
+    } else if (ch && ch.action === 'hold') {
+      st.chassis.action = 'hold';
+      st.chassis.holdFor = ch.holdFor;
+    }
+
+    // 武器
+    for (const [slot, w] of Object.entries(la.weapons)) {
+      const cur = st.weapons[slot];
+      if (!cur) continue;
+      const weapon = Player.equipment[slot]?.equip;
+      if (w.action === 'fire') {
+        const enemy = w.target ? this.battlefield.enemies.find(e => e.instanceId === w.target) : null;
+        if (!enemy || enemy.hp <= 0) {
+          notes.push(`上次开火目标 ${w.target || '?'} 已丢失，${weapon ? weapon.name : slot} 已跳过`);
+          continue;
+        }
+        if (!cur.ready) {
+          notes.push(`${weapon ? weapon.name : slot} 仍在冷却，已跳过`);
+          continue;
+        }
+        const dist = this.getDistance(Player.position, enemy.position);
+        if (dist > weapon.range) {
+          notes.push(`${weapon.name} 目标 ${enemy.name} 已超出射程，已跳过`);
+          continue;
+        }
+        cur.action = 'fire';
+        cur.target = w.target;
+        cur.holdFor = w.holdFor;
+      } else if (w.action === 'hold') {
+        cur.action = 'hold';
+        cur.holdFor = w.holdFor;
+      }
+    }
+
+    if (notes.length > 0) {
+      Msg.hint(`上次指令重放完成，但条件有变化：${notes.join('；')}`);
+    } else {
+      Msg.hint('已按上次指令设置装备，点击「执行」提交。');
+    }
+    BattleUI.update();
+    return true;
   },
 
   setPlayerTask(task) {

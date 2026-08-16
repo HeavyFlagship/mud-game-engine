@@ -1363,8 +1363,7 @@ const Game = {
         html += `<div class="equip-actions">`;
         html += `<button class="equip-action-btn${chassisAction === 'move' ? ' active' : ''}" ${lockedEnemy ? '' : 'disabled'} title="${lockedEnemy ? '向锁定目标移动' : '需先锁定目标'}" onclick="Battle.setChassisMoveToEnemy('${lockedId}')">靠近目标</button>`;
         html += `<button class="equip-action-btn${chassisAction === 'hold' && !st.chassis.holdFor ? ' active' : ''}" onclick="Battle.setChassisAction('hold')">待命</button>`;
-        html += `<input type="number" class="hold-sec-input" id="hold-sec-chassis" value="5" min="1" max="300" title="待命秒数">`;
-        html += `<button class="equip-action-btn${chassisAction === 'hold' && st.chassis.holdFor > 0 ? ' active' : ''}" onclick="Battle.setChassisHoldFromInput()">待命X秒</button>`;
+        html += `<button class="equip-action-btn${chassisAction === 'hold' && st.chassis.holdFor > 0 ? ' active' : ''}" onclick="Battle.fillHoldCommand('机体')">待命X秒</button>`;
         html += `</div>`;
       }
       html += `</div>`;
@@ -1432,8 +1431,7 @@ const Game = {
           html += `<div class="equip-actions">`;
           html += `<button class="equip-action-btn fire${wState.action === 'fire' ? ' active' : ''}" ${lockedEnemy ? '' : 'disabled'} title="${lockedEnemy ? '向锁定目标开火' : '需先锁定目标'}" onclick="Battle.setWeaponAction('${key}','fire','${lockedId}')">开火</button>`;
           html += `<button class="equip-action-btn${wState.action === 'hold' && !wState.holdFor ? ' active' : ''}" onclick="Battle.setWeaponAction('${key}','hold')">待命</button>`;
-          html += `<input type="number" class="hold-sec-input" id="hold-sec-${key}" value="5" min="1" max="300" title="待命秒数">`;
-          html += `<button class="equip-action-btn${wState.action === 'hold' && wState.holdFor > 0 ? ' active' : ''}" onclick="Battle.setWeaponHoldFromInput('${key}')">待命X秒</button>`;
+          html += `<button class="equip-action-btn${wState.action === 'hold' && wState.holdFor > 0 ? ' active' : ''}" onclick="Battle.fillHoldCommand('${slotNum}')">待命X秒</button>`;
           html += `</div>`;
         }
         html += `</div>`;
