@@ -620,28 +620,39 @@ const Battle = {
     }
   },
 
+  /**
+   * 计算武器命中率（散布机制）。
+   *
+   * 规则：
+   * 1. 散布半径 = 武器散布系数 spread × 距离，散布范围随距离线性扩大；
+   * 2. 基准命中率 = (目标截面半径 targetRadius / 散布半径)²，
+   *    即目标截面在散布圆内的面积占比，未做 1 的上限约束（留到最终输出前统一钳制）；
+   * 3. 掩体修正：目标处于掩体附近时命中率 ×0.6；
+   * 4. 射程修正：距敌距离在 最佳射程 optimalRange 到 最大射程 range 之间时，
+   *    命中率从最优（1.0）线性插值衰减到 0；超过最大射程 range 直接无法命中（返回 0）；
+   *    处于最佳射程内则不受射程惩罚；
+   * 5. 最终命中率钳制在 [1%, 99%]。
+   */
   calculateHitRate(attacker, target, weapon, dist) {
+    // 超出最大射程无法命中
+    if (dist > weapon.range) return 0;
+
     const spreadRadius = weapon.spread * dist;
-    const baseHitRate = Math.min(1, Math.pow((target.targetRadius || 2) / Math.max(spreadRadius, 0.1), 2));
+    const baseHitRate = Math.pow((target.targetRadius || 2) / Math.max(spreadRadius, 0.1), 2);
 
     let hitRate = baseHitRate;
-
-    const targetSpeed = target.currentSpeed || target.speed || 0;
-    if (targetSpeed > 5) {
-      hitRate *= Math.max(0.5, 1 - (targetSpeed - 5) * 0.03);
-    }
 
     if (this.isInCover(target.position)) {
       hitRate *= 0.6;
     }
 
+    // 射程修正：仅在 optimalRange → range 区间做线性插值
     if (dist > weapon.optimalRange) {
-      const overRange = dist - weapon.optimalRange;
-      hitRate *= Math.max(0.1, 1 - overRange * 0.001);
-    } else if (dist < weapon.optimalRange * 0.3) {
-      hitRate = Math.min(0.99, hitRate * 1.2);
+      const denom = weapon.range - weapon.optimalRange;
+      hitRate *= denom > 0 ? Math.max(0, (weapon.range - dist) / denom) : 0;
     }
 
+    // 最终输出前统一钳制
     return Math.max(0.01, Math.min(0.99, hitRate));
   },
 

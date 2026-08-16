@@ -119,6 +119,65 @@ const BattleUI = {
     CommandSystem.execute(`move ${dir}`);
   },
 
+  // 锁定敌人后绘制武器散布扇形（示意）：
+  // 扇形自玩家指向锁定目标、随最大射程延伸；最佳射程内为绿色，超出最佳射程渐变到红色
+  drawSpreadSector(ctx, cx, cy, scale) {
+    if (!Battle.active || !Battle.battlefield) return;
+    const enemy = Battle.getLockedEnemy();
+    if (!enemy) return;
+    const weapon = Player.getEquippedWeapons()[0];
+    if (!weapon || !weapon.range) return;
+
+    const px = cx + (Player.position[0] - 500) * scale;
+    const py = cy + (Player.position[1] - 500) * scale;
+    const ex = cx + (enemy.position[0] - 500) * scale;
+    const ey = cy + (enemy.position[1] - 500) * scale;
+
+    const angle = Math.atan2(ey - py, ex - px);
+    const range = weapon.range;
+    // 散布半角（弧度）：spread 为每米散布系数，半角 ≈ spread；
+    // 零散布/高精度武器给出最小示意宽度保证可见
+    const halfAngle = Math.max(weapon.spread || 0, 0.02);
+
+    const endX = px + Math.cos(angle) * range * scale;
+    const endY = py + Math.sin(angle) * range * scale;
+
+    // 扇形路径：玩家位置 → 沿 ±halfAngle 两条边延伸到最大射程末端
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.arc(px, py, range * scale, angle - halfAngle, angle + halfAngle);
+    ctx.closePath();
+
+    // 绿色(最佳射程内) → 红色(射程末端) 渐变
+    const tOpt = weapon.optimalRange > 0 ? Math.min(1, weapon.optimalRange / range) : 0;
+    const grad = ctx.createLinearGradient(px, py, endX, endY);
+    grad.addColorStop(0, 'rgba(0, 255, 136, 0.18)');
+    grad.addColorStop(tOpt, 'rgba(0, 255, 136, 0.18)');
+    grad.addColorStop(1, 'rgba(255, 60, 40, 0.18)');
+
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // 标注最佳射程/最大射程边界刻度（虚线弧）
+    ctx.setLineDash([3, 3]);
+    ctx.lineWidth = 0.8;
+    if (weapon.optimalRange > 0) {
+      ctx.strokeStyle = 'rgba(0, 255, 136, 0.55)';
+      ctx.beginPath();
+      ctx.arc(px, py, weapon.optimalRange * scale, angle - halfAngle, angle + halfAngle);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(255, 60, 40, 0.65)';
+    ctx.beginPath();
+    ctx.arc(px, py, range * scale, angle - halfAngle, angle + halfAngle);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.lineWidth = 1;
+  },
+
   updateRadar() {
     const canvas = document.getElementById('radar-canvas');
     if (!canvas) return;
@@ -207,6 +266,9 @@ const BattleUI = {
     ctx.arc(px, py, Player.visionRadius * scale, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+
+    // 锁定目标后绘制武器散布扇形（位于敌人标记下层）
+    this.drawSpreadSector(ctx, cx, cy, scale);
 
     // 显示场景中的NPC
     if (Battle.active && Battle.battlefield) {
