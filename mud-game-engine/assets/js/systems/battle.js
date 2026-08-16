@@ -53,7 +53,8 @@ const Battle = {
     Timeline.start(Timeline.time);
     this.registerHandlers();
     this.registerUpdaters();
-    Timeline.onTickEnd = () => { BattleUI.update(); };
+    // 每帧动态刷新（冷却条/战斗时间/时间轴图形）；静态 UI 由事件/指令触发全量刷新
+    Timeline.onTickEnd = () => { BattleUI.updateDynamic(); };
 
     this.buildInitialTimeline();
     BattleUI.render();
@@ -815,6 +816,8 @@ const Battle = {
       return;
     }
     Timeline.scheduleNext();
+    // 敌人位置已更新，刷新敌人列表距离/状态
+    BattleUI.update();
   },
 
   enemyAttack(enemy, targetPos) {
@@ -849,6 +852,8 @@ const Battle = {
     Timeline.scheduleEvent({ type: 'attack_complete', actor: enemy.instanceId }, enemy.attackCooldown);
     // 攻击后立即按 initiative 调度下一次行动，而非等 attackCooldown 结束
     this.scheduleNextEnemyTurn(enemy);
+    // 玩家结构/装甲/状态可能变化，触发全量 UI 刷新
+    BattleUI.update();
   },
 
   calculateEnemyHitRate(enemy, dist) {

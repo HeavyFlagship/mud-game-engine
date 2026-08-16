@@ -508,6 +508,16 @@ const BattleUI = {
     if (typeof TimelineGraphic !== 'undefined') TimelineGraphic.render();
   },
 
+  // 每帧高频动态刷新（由 Timeline.onTickEnd 调用）：
+  // 仅更新随连续时间流逝而变化的内容，避免 60fps 重建静态 DOM
+  updateDynamic() {
+    if (typeof Game !== 'undefined' && Game.updateEquipInfoDynamic) {
+      Game.updateEquipInfoDynamic();
+    }
+    this.updateBattleTime();
+    if (typeof TimelineGraphic !== 'undefined') TimelineGraphic.render();
+  },
+
   updateBattleTime() {
     const el = document.getElementById('battle-time');
     if (!el) return;

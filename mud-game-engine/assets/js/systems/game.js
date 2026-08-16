@@ -1423,7 +1423,7 @@ const Game = {
         html += `<div class="weapon-metrics">`;
         html += `${ammoHtml}`;
         html += `<div class="weapon-cooldown">
-          <div class="weapon-cooldown-bar"><div class="weapon-cooldown-fill ${fillCls}" style="width:${cdPct}%"></div></div>
+          <div class="weapon-cooldown-bar"><div class="weapon-cooldown-fill ${fillCls}" data-slot="${key}" style="width:${cdPct}%"></div></div>
           <div class="weapon-cooldown-status"><span class="weapon-status-tag ${ws.cls}">${ws.text}</span></div>
         </div>`;
         html += `</div>`;
@@ -1455,6 +1455,26 @@ const Game = {
     // 执行栏：操作阶段显示，否则隐藏
     const execBar = document.getElementById('action-execute-bar');
     if (execBar) execBar.style.display = actionPhase ? '' : 'none';
+  },
+
+  // 每帧动态刷新冷却进度条宽度（由 BattleUI.updateDynamic 调用）
+  // 直接改样式避免 60fps 重建装备面板 DOM，配合 CSS width 过渡实现平滑流动
+  updateEquipInfoDynamic() {
+    const el = document.getElementById('equip-info');
+    if (!el) return;
+    for (const key of Object.keys(Player.equipment)) {
+      const item = Player.equipment[key].equip;
+      if (!item || item.category !== 'weapon') continue;
+      const fill = el.querySelector(`.weapon-cooldown-fill[data-slot="${key}"]`);
+      if (!fill) continue;
+      const cd = Player.weaponCooldowns[key] || 0;
+      const maxCd = item.cooldown || 1;
+      const isReady = cd <= 0;
+      const cdPct = isReady ? 100 : Math.max(0, Math.min(100, (1 - cd / maxCd) * 100));
+      fill.style.width = `${cdPct}%`;
+      fill.classList.toggle('ready', isReady);
+      fill.classList.toggle('cooling', !isReady);
+    }
   },
  
   updateRegionMap() {

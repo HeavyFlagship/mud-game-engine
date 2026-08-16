@@ -10,10 +10,10 @@ const Timeline = {
   continuousActions: [],
   // 是否暂停（等待玩家决策等）
   paused: false,
-  // 事件推进间隔（毫秒，实时感）
-  actionDelay: 500,
-  // setTimeout 句柄
-  actionTimeout: null,
+  // requestAnimationFrame 句柄
+  _rafId: null,
+  // 上一帧时间戳（performance.now）
+  _lastFrameTime: 0,
 
   // 事件处理器注册表：type -> handler(event)
   handlers: {},
@@ -50,11 +50,15 @@ const Timeline = {
     this.updaters = {};
   },
 
-  pause() { this.paused = true; },
+  pause() {
+    this.paused = true;
+    this._pausedAt = this.time;
+  },
 
   resume() {
     this.paused = false;
-    this.scheduleNext();
+    this._lastFrameTime = 0; // 下次 _loop 时重置
+    this.startLoop();
   },
 
   // ===== 事件处理器注册 =====
@@ -114,15 +118,64 @@ const Timeline = {
     );
   },
 
-  // ===== 时间推进 =====
+  // ===== 60fps 连续推进循环 =====
+
+  /** 真实秒 → 游戏秒倍率（可配置） */
+  TIMESCALE: 3,
+  /** 防止卡顿时 delta 过大（100ms 封顶） */
+  MAX_FRAME_DELTA: 0.1,
+
+  // 启动 requestAnimationFrame 循环
+  startLoop() {
+    if (this._rafId) return; // 已运行
+    this._lastFrameTime = 0; // 首帧建立基准，避免恢复时跳帧
+    const loop = (timestamp) => {
+      this._rafId = requestAnimationFrame(loop);
+      this._loop(timestamp);
+    };
+    this._rafId = requestAnimationFrame(loop);
+  },
+
+  // 停止循环
   stopLoop() {
-    if (this.actionTimeout) {
-      clearTimeout(this.actionTimeout);
-      this.actionTimeout = null;
+    if (this._rafId) {
+      cancelAnimationFrame(this._rafId);
+      this._rafId = null;
     }
   },
 
-  // 推进时间 delta 秒：更新持续动作位置、调用所有 updaters
+  // 每帧回调：计算 delta，推进时间，检查事件
+  _loop(timestamp) {
+    if (this.paused) return;
+
+    // 首次或 resume 后重置 _lastFrameTime 避免跳帧
+    if (this._lastFrameTime === 0) {
+      this._lastFrameTime = timestamp;
+      return;
+    }
+
+    const rawDelta = (timestamp - this._lastFrameTime) / 1000;
+    this._lastFrameTime = timestamp;
+    const delta = Math.min(rawDelta, this.MAX_FRAME_DELTA);
+
+    this.advanceTime(delta * this.TIMESCALE);
+    this._checkAndDispatch();
+
+    if (this.onTickEnd) this.onTickEnd();
+  },
+
+  // 检查并分发已到达的事件
+  _checkAndDispatch() {
+    this.eventQueue.sort((a, b) => a.time - b.time);
+    while (this.eventQueue.length > 0 && this.eventQueue[0].time <= this.time) {
+      const evt = this.eventQueue.shift();
+      this.dispatchEvent(evt);
+      // 结束的持续动作清理
+      this.continuousActions = this.continuousActions.filter(a => a.endTime > this.time);
+    }
+  },
+
+  // ===== 时间推进（delta 秒） =====
   advanceTime(delta) {
     if (delta <= 0) return;
     this.time += delta;
@@ -141,37 +194,6 @@ const Timeline = {
     }
   },
 
-  // 推进时间到下一个事件点（仅推进时间 + 渲染，不分发事件）
-  tickAdvance() {
-    if (this.paused) return;
-    if (this.eventQueue.length === 0) return;
-
-    this.eventQueue.sort((a, b) => a.time - b.time);
-    const next = this.eventQueue[0];
-    const delta = next.time - this.time;
-
-    if (delta > 0) {
-      this.advanceTime(delta);
-    }
-
-    // 推进后立即刷新 UI，让时间轴视觉上开始移动
-    if (this.onTickEnd) this.onTickEnd();
-  },
-
-  // 固定停顿后分发当前事件
-  tickDispatch() {
-    if (this.paused) return;
-    if (this.eventQueue.length === 0) return;
-
-    this.eventQueue.sort((a, b) => a.time - b.time);
-    const next = this.eventQueue.shift();
-    this.dispatchEvent(next);
-    // 事件处理后再清理一次已结束的持续动作（endTime === currentTime 的情况）
-    this.continuousActions = this.continuousActions.filter(a => a.endTime > this.time);
-    // tick 结束后刷新 UI（雷达/时间轴/装备面板等）
-    if (this.onTickEnd) this.onTickEnd();
-  },
-
   // 分发事件到注册的 handler
   dispatchEvent(event) {
     const handler = this.handlers[event.type];
@@ -184,18 +206,10 @@ const Timeline = {
     }
   },
 
-  // 调度下一次推进：立即推进时间让时间轴开始移动，固定 80ms 停顿后分发事件
+  // 调度下一次推进：启动 60fps 循环，确保时间轴开始流动
   scheduleNext() {
     if (this.paused) return;
-    this.stopLoop();
     if (this.eventQueue.length === 0) return;
-
-    // 立即推进时间到下一个事件点（时间轴开始移动）
-    this.tickAdvance();
-
-    // 固定 80ms 停顿后分发事件
-    this.actionTimeout = setTimeout(() => {
-      this.tickDispatch();
-    }, 80);
+    this.startLoop();
   }
 };
