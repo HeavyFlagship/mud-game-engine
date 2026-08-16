@@ -703,8 +703,8 @@ body {
 .weapon-cooldown-fill {
   height: 100%;
   border-radius: 3px;
-  /* 每帧动态更新宽度（updateEquipInfoDynamic），不再用长过渡以免拖尾滞后 */
-  transition: width 0.12s linear;
+  /* 平滑插值已由 updateEquipInfoDynamic 处理，过渡仅做帧间微平滑，避免拖尾滞后 */
+  transition: width 0.04s linear;
 }
 .weapon-cooldown-fill.ready { background: var(--accent2); }
 .weapon-cooldown-fill.cooling { background: linear-gradient(90deg, var(--mp-bar-start), var(--accent4)); }

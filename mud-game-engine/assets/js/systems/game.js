@@ -2,6 +2,9 @@
 const Game = {
   commandHistory: [],
   historyIndex: -1,
+  // 冷却条平滑显示状态：slotKey -> { value }；_cdLastReal 为上次刷新的真实时间戳（秒）
+  _cdSmooth: {},
+  _cdLastReal: 0,
  
   init() {
     Msg.init();
@@ -1458,22 +1461,46 @@ const Game = {
   },
 
   // 每帧动态刷新冷却进度条宽度（由 BattleUI.updateDynamic 调用）
-  // 直接改样式避免 60fps 重建装备面板 DOM，配合 CSS width 过渡实现平滑流动
+  // 直接改样式避免 60fps 重建装备面板 DOM。
+  // 通过"平滑插值"限制单帧冷却显示值的变化量：高 TIMESCALE / 掉帧造成的离散步进
+  // 会被削平为连续流动，避免冷却条跳变。
   updateEquipInfoDynamic() {
     const el = document.getElementById('equip-info');
     if (!el) return;
+    const realNow = performance.now() / 1000;
+    let realDelta = this._cdLastReal ? (realNow - this._cdLastReal) : 0;
+    this._cdLastReal = realNow;
+    // 单帧真实时间步长上限：与时间轴 MAX_FRAME_DELTA 一致，避免暂停恢复/长时间卡顿后一次性大步进
+    realDelta = Math.min(realDelta, 0.1);
+    // 每帧允许的最大冷却变化量（游戏秒）：正常推进速率低于该值，仅在掉帧大步进时被削平
+    const maxStep = Math.min(realDelta * (Timeline.TIMESCALE || 10), 0.25);
+
     for (const key of Object.keys(Player.equipment)) {
       const item = Player.equipment[key].equip;
       if (!item || item.category !== 'weapon') continue;
       const fill = el.querySelector(`.weapon-cooldown-fill[data-slot="${key}"]`);
       if (!fill) continue;
-      const cd = Player.weaponCooldowns[key] || 0;
       const maxCd = item.cooldown || 1;
-      const isReady = cd <= 0;
-      const cdPct = isReady ? 100 : Math.max(0, Math.min(100, (1 - cd / maxCd) * 100));
+      const authoritative = Player.weaponCooldowns[key] || 0;
+
+      // 平滑显示值
+      let s = this._cdSmooth[key];
+      if (!s) s = this._cdSmooth[key] = { value: authoritative };
+      if (authoritative <= 0) {
+        s.value = 0;                        // 就绪：直接归零（宽度=100%）
+      } else if (authoritative > s.value) {
+        s.value = authoritative;            // 冷却被重置（开火/换装）：立即跟随
+      } else if (s.value - authoritative > maxStep) {
+        s.value -= maxStep;                 // 掉帧大步进：按最大速率滑动，避免跳变
+      } else {
+        s.value = authoritative;
+      }
+
+      const cd = s.value;
+      const cdPct = Math.max(0, Math.min(100, (1 - cd / maxCd) * 100));
       fill.style.width = `${cdPct}%`;
-      fill.classList.toggle('ready', isReady);
-      fill.classList.toggle('cooling', !isReady);
+      fill.classList.toggle('ready', cd <= 0);
+      fill.classList.toggle('cooling', cd > 0);
     }
   },
  
