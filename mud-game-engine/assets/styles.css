@@ -153,6 +153,12 @@ body {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* 敌人条目底部对齐（靠近装备区），内容溢出时自动变为正常滚动 */
+.panel-unit-list .enemy-list .enemy-list-inner {
+  margin-top: auto;
 }
 
 /* 场景地图面板 */
@@ -1097,13 +1103,7 @@ body {
   font-weight: 700;
   letter-spacing: 0.12em;
 }
-.query-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-.query-clear,
-.query-collapse {
+.query-clear {
   background: var(--bg);
   border: 1px solid var(--rule);
   color: var(--muted);
@@ -1114,14 +1114,9 @@ body {
   font-size: var(--font-hint-sm);
   transition: all 0.2s;
 }
-.query-clear:hover,
-.query-collapse:hover {
+.query-clear:hover {
   border-color: var(--accent);
   color: var(--accent);
-}
-.query-collapse {
-  font-size: 11px;
-  padding: 0.15rem 0.4rem;
 }
 /* 收起后右侧边缘的伸出把手 */
 .query-tab {
@@ -1143,12 +1138,22 @@ body {
   letter-spacing: 0.2em;
   writing-mode: vertical-rl;
   box-shadow: -2px 0 8px rgba(0, 0, 0, 0.45);
-  transition: all 0.2s;
+  transition: all 0.28s ease;
 }
 .query-tab:hover {
   border-color: var(--accent);
   color: var(--accent);
   box-shadow: -2px 0 8px rgba(0, 255, 136, 0.35);
+}
+/* 抽屉打开时，把手移到抽屉左边缘中间 */
+.query-tab.open {
+  right: 340px;
+  writing-mode: horizontal-tb;
+  padding: 5px 8px;
+  border-radius: 0 4px 4px 0;
+  border: 1px solid var(--rule);
+  border-left: none;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.45);
 }
 .query-output {
   flex: 1;
@@ -1454,6 +1459,7 @@ body {
 /* ===== RESPONSIVE ===== */
 @media (max-width: 1100px) {
   .query-panel { width: min(340px, 90vw); }
+  .query-tab.open { right: min(340px, 90vw); }
 }
 
 /* ===== GRID LAYOUT OVERRIDES ===== */

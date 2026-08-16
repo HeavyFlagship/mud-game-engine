@@ -503,10 +503,9 @@ const BattleUI = {
   updateEnemyList() {
     const enemyEl = document.getElementById('enemy-list');
     if (!enemyEl || !Battle.battlefield) return;
-    let html = `<div style="color:var(--muted);font-size:var(--font-enemy-header);margin-bottom:6px;">存活 ${Battle.battlefield.enemies.filter(e => e.hp > 0).length}/${Battle.battlefield.enemies.length}</div>`;
-    // 从下向上排列：数组首位的敌人显示在列表底部（靠近装备区）
-    const enemies = [...Battle.battlefield.enemies].reverse();
-    for (const enemy of enemies) {
+    let html = '<div class="enemy-list-inner">';
+    html += `<div style="color:var(--muted);font-size:var(--font-enemy-header);margin-bottom:6px;">存活 ${Battle.battlefield.enemies.filter(e => e.hp > 0).length}/${Battle.battlefield.enemies.length}</div>`;
+    for (const enemy of Battle.battlefield.enemies) {
       const dist = Battle.getDistance(Player.position, enemy.position);
       const hpPct = (enemy.hp / enemy.maxHp * 100).toFixed(0);
       const arPct = enemy.maxArmor > 0 ? (enemy.armor / enemy.maxArmor * 100).toFixed(0) : 0;
@@ -540,6 +539,7 @@ const BattleUI = {
         </div>
       </div>`;
     }
+    html += '</div>';
     enemyEl.innerHTML = html;
   },
 

@@ -61,19 +61,35 @@ const Msg = {
     if (this.queryTitleEl) this.queryTitleEl.textContent = '查询窗口';
     this.collapseQuery();
   },
-  // 悬浮查询窗口：显示信息时浮出
+  // 悬浮查询窗口：显示信息时浮出，把手移到抽屉左边缘中间
   openQuery() {
     const panel = document.getElementById('query-panel');
     const tab = document.getElementById('query-tab');
     if (panel) panel.classList.add('open');
-    if (tab) tab.style.display = 'none';
+    if (tab) {
+      tab.classList.add('open');
+      tab.textContent = '▸';
+      tab.title = '收起查询窗口';
+    }
   },
-  // 悬浮查询窗口：收起到右侧边
+  // 悬浮查询窗口：收起到右侧边，把手回到屏幕右边缘
   collapseQuery() {
     const panel = document.getElementById('query-panel');
     const tab = document.getElementById('query-tab');
     if (panel) panel.classList.remove('open');
-    if (tab) tab.style.display = '';
+    if (tab) {
+      tab.classList.remove('open');
+      tab.textContent = '查询';
+      tab.title = '显示查询窗口';
+    }
+  },
+  toggleQuery() {
+    const panel = document.getElementById('query-panel');
+    if (panel && panel.classList.contains('open')) {
+      this.collapseQuery();
+    } else {
+      this.openQuery();
+    }
   },
   withQuery(title, raw, callback) {
     if (!this.queryEl) {

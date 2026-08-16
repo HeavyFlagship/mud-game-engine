@@ -160,14 +160,11 @@
 <aside class="panel query-panel" id="query-panel" aria-label="查询窗口">
   <div class="query-header">
     <span id="query-title">查询窗口</span>
-    <div class="query-header-actions">
-      <button class="query-collapse" onclick="Msg.collapseQuery()" title="收起查询窗口">▸</button>
-      <button class="query-clear" onclick="Msg.clearQuery()" title="清空查询窗口">清空</button>
-    </div>
+    <button class="query-clear" onclick="Msg.clearQuery()" title="清空查询窗口">清空</button>
   </div>
   <div class="query-output" id="query-output"><div class="msg system">查询类指令的信息会显示在这里。</div></div>
 </aside>
-<button class="query-tab" id="query-tab" onclick="Msg.openQuery()" title="显示查询窗口">查询</button>
+<button class="query-tab" id="query-tab" onclick="Msg.toggleQuery()" title="显示查询窗口">查询</button>
 
 <div class="unit-context-menu" id="unit-context-menu" role="menu"></div>
 
