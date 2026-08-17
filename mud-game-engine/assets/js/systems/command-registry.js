@@ -6,6 +6,7 @@ const CommandRegistry = {
     load: { cmd: 'load', handler: 'cmdLoad', desc: '读取存档' },
     status: { cmd: 'status', handler: 'cmdStatus', desc: '查看状态' },
     bag: { cmd: 'bag', handler: 'cmdBag', desc: '查看背包', args: '[-d]' },
+    item: { cmd: 'item', handler: 'cmdItem', desc: '查看物品详情', args: '<编号|物品名>' },
     equip: { cmd: 'equip', handler: 'cmdEquip', desc: '装备物品', args: '<编号|物品名>' },
     unequip: { cmd: 'unequip', handler: 'cmdUnequip', desc: '卸下装备', args: '<接口编号>' },
     look: { cmd: 'look', handler: 'cmdLook', desc: '查看当前场景', args: '[目标]' },

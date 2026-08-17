@@ -46,6 +46,7 @@ const GlobalCommands = {
   cmdLoad() { Game.load(); },
   cmdStatus() { Game.showStatus(); },
   cmdBag(args) { Game.showBag(args.includes('-d')); },
+  cmdItem(args) { Game.showItemDetail(args.join(' ')); },
   cmdEquip(args) { Game.equip(args.join(' ')); },
   cmdUnequip(args) { Game.unequip(args[0] || ''); },
   cmdLook(args) { 
