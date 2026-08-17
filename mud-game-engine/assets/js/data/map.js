@@ -35,6 +35,11 @@ const MapDB = {
         battlefield: {
           terrain: 'metal_floor',
           terrainPenalty: { biped: 1.0, wheel: 0.9 },
+          // 地图实体图块：一个场景可同时包含工业区、交易区等多个功能区
+          entities: [
+            { id:'industry_zone', type:'industry', name:'工业区', pos:[180,260], size:[300,220] },
+            { id:'trade_zone',    type:'trade',    name:'交易中心', pos:[760,260], size:[220,190] }
+          ],
           covers: [
             { id:'c1', pos:[300,400], size:[80,60], height:2, durability:200 }
           ],

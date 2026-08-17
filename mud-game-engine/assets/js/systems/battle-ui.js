@@ -215,6 +215,41 @@ const BattleUI = {
     ctx.lineWidth = 1;
     ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
 
+    // 地图实体图块（工业区/交易区等功能区）
+    const entityStyle = {
+      industry: { fill: 'rgba(255, 180, 60, 0.12)',  stroke: 'rgba(255, 180, 60, 0.6)' },
+      trade:    { fill: 'rgba(0, 200, 255, 0.12)',   stroke: 'rgba(0, 200, 255, 0.6)' },
+      default:  { fill: 'rgba(136, 136, 136, 0.12)', stroke: 'rgba(136, 136, 136, 0.5)' }
+    };
+    if (Battle.active && Battle.battlefield && Battle.battlefield.entities) {
+      for (const ent of Battle.battlefield.entities) {
+        const style = entityStyle[ent.type] || entityStyle.default;
+        const ex = cx + (ent.pos[0] - 500) * scale;
+        const ey = cy + (ent.pos[1] - 500) * scale;
+        const ew = (ent.size[0] || 200) * scale;
+        const eh = (ent.size[1] || 150) * scale;
+        ctx.fillStyle = style.fill;
+        ctx.fillRect(ex - ew / 2, ey - eh / 2, ew, eh);
+        ctx.strokeStyle = style.stroke;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+        ctx.strokeRect(ex - ew / 2, ey - eh / 2, ew, eh);
+        ctx.setLineDash([]);
+        // 名称 + 设施数量（工业区显示已安装设施数）
+        let label = ent.name || ent.type;
+        if (ent.type === 'industry') {
+          const room = Battle.battlefield.roomId ? MapSystem.getRoom(Battle.battlefield.roomId) : null;
+          const n = room && room.industryZone ? (room.industryZone.facilities || []).length : 0;
+          label += n > 0 ? ` (${n}设施)` : ' (空)';
+        }
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.font = `${Math.round(11 * (canvas.width / 200))}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, ex, ey);
+      }
+    }
+
     // 危害区域
     if (Battle.active && Battle.battlefield && Battle.battlefield.hazards) {
       for (const hazard of Battle.battlefield.hazards) {
@@ -246,6 +281,28 @@ const BattleUI = {
           ctx.textAlign = 'center';
           ctx.fillText(label, hx, hy - hr - 2);
         }
+      }
+    }
+
+    // 掩体
+    if (Battle.active && Battle.battlefield && Battle.battlefield.covers) {
+      for (const cover of Battle.battlefield.covers) {
+        const mx = cx + (cover.pos[0] - 500) * scale;
+        const my = cy + (cover.pos[1] - 500) * scale;
+        const mw = (cover.size[0] || 80) * scale;
+        const mh = (cover.size[1] || 60) * scale;
+        ctx.fillStyle = 'rgba(136, 204, 255, 0.14)';
+        ctx.fillRect(mx - mw / 2, my - mh / 2, mw, mh);
+        ctx.strokeStyle = 'rgba(136, 204, 255, 0.55)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.strokeRect(mx - mw / 2, my - mh / 2, mw, mh);
+        ctx.setLineDash([]);
+        const label = cover.label || '掩体';
+        ctx.fillStyle = 'rgba(136, 204, 255, 0.8)';
+        ctx.font = `${Math.round(8 * (canvas.width / 200))}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText(label, mx, my - mh / 2 - 3);
       }
     }
 
