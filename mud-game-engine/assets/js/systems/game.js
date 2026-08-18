@@ -604,7 +604,7 @@ const Game = {
   // 已知属性 -> [中文标签, 单位]（无单位则只给标签）
   _itemAttrMeta: {
     id: 'ID', name: '名称', desc: '描述',
-    type: '类型', category: '类别', subCategory: '子类别', slot: '接口槽位',
+    type: '类型', category: '类别', subCategory: '子类别',
     price: ['价格', 'G'], weight: ['质量', 'kg'], cargoVolume: ['货舱体积', 'm³'],
     equipVolume: ['装备体积', 'm³'], powerReq: ['功率需求', 'kW'], computeReq: ['算力需求', 'MFlops'], interfaceReq: '接口需求',
     cooldown: ['冷却', 's'], cycle: '循环',
@@ -914,12 +914,13 @@ const Game = {
             Msg.info(`  ${idx+1}. ${catTag}<span class="item-tag ${item.type}">${item.name}</span>${extra} - ${item.price}G`);
 
             // 装备对比：仅对武器/装甲类装备显示
-            if (item.slot && (item.category === 'weapon' || item.category === 'armor' || item.type === 'weapon' || item.type === 'armor')) {
+            if (item.category === 'weapon' || item.category === 'armor' || item.type === 'weapon' || item.type === 'armor') {
               let equippedItem = null;
               let equippedSlotName = '';
+              const cmpType = item.type || item.category;
               for (const [slotKey, slot] of Object.entries(Player.equipment)) {
                 const eq = slot.equip;
-                if (eq && eq.slot === item.slot) {
+                if (eq && (eq.type === cmpType || eq.category === cmpType)) {
                   equippedItem = eq;
                   equippedSlotName = Player.getSlotDesc(slotKey);
                   break;
@@ -1410,6 +1411,9 @@ const Game = {
     const arPct = Player.maxArmor > 0 ? (Player.armor / Player.maxArmor * 100).toFixed(1) : 0;
     const enPct = (Player.energy / Player.maxEnergy * 100).toFixed(1);
     const expPct = (Player.exp / Player.expToNext * 100).toFixed(1);
+    const cap = Player.getCargoCapacity();
+    const used = Player.getUsedCargoVolume();
+    const cargoPct = cap > 0 ? (used / cap * 100).toFixed(1) : 0;
     el.innerHTML = `
       <div class="stat-row"><span class="stat-label">等级</span><span class="stat-value exp">Lv.${Player.level}</span></div>
       <div class="stat-row"><span class="stat-label">结构</span><span class="stat-value hp">${Player.hp}/${Player.maxHp}</span></div>
@@ -1422,7 +1426,8 @@ const Game = {
       <div class="bar-container"><div class="bar-fill exp" style="width:${expPct}%"></div></div>
       <div class="stat-row"><span class="stat-label">速度</span><span class="stat-value">${Player.currentSpeed.toFixed(1)}</span></div>
       <div class="stat-row"><span class="stat-label">视野</span><span class="stat-value">${Player.visionRadius}m</span></div>
-      <div class="stat-row"><span class="stat-label">货舱</span><span class="stat-value">${Player.getUsedCargoVolume().toFixed(2)}/${Player.getCargoCapacity().toFixed(2)}m³</span></div>
+      <div class="stat-row"><span class="stat-label">货舱</span><span class="stat-value">${used.toFixed(2)}/${cap.toFixed(2)}m³</span></div>
+      <div class="bar-container"><div class="bar-fill mp" style="width:${cargoPct}%"></div></div>
       <div class="stat-row"><span class="stat-label">信用点</span><span class="stat-value gold">${Player.credits}G</span></div>
     `;
   },

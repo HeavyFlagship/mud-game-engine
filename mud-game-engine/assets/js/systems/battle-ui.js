@@ -618,7 +618,10 @@ const BattleUI = {
       corrosion: { icon: '🧪', name: '腐蚀', color: '#0f0', desc: '装甲持续受损' },
       poison: { icon: '☠', name: '中毒', color: '#8f0', desc: '持续受到结构伤害' },
       shock: { icon: '⚡', name: '电击', color: '#ff0', desc: '收到震荡伤害' },
-      stun: { icon: '💫', name: '眩晕', color: '#f0f', desc: '无法行动' }
+      stun: { icon: '💫', name: '眩晕', color: '#f0f', desc: '无法行动' },
+      jam: { icon: '📡', name: '干扰', color: '#c8f', desc: '被干扰器压制，命中率与扫描范围降低' },
+      track: { icon: '🎯', name: '锁定', color: '#0cf', desc: '被火控雷达锁定，受到攻击命中率提升' },
+      em_interference: { icon: '🌩', name: '电磁干扰', color: '#68f', desc: '处于电磁干扰区，扫描范围与命中率下降' }
     };
     let html = '<div class="status-effects-tags">';
     for (const eff of effects) {

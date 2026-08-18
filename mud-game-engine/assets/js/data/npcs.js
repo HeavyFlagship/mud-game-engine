@@ -24,7 +24,7 @@ const NPCDB = {
       default: ['装备库的物资还算充足，需要什么尽管说。记住，弹药和能量是你的生命线。', '需要新机体？看看机库里的存货。'],
       shop: 'shop'
     },
-    shopItems: ['assault','striker','stealth','auto_cannon_mk1','pulse_laser_mk1','light_alloy_plate','repair_kit_small','armor_patch','battle_scan_radar','vision_enhancer','fire_control_radar','radar_jammer','ion_generator','ion_generator_tiny','armor_repairer','armor_repairer_tiny','structure_repairer','armor_molten_filler','structure_nano_repairant']
+    shopItems: ['assault','striker','stealth','auto_cannon_mk1','pulse_laser_mk1','light_alloy_plate','repair_kit_small','armor_patch','battle_scan_radar','vision_enhancer','fire_control_radar','radar_jammer','ion_generator','ion_generator_tiny','ion_container','armor_repairer','armor_repairer_tiny','structure_repairer','armor_molten_filler','structure_nano_repairant']
   },
   engineer: {
     id:'engineer', name:'维修师·王磊', title:'维修站技师',

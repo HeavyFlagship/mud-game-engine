@@ -28,6 +28,7 @@ const CommandSystem = {
     help: '指令帮助',
     status: '机体状态',
     bag: '背包',
+    item: '物品详情',
     skills: '技能',
     map: '世界地图',
     score: '统计信息',
