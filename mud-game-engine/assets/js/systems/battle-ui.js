@@ -491,7 +491,10 @@ const BattleUI = {
       corrosion: { icon: '🧪', name: '腐蚀', color: '#0f0' },
       poison: { icon: '☠', name: '中毒', color: '#8f0' },
       shock: { icon: '⚡', name: '电击', color: '#ff0' },
-      stun: { icon: '💫', name: '眩晕', color: '#f0f' }
+      stun: { icon: '💫', name: '眩晕', color: '#f0f' },
+      jam: { icon: '📡', name: '干扰', color: '#c8f' },
+      track: { icon: '🎯', name: '锁定', color: '#0cf' },
+      em_interference: { icon: '🌩', name: '电磁干扰', color: '#68f' }
     };
     let html = '<span class="status-effects-tags">';
     for (const eff of statusEffects) {

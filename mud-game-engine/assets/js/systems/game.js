@@ -346,6 +346,7 @@ const Game = {
     }
 
     Msg.info('── 背包物品 ──');
+    Msg.info(`货舱体积: ${Player.getUsedCargoVolume().toFixed(2)}/${Player.getCargoCapacity().toFixed(2)}m³`);
     if (Player.inventory.length === 0) {
       Msg.system('背包是空的。');
     } else {
@@ -365,6 +366,7 @@ const Game = {
             const syms = item.interfaceReq.map(t => Player.getInterfaceSymbol(t)).join('');
             statsStr.push(`[${syms}]`);
           }
+          if (item.cargoVolume) statsStr.push(`体积${item.cargoVolume}m³`);
           const extra = statsStr.length ? ` [${statsStr.join(', ')}]` : '';
           const desc = showDetail ? ` - ${item.desc}` : '';
           Msg.info(`  #${idx + 1} <span class="item-tag ${item.type}">${item.name}</span>${countStr}${extra}${desc}`);
@@ -386,7 +388,8 @@ const Game = {
     Msg.info(`机体: <span class="item-tag core">${vehicle?.name || Player.vehicleId}</span>${chassisName ? ` (${chassisName})` : ''}  重量: ${Player.weight}kg`);
     Msg.info(`结构值: <span class="stat-value hp">${Player.hp}</span>/${Player.maxHp}  装甲: <span class="stat-value">${Player.armor}</span>/${Player.maxArmor}`);
     Msg.info(`能量: <span class="stat-value mp">${Math.floor(Player.energy)}</span>/${Player.maxEnergy} (恢复+${Player.energyRegen}/s)`);
-    Msg.info(`速度: ${Player.currentSpeed.toFixed(1)}m/s  视野: ${Player.visionRadius}m  目标半径: ${Player.targetRadius}m  信号半径: ${Player.signalRadius}m`);
+    Msg.info(`速度: ${Player.currentSpeed.toFixed(1)}m/s  视野: ${Player.visionRadius}m`);
+    Msg.info(`货舱: ${Player.getUsedCargoVolume().toFixed(2)}/${Player.getCargoCapacity().toFixed(2)}m³  目标半径: ${Player.targetRadius}m  信号半径: ${Player.signalRadius}m`);
     Msg.info(`经验: ${Player.exp}/${Player.expToNext}`);
 
     // 机体与装备信息（与背包共用同一套详细显示：功率/算力/装备舱、接口、核心模块、接口装备）
@@ -413,7 +416,7 @@ const Game = {
 
     if (Player.statusEffects.length > 0) {
       const effStr = Player.statusEffects.map(e => {
-        const names = { slow:'减速', poison:'中毒', burn:'灼烧', shock:'电击', corrosion:'腐蚀', stun:'眩晕', ion_disrupt:'EMP干扰' };
+        const names = { slow:'减速', poison:'中毒', burn:'灼烧', shock:'电击', corrosion:'腐蚀', stun:'眩晕', ion_disrupt:'EMP干扰', jam:'干扰', track:'锁定', em_interference:'电磁干扰' };
         return `${names[e.type] || e.type}(${e.duration.toFixed(0)}秒)`;
       }).join(' ');
       Msg.info(`状态效果: ${effStr}`);
@@ -978,8 +981,11 @@ const Game = {
         Msg.info('输入 hangar 查看机库，switch <编号> 切换机体。');
       } else {
         if (Player.credits < targetItem.price) { Msg.danger('资金不足！'); return; }
+        if (!Player.addItem(targetItem.id)) {
+          Msg.danger('货舱体积不足，购买失败。');
+          return;
+        }
         Player.credits -= targetItem.price;
-        Player.addItem(targetItem.id);
         Msg.success(`💰 购买了 <span class="item-tag ${targetItem.type}">${targetItem.name}</span>，花费 ${targetItem.price}G`);
       }
     }
@@ -1416,6 +1422,7 @@ const Game = {
       <div class="bar-container"><div class="bar-fill exp" style="width:${expPct}%"></div></div>
       <div class="stat-row"><span class="stat-label">速度</span><span class="stat-value">${Player.currentSpeed.toFixed(1)}</span></div>
       <div class="stat-row"><span class="stat-label">视野</span><span class="stat-value">${Player.visionRadius}m</span></div>
+      <div class="stat-row"><span class="stat-label">货舱</span><span class="stat-value">${Player.getUsedCargoVolume().toFixed(2)}/${Player.getCargoCapacity().toFixed(2)}m³</span></div>
       <div class="stat-row"><span class="stat-label">信用点</span><span class="stat-value gold">${Player.credits}G</span></div>
     `;
   },
