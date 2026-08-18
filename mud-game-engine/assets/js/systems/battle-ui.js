@@ -315,14 +315,25 @@ const BattleUI = {
     const px = cx + (playerX - 500) * scale;
     const py = cy + (playerY - 500) * scale;
 
-    // 玩家视野圈
+    // 玩家视野/扫描圈（受雷达加成与干扰影响）
+    const effectiveScan = Player.getEffectiveScanRange();
+    const scanAcc = Player.getEWBonus().scanAccuracy || 0;
     ctx.strokeStyle = 'rgba(0, 255, 136, 0.25)';
     ctx.fillStyle = 'rgba(0, 255, 136, 0.05)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(px, py, Player.visionRadius * scale, 0, Math.PI * 2);
+    ctx.arc(px, py, effectiveScan * scale, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+    // 雷达加成：额外环绕扫描圈
+    if (Player.getBaseScanRange() > effectiveScan + 0.5) {
+      ctx.strokeStyle = 'rgba(0, 200, 255, 0.35)';
+      ctx.setLineDash([6, 5]);
+      ctx.beginPath();
+      ctx.arc(px, py, (Player.getBaseScanRange() + 30) * scale, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
 
     // 锁定目标后绘制武器散布扇形（位于敌人标记下层）
     this.drawSpreadSector(ctx, cx, cy, scale);
@@ -335,8 +346,9 @@ const BattleUI = {
         if (!npcDef) continue;
         const dist = Battle.getDistance(Player.position, npcUnit.position);
         const broadcast = npcDef.broadcastPosition === true;
-        if (!broadcast && dist > Player.visionRadius) continue;
+        if (!broadcast && dist > effectiveScan) continue;
 
+        ctx.globalAlpha = Math.max(0.35, Math.min(1, scanAcc || 0.4));
         const nx = cx + (npcUnit.position[0] - 500) * scale;
         const ny = cy + (npcUnit.position[1] - 500) * scale;
         ctx.fillStyle = '#8cf';
@@ -347,13 +359,14 @@ const BattleUI = {
         ctx.font = `${Math.round(9 * (canvas.width / 200))}px monospace`;
         ctx.textAlign = 'center';
         ctx.fillText(npcUnit.instanceId, nx, ny - 7);
+        ctx.globalAlpha = 1;
       }
 
-      // 敌人
+      // 敌人（仅在有效扫描范围内显示，扫描精度越低光点越淡）
       for (const enemy of Battle.battlefield.enemies) {
         if (enemy.hp <= 0) continue;
         const dist = Battle.getDistance(Player.position, enemy.position);
-        if (dist > Player.visionRadius * 1.5) continue;
+        if (dist > effectiveScan) continue;
         const ex = cx + (enemy.position[0] - 500) * scale;
         const ey = cy + (enemy.position[1] - 500) * scale;
 
@@ -365,9 +378,11 @@ const BattleUI = {
           ctx.fillStyle = '#fd0';
         }
 
+        ctx.globalAlpha = Math.max(0.35, Math.min(1, scanAcc || 0.4));
         ctx.beginPath();
         ctx.arc(ex, ey, 4, 0, Math.PI * 2);
         ctx.fill();
+        ctx.globalAlpha = 1;
 
         ctx.fillStyle = '#fff';
         ctx.font = `${Math.round(9 * (canvas.width / 200))}px monospace`;

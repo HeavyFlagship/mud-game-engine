@@ -21,7 +21,7 @@ const VehicleDB = {
       { types: ['外部','数据','界面'], count: 1 },
     ],
     equipmentBay: 300,
-    cargo: 200,
+    cargo: 0.2, // 货舱容量（m³）
     defaultWeapons: ['auto_cannon_mk1'],
     defaultArmor: ['light_alloy_plate'],
     energyCapacity: 200,
@@ -54,7 +54,7 @@ const VehicleDB = {
       { types: ['外部','数据','界面'], count: 2 },
     ],
     equipmentBay: 400,
-    cargo: 250,
+    cargo: 0.3, // 货舱容量（m³）
     defaultWeapons: ['auto_cannon_mk1'],
     defaultArmor: ['light_alloy_plate'],
     energyCapacity: 280,
@@ -87,7 +87,7 @@ const VehicleDB = {
       { types: ['外部','数据','界面'], count: 2 },
     ],
     equipmentBay: 500,
-    cargo: 350,
+    cargo: 0.5, // 货舱容量（m³）
     defaultWeapons: ['auto_cannon_mk1'],
     defaultArmor: ['light_alloy_plate'],
     energyCapacity: 350,
@@ -120,7 +120,7 @@ const VehicleDB = {
       { types: ['外部','数据','界面'], count: 3 },
     ],
     equipmentBay: 200,
-    cargo: 150,
+    cargo: 0.15, // 货舱容量（m³）
     defaultWeapons: ['pulse_laser_mk1'],
     defaultArmor: ['light_alloy_plate'],
     energyCapacity: 180,

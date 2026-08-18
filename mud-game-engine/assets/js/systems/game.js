@@ -603,19 +603,19 @@ const Game = {
     id: 'ID', name: '名称', desc: '描述',
     type: '类型', category: '类别', subCategory: '子类别', slot: '接口槽位',
     price: ['价格', 'G'], weight: ['质量', 'kg'], cargoVolume: ['货舱体积', 'm³'],
-    equipVolume: ['装备体积', 'm³'], powerReq: ['功率需求', 'kW'], computeReq: ['算力需求', 'MFlops'], bayReq: ['装备舱占用', 'm³'], interfaceReq: '接口需求',
-    startupReq: '启动需求', cooldown: ['冷却', 's'], cycle: '循环', potential: '潜力',
+    equipVolume: ['装备体积', 'm³'], powerReq: ['功率需求', 'kW'], computeReq: ['算力需求', 'MFlops'], interfaceReq: '接口需求',
+    cooldown: ['冷却', 's'], cycle: '循环',
     damage: '伤害', damageType: '伤害类型', damageVariance: '伤害浮动', damageTable: '伤害分布', damageRange: '爆炸范围',
-    range: ['射程', 'm'], optimalRange: ['最佳射程', 'm'], minRange: ['最小射程', 'm'], spread: '散布', baseAccuracy: '基础精度', armorPen: '穿甲', energyCost: ['能量消耗', 'MJ'], energyPerShot: ['每发能量', 'MJ'], magazine: '弹匣容量', ammoPerShot: '每发弹药',
+    range: ['射程', 'm'], optimalRange: ['最佳射程', 'm'], minRange: ['最小射程', 'm'], spread: '散布', energyCost: ['能量消耗', 'MJ'], energyPerShot: ['每发能量', 'MJ'], magazine: '弹匣容量', ammoPerShot: '每发弹药',
     flightSpeed: ['飞行速度', 'm/s'], flightTime: ['飞行时间', 's'], launchBay: '发射仓', launchCount: '齐射数量',
     scanRange: ['扫描半径', 'm'], scanAccuracy: '扫描精度', jamResist: '抗干扰', trackDuration: ['锁定时间', 's'], visionBonus: ['视野加成', 'm'], jamRange: ['干扰半径', 'm'], jamStrength: '干扰强度', effectRange: ['效果半径', 'm'], effectDuration: ['效果时间', 's'],
     armorValue: '装甲值', kinResist: '动能抗性', thermResist: '热能抗性', shockResist: '震荡抗性', dynamicResist: '动态抗性',
     repairAmount: '修复量', generateAmount: ['产生量', '/s'], materialBay: '材料仓', materialCost: '材料消耗',
-    capacity: '容量', chargeCoeff: '充能系数', containerType: '容器类型',
+    capacity: '容量', containerType: '容器类型',
     repairTarget: '修复目标', repairMaterial: '修复材料', repairMaterialCost: '材料消耗', energyPerCycle: ['每周期能量', 'MJ'], inCombat: '战斗可用',
     coreType: '核心类型', coreOutput: '核心输出',
     healHp: '修复结构', healArmor: '修复装甲', energy: ['恢复能量', 'MJ'],
-    chassis: '机体结构', maxHp: '结构上限', maxArmor: '装甲上限', maxSpeed: ['最大速度', 'm/s'], visionRadius: ['视野', 'm'], signalRadius: ['信号半径', 'm'], targetRadius: ['目标半径', 'm'], equipmentBay: ['装备舱', 'm³'], cargo: ['货舱', 'kg'], energyCapacity: ['能量上限', 'MJ'], energyRegen: ['能量恢复', 'MJ/s'], overweightCoeff: '超重系数', interfaces: '接口配置', defaultWeapons: '默认武器', defaultArmor: '默认装甲', compatibleComputers: '兼容计算机', compatiblePowers: '兼容动力', defaultCoreComputer: '默认核心计算机', defaultCorePower: '默认核心动力'
+    chassis: '机体结构', maxHp: '结构上限', maxArmor: '装甲上限', maxSpeed: ['最大速度', 'm/s'], visionRadius: ['视野', 'm'], signalRadius: ['信号半径', 'm'], targetRadius: ['目标半径', 'm'], equipmentBay: ['装备舱', 'm³'], cargo: ['货舱', 'm³'], energyCapacity: ['能量上限', 'MJ'], energyRegen: ['能量恢复', 'MJ/s'], overweightCoeff: '超重系数', interfaces: '接口配置', defaultWeapons: '默认武器', defaultArmor: '默认装甲', compatibleComputers: '兼容计算机', compatiblePowers: '兼容动力', defaultCoreComputer: '默认核心计算机', defaultCorePower: '默认核心动力'
   },
 
   _itemTypeNames: {
