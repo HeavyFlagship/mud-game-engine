@@ -33,7 +33,19 @@
       "pulse_laser_mk1",
       "light_alloy_plate",
       "repair_kit_small",
-      "armor_patch"
+      "armor_patch",
+      "battle_scan_radar",
+      "vision_enhancer",
+      "fire_control_radar",
+      "radar_jammer",
+      "ion_generator",
+      "ion_generator_tiny",
+      "ion_container",
+      "armor_repairer",
+      "armor_repairer_tiny",
+      "structure_repairer",
+      "armor_molten_filler",
+      "structure_nano_repairant"
     ]
   },
   "engineer": {
@@ -50,7 +62,12 @@
     "shopItems": [
       "repair_kit_small",
       "armor_patch",
-      "light_alloy_plate"
+      "light_alloy_plate",
+      "armor_repairer",
+      "armor_repairer_tiny",
+      "structure_repairer",
+      "armor_molten_filler",
+      "structure_nano_repairant"
     ]
   }
 }

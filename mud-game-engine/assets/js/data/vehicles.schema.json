@@ -165,7 +165,7 @@
     {
       "name": "cargo",
       "nameZh": "货舱容量",
-      "comment": "可携带货物（资源/物品）的总量上限，单位：千克（kg）",
+      "comment": "货舱容量，可携带货物（资源/物品）的总体积上限，单位：立方米（m³）",
       "type": "number",
       "required": true,
       "default": 0,

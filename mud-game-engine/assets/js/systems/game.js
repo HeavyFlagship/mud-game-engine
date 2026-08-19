@@ -2,6 +2,9 @@
 const Game = {
   commandHistory: [],
   historyIndex: -1,
+  // 冷却条平滑显示状态：slotKey -> { value }；_cdLastReal 为上次刷新的真实时间戳（秒）
+  _cdSmooth: {},
+  _cdLastReal: 0,
  
   init() {
     Msg.init();
@@ -274,11 +277,9 @@ const Game = {
     this.look();
     this.updateUI();
   },
- 
-  showBag(showDetail = false) {
-    Msg.divider();
-    Msg.add('🎒 背包', 'info');
 
+  // 机体与装备信息（背包/状态指令共用），保证两处显示一致
+  showMechaEquip() {
     // 预算信息
     Msg.info(`功率: ${Player.budget.powerUsed.toFixed(1)}/${Player.budget.powerMax}kW  算力: ${Player.budget.computeUsed.toFixed(1)}/${Player.budget.computeMax}MFlops  装备舱: ${Player.budget.bayUsed.toFixed(2)}/${Player.budget.bayMax}m³`);
 
@@ -325,6 +326,14 @@ const Game = {
     if (!hasEquip) {
       Msg.system('（接口无装备）');
     }
+  },
+
+  showBag(showDetail = false) {
+    Msg.divider();
+    Msg.add('🎒 背包', 'info');
+
+    // 机体与装备信息（与状态指令共用同一套详细显示）
+    this.showMechaEquip();
 
     // 资源信息
     const res = Player.resources;
@@ -337,6 +346,7 @@ const Game = {
     }
 
     Msg.info('── 背包物品 ──');
+    Msg.info(`货舱体积: ${Player.getUsedCargoVolume().toFixed(2)}/${Player.getCargoCapacity().toFixed(2)}m³`);
     if (Player.inventory.length === 0) {
       Msg.system('背包是空的。');
     } else {
@@ -356,6 +366,7 @@ const Game = {
             const syms = item.interfaceReq.map(t => Player.getInterfaceSymbol(t)).join('');
             statsStr.push(`[${syms}]`);
           }
+          if (item.cargoVolume) statsStr.push(`体积${item.cargoVolume}m³`);
           const extra = statsStr.length ? ` [${statsStr.join(', ')}]` : '';
           const desc = showDetail ? ` - ${item.desc}` : '';
           Msg.info(`  #${idx + 1} <span class="item-tag ${item.type}">${item.name}</span>${countStr}${extra}${desc}`);
@@ -369,38 +380,20 @@ const Game = {
     Msg.divider();
     Msg.add('📜 机体状态', 'info');
     Msg.info(`驾驶员: ${Player.name}  等级: <span class="stat-value exp">Lv.${Player.level}</span>`);
-    Msg.info(`机体: ${VehicleDB[Player.vehicleId]?.name || Player.vehicleId}`);
+
+    // 机体基础信息（含重量/目标半径/信号半径等此前未显示的属性）
+    const vehicle = VehicleDB[Player.vehicleId];
+    const chassisNames = { biped: '双足', quad: '四足', wheel: '轮式', tracked: '履带' };
+    const chassisName = vehicle ? (chassisNames[vehicle.chassis] || vehicle.chassis) : '';
+    Msg.info(`机体: <span class="item-tag core">${vehicle?.name || Player.vehicleId}</span>${chassisName ? ` (${chassisName})` : ''}  重量: ${Player.weight}kg`);
     Msg.info(`结构值: <span class="stat-value hp">${Player.hp}</span>/${Player.maxHp}  装甲: <span class="stat-value">${Player.armor}</span>/${Player.maxArmor}`);
     Msg.info(`能量: <span class="stat-value mp">${Math.floor(Player.energy)}</span>/${Player.maxEnergy} (恢复+${Player.energyRegen}/s)`);
     Msg.info(`速度: ${Player.currentSpeed.toFixed(1)}m/s  视野: ${Player.visionRadius}m`);
-    Msg.info(`功率: ${Player.budget.powerUsed}/${Player.budget.powerMax}kW  算力: ${Player.budget.computeUsed}/${Player.budget.computeMax}MFlops  装备舱: ${Player.budget.bayUsed}/${Player.budget.bayMax}m³`);
+    Msg.info(`货舱: ${Player.getUsedCargoVolume().toFixed(2)}/${Player.getCargoCapacity().toFixed(2)}m³  目标半径: ${Player.targetRadius}m  信号半径: ${Player.signalRadius}m`);
     Msg.info(`经验: ${Player.exp}/${Player.expToNext}`);
 
-    // 显示核心模块
-    if (Player.coreComputer) {
-      Msg.info(`  核心计算机: ${Player.coreComputer.name} [算力+${Player.coreComputer.coreOutput}]`);
-    }
-    if (Player.corePower) {
-      Msg.info(`  核心动力: ${Player.corePower.name} [功率+${Player.corePower.coreOutput}]`);
-    }
-
-    // 显示接口装备
-    let statusSlotNum = 0;
-    for (const [key, slot] of Object.entries(Player.equipment)) {
-      statusSlotNum++;
-      const desc = Player.getSlotDesc(key);
-      const e = slot.equip;
-      if (e) {
-        const stats = [];
-        if (e.damage) stats.push(`伤害${e.damage}`);
-        if (e.armorValue) stats.push(`装甲${e.armorValue}`);
-        if (e.range) stats.push(`射程${e.range}m`);
-        if (e.cooldown) stats.push(`冷却${e.cooldown}s`);
-        if (e.capacity) stats.push(`容量${e.capacity}`);
-        const extra = stats.length ? ` [${stats.join(' ')}]` : '';
-        Msg.info(`  #${statusSlotNum} ${desc}: ${e.name}${extra}`);
-      }
-    }
+    // 机体与装备信息（与背包共用同一套详细显示：功率/算力/装备舱、接口、核心模块、接口装备）
+    this.showMechaEquip();
 
     // 资源
     const res = Player.resources;
@@ -423,7 +416,7 @@ const Game = {
 
     if (Player.statusEffects.length > 0) {
       const effStr = Player.statusEffects.map(e => {
-        const names = { slow:'减速', poison:'中毒', burn:'灼烧', shock:'电击', corrosion:'腐蚀', stun:'眩晕', ion_disrupt:'EMP干扰' };
+        const names = { slow:'减速', poison:'中毒', burn:'灼烧', shock:'电击', corrosion:'腐蚀', stun:'眩晕', ion_disrupt:'EMP干扰', jam:'干扰', track:'锁定', em_interference:'电磁干扰' };
         return `${names[e.type] || e.type}(${e.duration.toFixed(0)}秒)`;
       }).join(' ');
       Msg.info(`状态效果: ${effStr}`);
@@ -605,6 +598,102 @@ const Game = {
     } else {
       Msg.warning('该物品无法直接使用。');
     }
+  },
+
+  // ===== 物品详情 =====
+  // 已知属性 -> [中文标签, 单位]（无单位则只给标签）
+  _itemAttrMeta: {
+    id: 'ID', name: '名称', desc: '描述',
+    type: '类型', category: '类别', subCategory: '子类别',
+    price: ['价格', 'G'], weight: ['质量', 'kg'], cargoVolume: ['货舱体积', 'm³'],
+    equipVolume: ['装备体积', 'm³'], powerReq: ['功率需求', 'kW'], computeReq: ['算力需求', 'MFlops'], interfaceReq: '接口需求',
+    cooldown: ['冷却', 's'], cycle: '循环',
+    damage: '伤害', damageType: '伤害类型', damageVariance: '伤害浮动', damageTable: '伤害分布', damageRange: '爆炸范围',
+    range: ['射程', 'm'], optimalRange: ['最佳射程', 'm'], minRange: ['最小射程', 'm'], spread: '散布', energyCost: ['能量消耗', 'MJ'], energyPerShot: ['每发能量', 'MJ'], magazine: '弹匣容量', ammoPerShot: '每发弹药',
+    flightSpeed: ['飞行速度', 'm/s'], flightTime: ['飞行时间', 's'], launchBay: '发射仓', launchCount: '齐射数量',
+    scanRange: ['扫描半径', 'm'], scanAccuracy: '扫描精度', jamResist: '抗干扰', trackDuration: ['锁定时间', 's'], visionBonus: ['视野加成', 'm'], jamRange: ['干扰半径', 'm'], jamStrength: '干扰强度', effectRange: ['效果半径', 'm'], effectDuration: ['效果时间', 's'],
+    armorValue: '装甲值', kinResist: '动能抗性', thermResist: '热能抗性', shockResist: '震荡抗性', dynamicResist: '动态抗性',
+    repairAmount: '修复量', generateAmount: ['产生量', '/s'], materialBay: '材料仓', materialCost: '材料消耗',
+    capacity: '容量', containerType: '容器类型',
+    repairTarget: '修复目标', repairMaterial: '修复材料', repairMaterialCost: '材料消耗', energyPerCycle: ['每周期能量', 'MJ'], inCombat: '战斗可用',
+    coreType: '核心类型', coreOutput: '核心输出',
+    healHp: '修复结构', healArmor: '修复装甲', energy: ['恢复能量', 'MJ'],
+    chassis: '机体结构', maxHp: '结构上限', maxArmor: '装甲上限', maxSpeed: ['最大速度', 'm/s'], visionRadius: ['视野', 'm'], signalRadius: ['信号半径', 'm'], targetRadius: ['目标半径', 'm'], equipmentBay: ['装备舱', 'm³'], cargo: ['货舱', 'm³'], energyCapacity: ['能量上限', 'MJ'], energyRegen: ['能量恢复', 'MJ/s'], overweightCoeff: '超重系数', interfaces: '接口配置', defaultWeapons: '默认武器', defaultArmor: '默认装甲', compatibleComputers: '兼容计算机', compatiblePowers: '兼容动力', defaultCoreComputer: '默认核心计算机', defaultCorePower: '默认核心动力'
+  },
+
+  _itemTypeNames: {
+    weapon: '武器', ew: '电子战', armor: '装甲', generator: '生成器', container: '容器',
+    repairer: '修复器', core: '核心模块', consumable: '消耗品', material: '材料', ammo: '弹药', vehicle: '机体'
+  },
+  _damageTypeNames: { kinetic: '动能', thermal: '热能', shock: '震荡', ion: '离子', explosive: '爆炸', emp: '电磁' },
+  _containerTypeNames: { energy: '能量', ion: '离子', fuel: '燃料' },
+  _coreTypeNames: { computer: '计算机', power: '动力' },
+  _chassisNames: { biped: '双足', quad: '四足', wheel: '轮式', tracked: '履带' },
+
+  _formatItemAttr(key, value) {
+    if (value === undefined || value === null) return null;
+    if (key === 'type' || key === 'category') return this._itemTypeNames[value] || value;
+    if (key === 'damageType') return this._damageTypeNames[value] || value;
+    if (key === 'containerType') return this._containerTypeNames[value] || value;
+    if (key === 'coreType') return this._coreTypeNames[value] || value;
+    if (key === 'chassis') return this._chassisNames[value] || value;
+    if (key === 'inCombat') return value ? '是' : '否';
+    if (Array.isArray(value)) {
+      if (key === 'interfaceReq') return value.join(' / ');
+      if (key === 'defaultWeapons' || key === 'defaultArmor' || key === 'compatibleComputers' || key === 'compatiblePowers') {
+        return value.map(id => (ItemDB.get(id)?.name) || id).join(' / ');
+      }
+      if (key === 'interfaces') {
+        return value.map(intf => `${intf.count}×[${(intf.types || []).join('/')}]`).join('  ');
+      }
+      return value.join(' / ');
+    }
+    if (typeof value === 'object') {
+      return Object.entries(value).map(([k, v]) => `${k}:${v}`).join(', ');
+    }
+    return String(value);
+  },
+
+  // 查看物品详情：item <编号|物品名>
+  showItemDetail(arg) {
+    if (!arg) { Msg.warning('用法: item <编号|物品名>  查看物品全部属性'); return; }
+    let item = null;
+    const num = parseInt(arg);
+    if (!isNaN(num) && num >= 1) {
+      item = Player.inventory[num - 1];
+      if (!item) { Msg.danger(`背包中没有第 ${num} 件物品。`); return; }
+    } else {
+      item = this.findItemInBag(arg);
+      if (!item) {
+        const direct = ItemDB.get(arg);
+        if (direct) item = { id: arg, count: 1 };
+      }
+      if (!item) { Msg.danger('背包中没有该物品，也未找到该物品。'); return; }
+    }
+    // 载具直接取完整定义，其余物品经 ItemDB 查询
+    const template = VehicleDB[item.id] || ItemDB.get(item.id);
+    if (!template) { Msg.danger('未找到该物品的定义。'); return; }
+
+    Msg.divider();
+    Msg.add(`📦 物品详情: <span class="item-tag ${template.type}">${template.name}</span>${item.count > 1 ? ` ×${item.count}` : ''}`, 'info');
+
+    let desc = null;
+    const lines = [];
+    for (const key of Object.keys(template)) {
+      if (key === 'desc') { desc = template.desc; continue; }
+      const raw = template[key];
+      const val = this._formatItemAttr(key, raw);
+      if (val === null || val === '') continue;
+      const meta = this._itemAttrMeta[key];
+      if (meta) {
+        if (Array.isArray(meta)) lines.push(`${meta[0]}: <span class="stat-value">${val}</span>${meta[1] ? ` ${meta[1]}` : ''}`);
+        else lines.push(`${meta}: <span class="stat-value">${val}</span>`);
+      } else {
+        lines.push(`${key}: <span class="stat-value">${val}</span>`);
+      }
+    }
+    for (const line of lines) Msg.info(`  ${line}`);
+    if (desc) Msg.info(`  📝 ${desc}`);
   },
  
   callNPC(npcName) {
@@ -825,12 +914,13 @@ const Game = {
             Msg.info(`  ${idx+1}. ${catTag}<span class="item-tag ${item.type}">${item.name}</span>${extra} - ${item.price}G`);
 
             // 装备对比：仅对武器/装甲类装备显示
-            if (item.slot && (item.category === 'weapon' || item.category === 'armor' || item.type === 'weapon' || item.type === 'armor')) {
+            if (item.category === 'weapon' || item.category === 'armor' || item.type === 'weapon' || item.type === 'armor') {
               let equippedItem = null;
               let equippedSlotName = '';
+              const cmpType = item.type || item.category;
               for (const [slotKey, slot] of Object.entries(Player.equipment)) {
                 const eq = slot.equip;
-                if (eq && eq.slot === item.slot) {
+                if (eq && (eq.type === cmpType || eq.category === cmpType)) {
                   equippedItem = eq;
                   equippedSlotName = Player.getSlotDesc(slotKey);
                   break;
@@ -892,8 +982,11 @@ const Game = {
         Msg.info('输入 hangar 查看机库，switch <编号> 切换机体。');
       } else {
         if (Player.credits < targetItem.price) { Msg.danger('资金不足！'); return; }
+        if (!Player.addItem(targetItem.id)) {
+          Msg.danger('货舱体积不足，购买失败。');
+          return;
+        }
         Player.credits -= targetItem.price;
-        Player.addItem(targetItem.id);
         Msg.success(`💰 购买了 <span class="item-tag ${targetItem.type}">${targetItem.name}</span>，花费 ${targetItem.price}G`);
       }
     }
@@ -1318,6 +1411,9 @@ const Game = {
     const arPct = Player.maxArmor > 0 ? (Player.armor / Player.maxArmor * 100).toFixed(1) : 0;
     const enPct = (Player.energy / Player.maxEnergy * 100).toFixed(1);
     const expPct = (Player.exp / Player.expToNext * 100).toFixed(1);
+    const cap = Player.getCargoCapacity();
+    const used = Player.getUsedCargoVolume();
+    const cargoPct = cap > 0 ? (used / cap * 100).toFixed(1) : 0;
     el.innerHTML = `
       <div class="stat-row"><span class="stat-label">等级</span><span class="stat-value exp">Lv.${Player.level}</span></div>
       <div class="stat-row"><span class="stat-label">结构</span><span class="stat-value hp">${Player.hp}/${Player.maxHp}</span></div>
@@ -1330,6 +1426,8 @@ const Game = {
       <div class="bar-container"><div class="bar-fill exp" style="width:${expPct}%"></div></div>
       <div class="stat-row"><span class="stat-label">速度</span><span class="stat-value">${Player.currentSpeed.toFixed(1)}</span></div>
       <div class="stat-row"><span class="stat-label">视野</span><span class="stat-value">${Player.visionRadius}m</span></div>
+      <div class="stat-row"><span class="stat-label">货舱</span><span class="stat-value">${used.toFixed(2)}/${cap.toFixed(2)}m³</span></div>
+      <div class="bar-container"><div class="bar-fill mp" style="width:${cargoPct}%"></div></div>
       <div class="stat-row"><span class="stat-label">信用点</span><span class="stat-value gold">${Player.credits}G</span></div>
     `;
   },
@@ -1423,7 +1521,7 @@ const Game = {
         html += `<div class="weapon-metrics">`;
         html += `${ammoHtml}`;
         html += `<div class="weapon-cooldown">
-          <div class="weapon-cooldown-bar"><div class="weapon-cooldown-fill ${fillCls}" style="width:${cdPct}%"></div></div>
+          <div class="weapon-cooldown-bar"><div class="weapon-cooldown-fill ${fillCls}" data-slot="${key}" style="width:${cdPct}%"></div></div>
           <div class="weapon-cooldown-status"><span class="weapon-status-tag ${ws.cls}">${ws.text}</span></div>
         </div>`;
         html += `</div>`;
@@ -1455,6 +1553,50 @@ const Game = {
     // 执行栏：操作阶段显示，否则隐藏
     const execBar = document.getElementById('action-execute-bar');
     if (execBar) execBar.style.display = actionPhase ? '' : 'none';
+  },
+
+  // 每帧动态刷新冷却进度条宽度（由 BattleUI.updateDynamic 调用）
+  // 直接改样式避免 60fps 重建装备面板 DOM。
+  // 通过"平滑插值"限制单帧冷却显示值的变化量：高 TIMESCALE / 掉帧造成的离散步进
+  // 会被削平为连续流动，避免冷却条跳变。
+  updateEquipInfoDynamic() {
+    const el = document.getElementById('equip-info');
+    if (!el) return;
+    const realNow = performance.now() / 1000;
+    let realDelta = this._cdLastReal ? (realNow - this._cdLastReal) : 0;
+    this._cdLastReal = realNow;
+    // 单帧真实时间步长上限：与时间轴 MAX_FRAME_DELTA 一致，避免暂停恢复/长时间卡顿后一次性大步进
+    realDelta = Math.min(realDelta, 0.1);
+    // 每帧允许的最大冷却变化量（游戏秒）：正常推进速率低于该值，仅在掉帧大步进时被削平
+    const maxStep = Math.min(realDelta * (Timeline.TIMESCALE || 10), 0.25);
+
+    for (const key of Object.keys(Player.equipment)) {
+      const item = Player.equipment[key].equip;
+      if (!item || item.category !== 'weapon') continue;
+      const fill = el.querySelector(`.weapon-cooldown-fill[data-slot="${key}"]`);
+      if (!fill) continue;
+      const maxCd = item.cooldown || 1;
+      const authoritative = Player.weaponCooldowns[key] || 0;
+
+      // 平滑显示值
+      let s = this._cdSmooth[key];
+      if (!s) s = this._cdSmooth[key] = { value: authoritative };
+      if (authoritative <= 0) {
+        s.value = 0;                        // 就绪：直接归零（宽度=100%）
+      } else if (authoritative > s.value) {
+        s.value = authoritative;            // 冷却被重置（开火/换装）：立即跟随
+      } else if (s.value - authoritative > maxStep) {
+        s.value -= maxStep;                 // 掉帧大步进：按最大速率滑动，避免跳变
+      } else {
+        s.value = authoritative;
+      }
+
+      const cd = s.value;
+      const cdPct = Math.max(0, Math.min(100, (1 - cd / maxCd) * 100));
+      fill.style.width = `${cdPct}%`;
+      fill.classList.toggle('ready', cd <= 0);
+      fill.classList.toggle('cooling', cd > 0);
+    }
   },
  
   updateRegionMap() {

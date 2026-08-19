@@ -61,7 +61,7 @@
       }
     ],
     "equipmentBay": 300,
-    "cargo": 200,
+    "cargo": 0.2,
     "defaultWeapons": [
       "auto_cannon_mk1"
     ],
@@ -145,7 +145,7 @@
       }
     ],
     "equipmentBay": 400,
-    "cargo": 250,
+    "cargo": 0.3,
     "defaultWeapons": [
       "auto_cannon_mk1"
     ],
@@ -231,7 +231,7 @@
       }
     ],
     "equipmentBay": 500,
-    "cargo": 350,
+    "cargo": 0.5,
     "defaultWeapons": [
       "auto_cannon_mk1"
     ],
@@ -319,7 +319,7 @@
       }
     ],
     "equipmentBay": 200,
-    "cargo": 150,
+    "cargo": 0.15,
     "defaultWeapons": [
       "pulse_laser_mk1"
     ],

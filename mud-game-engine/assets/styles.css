@@ -554,6 +554,23 @@ body {
   transition: left 0.3s ease;
 }
 .tlg-dot.entering { animation: tlgFadeIn 0.3s ease; }
+/* 连续推进时禁用过渡：位置每帧精确更新，避免拖尾滞后 */
+.tl-graphic.continuous .tlg-tick,
+.tl-graphic.continuous .tlg-dot,
+.tl-graphic.continuous .tlg-line {
+  transition: none;
+}
+/* 事件新增到时间轴的轻微闪烁动效（武器冷却/敌方行动点） */
+.tlg-dot.flicker {
+  animation: tlgFlicker 0.5s ease;
+}
+@keyframes tlgFlicker {
+  0%   { opacity: 1;    transform: translate(-50%, -50%) scale(1);    box-shadow: 0 0 0 0 currentColor; }
+  25%  { opacity: 1;    transform: translate(-50%, -50%) scale(1.4);  box-shadow: 0 0 8px 2px currentColor; }
+  50%  { opacity: 0.8;  transform: translate(-50%, -50%) scale(0.9);  box-shadow: 0 0 4px 1px currentColor; }
+  75%  { opacity: 1;    transform: translate(-50%, -50%) scale(1.15); box-shadow: 0 0 6px 1px currentColor; }
+  100% { opacity: 1;    transform: translate(-50%, -50%) scale(1);    box-shadow: 0 0 0 0 currentColor; }
+}
 /* 现在标记（贯穿高度） */
 .tlg-now {
   position: absolute;
@@ -686,7 +703,8 @@ body {
 .weapon-cooldown-fill {
   height: 100%;
   border-radius: 3px;
-  transition: width 0.3s linear;
+  /* 平滑插值已由 updateEquipInfoDynamic 处理，过渡仅做帧间微平滑，避免拖尾滞后 */
+  transition: width 0.04s linear;
 }
 .weapon-cooldown-fill.ready { background: var(--accent2); }
 .weapon-cooldown-fill.cooling { background: linear-gradient(90deg, var(--mp-bar-start), var(--accent4)); }
@@ -820,6 +838,13 @@ body {
   border-color: var(--accent);
   color: var(--accent);
   background: rgba(0, 255, 136, 0.08);
+}
+/* 开火按钮选中态：优先使用统一的 active 高亮，而非恒常红色 */
+.equip-action-btn.fire.active:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(0, 255, 136, 0.08);
+  box-shadow: none;
 }
 
 /* 执行栏 */

@@ -6,7 +6,8 @@
     "healHp": 50,
     "desc": "恢复50点结构值。",
     "price": 30,
-    "weight": 5
+    "weight": 5,
+    "cargoVolume": 0.02
   },
   "repair_kit_medium": {
     "id": "repair_kit_medium",
@@ -15,7 +16,8 @@
     "healHp": 120,
     "desc": "恢复120点结构值。",
     "price": 80,
-    "weight": 8
+    "weight": 8,
+    "cargoVolume": 0.03
   },
   "repair_kit_large": {
     "id": "repair_kit_large",
@@ -24,7 +26,8 @@
     "healHp": 250,
     "desc": "恢复250点结构值。",
     "price": 200,
-    "weight": 12
+    "weight": 12,
+    "cargoVolume": 0.05
   },
   "armor_patch": {
     "id": "armor_patch",
@@ -33,7 +36,8 @@
     "healArmor": 40,
     "desc": "恢复40点装甲值。",
     "price": 25,
-    "weight": 3
+    "weight": 3,
+    "cargoVolume": 0.015
   },
   "armor_patch_medium": {
     "id": "armor_patch_medium",
@@ -42,7 +46,8 @@
     "healArmor": 100,
     "desc": "恢复100点装甲值。",
     "price": 70,
-    "weight": 5
+    "weight": 5,
+    "cargoVolume": 0.02
   },
   "energy_cell": {
     "id": "energy_cell",
@@ -51,7 +56,8 @@
     "energy": 80,
     "desc": "恢复80点能量。",
     "price": 40,
-    "weight": 3
+    "weight": 3,
+    "cargoVolume": 0.015
   },
   "energy_cell_large": {
     "id": "energy_cell_large",
@@ -60,6 +66,7 @@
     "energy": 200,
     "desc": "恢复200点能量。",
     "price": 100,
-    "weight": 6
+    "weight": 6,
+    "cargoVolume": 0.025
   }
 }

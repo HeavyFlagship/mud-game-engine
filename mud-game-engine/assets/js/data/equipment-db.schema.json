@@ -42,17 +42,6 @@
       "scope": null
     },
     {
-      "name": "slot",
-      "nameZh": "安装槽位",
-      "comment": "装备安装的槽位类型：weapon / ew / armor / generator / container / repairer / coreComputer 核心计算机槽 / corePower 核心动力槽",
-      "type": "enum",
-      "required": true,
-      "default": "weapon",
-      "options": ["weapon", "ew", "armor", "generator", "container", "repairer", "coreComputer", "corePower"],
-      "refDatabase": null,
-      "scope": null
-    },
-    {
       "name": "category",
       "nameZh": "分类标识",
       "comment": "分类检索字段，取值与 type 一致（weapon/ew/armor/generator/container/repairer/core），供 getByCategory 查询",
@@ -88,7 +77,7 @@
     {
       "name": "cargoVolume",
       "nameZh": "货运体积",
-      "comment": "未安装时占用货舱的空间，单位：立方米（m³）",
+      "comment": "装备自身（未安装状态）占用货舱的体积，单位：立方米（m³）；实际值域 0.02~0.1（如 75mm火炮 0.08）",
       "type": "number",
       "required": true,
       "default": 0,
@@ -144,39 +133,6 @@
       "name": "computeReq",
       "nameZh": "运行需求算力",
       "comment": "装备上线后持续占用的算力，单位：MFlops，所有装备算力之和不得超过核心计算机总算力",
-      "type": "number",
-      "required": true,
-      "default": 0,
-      "options": [],
-      "refDatabase": null,
-      "scope": null
-    },
-    {
-      "name": "bayReq",
-      "nameZh": "装备舱占用",
-      "comment": "装备在载具装备舱中占用的体积，单位：立方米（m³），对应载具的 equipmentBay 上限",
-      "type": "number",
-      "required": true,
-      "default": 0,
-      "options": [],
-      "refDatabase": null,
-      "scope": null
-    },
-    {
-      "name": "startupReq",
-      "nameZh": "启动需求",
-      "comment": "装备生效启动所需的瞬时资源，对象结构 {type: 资源类型（\"能量\"或\"离子\"）, amount: 数量}；null 表示无启动需求（启动通过电容器等容器满足，不计入功率预算）",
-      "type": "object",
-      "required": true,
-      "default": null,
-      "options": [],
-      "refDatabase": null,
-      "scope": null
-    },
-    {
-      "name": "potential",
-      "nameZh": "潜力值",
-      "comment": "可通过改装消耗的能力点数，改装占用潜力值，与装备品质相关",
       "type": "number",
       "required": true,
       "default": 0,
@@ -276,28 +232,6 @@
       "name": "spread",
       "nameZh": "散布系数",
       "comment": "弹丸落点散布，散布系数 × 目标距离 = 散布半径；目标半径与散布半径之比决定命中率，0 表示无散布",
-      "type": "number",
-      "required": false,
-      "default": 0,
-      "options": [],
-      "refDatabase": null,
-      "scope": "仅武器类装备"
-    },
-    {
-      "name": "baseAccuracy",
-      "nameZh": "基础命中率",
-      "comment": "武器的基础命中概率，取值 0~1",
-      "type": "number",
-      "required": false,
-      "default": 0,
-      "options": [],
-      "refDatabase": null,
-      "scope": "仅武器类装备"
-    },
-    {
-      "name": "armorPen",
-      "nameZh": "装甲穿透系数",
-      "comment": "对装甲的穿透能力系数（0~1 量级），越高越能无视装甲削减伤害",
       "type": "number",
       "required": false,
       "default": 0,
@@ -495,7 +429,7 @@
     {
       "name": "jamStrength",
       "nameZh": "干扰强度",
-      "comment": "对雷达扫描结果造成的干扰偏差值，大于 1，无单位；普通雷达被干扰后精度 = 原精度 × 干扰效果值",
+      "comment": "干扰生效时降低目标命中率/射击精度的比例，取值 0~1（如 0.5 表示降低命中率 50%）",
       "type": "number",
       "required": false,
       "default": 0,
@@ -634,17 +568,6 @@
       "options": [],
       "refDatabase": null,
       "scope": "仅容器类装备"
-    },
-    {
-      "name": "chargeCoeff",
-      "nameZh": "充能系数",
-      "comment": "电容器充能速率系数，充能功率 = 核心动力功率 × 充能系数",
-      "type": "number",
-      "required": false,
-      "default": 0,
-      "options": [],
-      "refDatabase": null,
-      "scope": "仅容器类装备（电容器）"
     },
     {
       "name": "containerType",

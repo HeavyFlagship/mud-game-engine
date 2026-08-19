@@ -53,7 +53,8 @@ const Battle = {
     Timeline.start(Timeline.time);
     this.registerHandlers();
     this.registerUpdaters();
-    Timeline.onTickEnd = () => { BattleUI.update(); };
+    // 每帧动态刷新（冷却条/战斗时间/时间轴图形）；静态 UI 由事件/指令触发全量刷新
+    Timeline.onTickEnd = () => { BattleUI.updateDynamic(); };
 
     this.buildInitialTimeline();
     BattleUI.render();
@@ -142,6 +143,8 @@ const Battle = {
     Timeline.addUpdater('energy', (delta) => this.regenEnergy(delta));
     Timeline.addUpdater('ai', (delta) => this.updateAI(delta));
     Timeline.addUpdater('hazards', (delta) => this.updateHazards(delta));
+    Timeline.addUpdater('equipment', (delta) => Player.processEquipmentCycle(delta));
+    Timeline.addUpdater('ewEffects', () => this.updateEWEffects());
     Timeline.addUpdater('winLoss', () => this.checkWinLoss());
   },
 
@@ -161,10 +164,9 @@ const Battle = {
     this.playerActionState = null;
     this.lockedTarget = null;
     this.lastActions = null;
-    // 恢复视野（EMI区域效果清除）
-    if (Player._originalVisionRadius) {
-      Player.visionRadius = Player._originalVisionRadius;
-      Player._originalVisionRadius = null;
+    // 清除电磁干扰 buff（离开战场）
+    if (Player.statusEffects) {
+      Player.statusEffects = Player.statusEffects.filter(e => e.type !== 'em_interference');
     }
   },
 
@@ -358,16 +360,52 @@ const Battle = {
       Player._hazardStatus.delete(hType);
     }
 
-    // EMI 区域：视野减半
+    // EMI 区域：以 buff 形式施加电磁干扰（缩减扫描/侦测范围，轻微命中惩罚）
     if (inEmiZone) {
-      if (!Player._originalVisionRadius) {
-        Player._originalVisionRadius = Player.visionRadius;
-        Player.visionRadius = Math.floor(Player.visionRadius / 2);
-      }
+      this.applyBuff(Player, 'em_interference', 0.5, 3);
     } else {
-      if (Player._originalVisionRadius) {
-        Player.visionRadius = Player._originalVisionRadius;
-        Player._originalVisionRadius = null;
+      Player.statusEffects = Player.statusEffects.filter(e => e.type !== 'em_interference');
+    }
+  },
+
+  // 施加/刷新 buff（给定 entity 状态效果）；为持续生效，每帧刷新时长为 dur，超出范围后自然消退
+  applyBuff(entity, type, strength, dur) {
+    if (!entity.statusEffects) entity.statusEffects = [];
+    const ex = entity.statusEffects.find(e => e.type === type);
+    if (ex) {
+      ex.strength = strength;
+      ex.duration = dur;
+    } else {
+      entity.statusEffects.push({ type, strength, duration: dur });
+    }
+  },
+
+  // 电子战装备周期效果：干扰器（jam）与火控雷达（track）
+  updateEWEffects() {
+    if (!this.battlefield) return;
+    const playerPos = Player.position;
+    const ew = Player.getEquippedEW();
+    const jammers = ew.filter(d => d.jamRange);
+    const trackers = ew.filter(d => d.trackDuration);
+    const engageRange = Player.getEffectiveScanRange();
+
+    for (const enemy of this.battlefield.enemies) {
+      const dist = this.getDistance(playerPos, enemy.position);
+
+      // 干扰器：敌方在干扰半径内被 jam（削弱扫描并降低其命中）
+      const jam = jammers.filter(d => dist <= (d.jamRange || 0));
+      if (jam.length > 0) {
+        const strength = Math.max(...jam.map(d => d.jamStrength || 0));
+        this.applyBuff(enemy, 'jam', strength, 3);
+      } else {
+        enemy.statusEffects = enemy.statusEffects.filter(e => e.type !== 'jam');
+      }
+
+      // 火控雷达：对射程内目标锁定，提升我方命中
+      if (trackers.length > 0 && dist <= engageRange) {
+        this.applyBuff(enemy, 'track', 0.25, 3);
+      } else {
+        enemy.statusEffects = enemy.statusEffects.filter(e => e.type !== 'track');
       }
     }
   },
@@ -380,7 +418,8 @@ const Battle = {
 
   buildInitialTimeline() {
     Timeline.eventQueue = [];
-    Timeline.scheduleEvent({ type: 'player_turn', actor: 'player' }, this.calculateInitiative(Player.speed));
+    // 进入场景立即轮到玩家（0 延迟），时间轴暂停等待玩家输入，避免开场空等约一次行动间隔
+    Timeline.scheduleEvent({ type: 'player_turn', actor: 'player' }, 0);
     for (const enemy of this.battlefield.enemies) {
       Timeline.scheduleEvent({ type: 'enemy_turn', actor: enemy.instanceId, enemyId: enemy.templateId },
         this.calculateInitiative(enemy.speed));
@@ -634,8 +673,8 @@ const Battle = {
    * 5. 最终命中率钳制在 [1%, 99%]。
    */
   calculateHitRate(attacker, target, weapon, dist) {
-    // 超出最大射程无法命中
-    if (dist > weapon.range) return 0;
+    // 超出最大射程或低于最小射程均无法命中
+    if (dist > weapon.range || dist < (weapon.minRange || 0)) return 0;
 
     const spreadRadius = weapon.spread * dist;
     const baseHitRate = Math.pow((target.targetRadius || 2) / Math.max(spreadRadius, 0.1), 2);
@@ -650,6 +689,25 @@ const Battle = {
     if (dist > weapon.optimalRange) {
       const denom = weapon.range - weapon.optimalRange;
       hitRate *= denom > 0 ? Math.max(0, (weapon.range - dist) / denom) : 0;
+    }
+
+    // 电子战修正
+    // 攻击方处于干扰状态（被我方干扰器压制）：命中率降低
+    const attackerJam = attacker && attacker.statusEffects && attacker.statusEffects.find(e => e.type === 'jam');
+    if (attackerJam && attackerJam.strength) {
+      hitRate *= Math.max(0, 1 - Math.min(1, attackerJam.strength));
+    }
+    // 目标被火控雷达锁定：命中率提升
+    const targetTrack = target.statusEffects && target.statusEffects.find(e => e.type === 'track');
+    if (targetTrack && targetTrack.strength) {
+      hitRate *= (1 + targetTrack.strength);
+    }
+    // 攻击方处于电磁干扰区：命中率轻度惩罚
+    if (attacker === Player) {
+      const emi = Player.statusEffects && Player.statusEffects.find(e => e.type === 'em_interference');
+      if (emi && emi.strength) {
+        hitRate *= Math.max(0, 1 - Math.min(1, emi.strength * 0.5));
+      }
     }
 
     // 最终输出前统一钳制
@@ -815,6 +873,8 @@ const Battle = {
       return;
     }
     Timeline.scheduleNext();
+    // 敌人位置已更新，刷新敌人列表距离/状态
+    BattleUI.update();
   },
 
   enemyAttack(enemy, targetPos) {
@@ -849,6 +909,8 @@ const Battle = {
     Timeline.scheduleEvent({ type: 'attack_complete', actor: enemy.instanceId }, enemy.attackCooldown);
     // 攻击后立即按 initiative 调度下一次行动，而非等 attackCooldown 结束
     this.scheduleNextEnemyTurn(enemy);
+    // 玩家结构/装甲/状态可能变化，触发全量 UI 刷新
+    BattleUI.update();
   },
 
   calculateEnemyHitRate(enemy, dist) {

@@ -175,13 +175,19 @@ const TimelineGraphic = {
         const l = (act.startTime - windowStart) / total * 100;
         const r = (Math.min(act.endTime, now) - windowStart) / total * 100;
         if (r > 0 && l < 100) {
-          desired.set(`Lp|${act.actor}|${act.type}|${act.startTime}`, {
-            kind: 'line',
-            left: Math.max(0, l),
-            width: Math.min(100 - Math.max(0, l), r - l),
-            color: this.COLOR.past,
-            zIndex: 0
-          });
+          // 宽度须基于钳制后的 left 计算：当动作开始时间早于窗口起点时，l 为负，
+          // 直接用 r - l 会把灰色条向右超出"现在"标记反向延长（长持续动作在临近结束时尤明显）
+          const left = Math.max(0, l);
+          const width = Math.min(100 - left, r - left);
+          if (width > 0) {
+            desired.set(`Lp|${act.actor}|${act.type}|${act.startTime}`, {
+              kind: 'line',
+              left,
+              width,
+              color: this.COLOR.past,
+              zIndex: 0
+            });
+          }
         }
       }
       // 未来部分（现在右侧）画主题色，zIndex=1 确保在灰色之上
@@ -221,7 +227,8 @@ const TimelineGraphic = {
         kind: 'dot',
         left,
         color: isPast ? this.COLOR.past : info.color,
-        zIndex: isPast ? 0 : 1
+        zIndex: isPast ? 0 : 1,
+        evtType: evt.type
       });
     }
     // 已完成的行动点（灰度，zIndex=0）
@@ -250,8 +257,15 @@ const TimelineGraphic = {
         el.className = d.kind === 'line' ? 'tlg-line' : 'tlg-dot';
         lane.appendChild(el);
         if (d.kind === 'dot') {
-          el.classList.add('entering');
-          requestAnimationFrame(() => el.classList.remove('entering'));
+          // 武器冷却/敌方行动点等事件新增到时间轴时轻微闪烁
+          const isFlicker = d.evtType === 'weapon_ready' || d.evtType === 'enemy_turn';
+          if (isFlicker) {
+            el.classList.add('flicker');
+            setTimeout(() => el.classList.remove('flicker'), 600);
+          } else {
+            el.classList.add('entering');
+            requestAnimationFrame(() => el.classList.remove('entering'));
+          }
         }
       }
       if (d.kind === 'line') {
@@ -262,6 +276,7 @@ const TimelineGraphic = {
       } else {
         el.style.left = `${d.left}%`;
         el.style.background = d.color;
+        el.style.color = d.color; // 供闪烁光晕 currentColor 使用
         el.style.zIndex = d.zIndex;
       }
     }
@@ -293,10 +308,13 @@ const TimelineGraphic = {
     nowEl.classList.toggle('highlight', isPlayerTurn);
   },
 
-  // 主渲染入口（由 BattleUI.update 调用）
+  // 主渲染入口（由 BattleUI.updateDynamic 每帧调用）
   render() {
     this._ensureBase();
     if (!this._container) return;
+    // 连续推进时禁用 CSS 过渡，让元素位置精确跟随时间；暂停时启用过渡做平滑微调
+    const advancing = typeof Timeline !== 'undefined' && !Timeline.paused;
+    this._container.classList.toggle('continuous', advancing);
     // 订阅一次事件分发钩子，记录已完成的行动点
     if (!this._subscribed) {
       this._subscribed = true;

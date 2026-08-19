@@ -84,6 +84,17 @@
       "options": [],
       "refDatabase": null,
       "scope": null
+    },
+    {
+      "name": "cargoVolume",
+      "nameZh": "货舱体积",
+      "comment": "单个物品占用的货舱体积，单位：立方米（m³）",
+      "type": "number",
+      "required": true,
+      "default": 0.01,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
     }
   ]
 }

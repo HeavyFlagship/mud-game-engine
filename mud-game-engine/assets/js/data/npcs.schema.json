@@ -66,7 +66,7 @@
     {
       "name": "shopItems",
       "nameZh": "商店商品",
-      "comment": "商店出售的商品 id 数组，元素为物品类库的 id 引用（ref 物品类：items 物品/equipment 装备/vehicles 载具机体等，如机体 assault、武器 auto_cannon_mk1、维修包 repair_kit_small）；配合 dialog.shop='shop' 使用，未配置时商店使用默认商品列表",
+      "comment": "商店出售的商品 id 数组，元素为物品类库的 id 引用，含装备库 id（ref 物品类：items 物品/materials 材料/equipment 装备/vehicles 载具机体等，如机体 assault、武器 auto_cannon_mk1、雷达 battle_scan_radar、生成器 ion_generator、修复器 armor_repairer、装甲熔铸剂 armor_molten_filler、维修包 repair_kit_small）；配合 dialog.shop='shop' 使用，未配置时商店使用默认商品列表",
       "type": "array",
       "required": false,
       "default": [],

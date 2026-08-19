@@ -215,6 +215,41 @@ const BattleUI = {
     ctx.lineWidth = 1;
     ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
 
+    // 地图实体图块（工业区/交易区等功能区）
+    const entityStyle = {
+      industry: { fill: 'rgba(255, 180, 60, 0.12)',  stroke: 'rgba(255, 180, 60, 0.6)' },
+      trade:    { fill: 'rgba(0, 200, 255, 0.12)',   stroke: 'rgba(0, 200, 255, 0.6)' },
+      default:  { fill: 'rgba(136, 136, 136, 0.12)', stroke: 'rgba(136, 136, 136, 0.5)' }
+    };
+    if (Battle.active && Battle.battlefield && Battle.battlefield.entities) {
+      for (const ent of Battle.battlefield.entities) {
+        const style = entityStyle[ent.type] || entityStyle.default;
+        const ex = cx + (ent.pos[0] - 500) * scale;
+        const ey = cy + (ent.pos[1] - 500) * scale;
+        const ew = (ent.size[0] || 200) * scale;
+        const eh = (ent.size[1] || 150) * scale;
+        ctx.fillStyle = style.fill;
+        ctx.fillRect(ex - ew / 2, ey - eh / 2, ew, eh);
+        ctx.strokeStyle = style.stroke;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+        ctx.strokeRect(ex - ew / 2, ey - eh / 2, ew, eh);
+        ctx.setLineDash([]);
+        // 名称 + 设施数量（工业区显示已安装设施数）
+        let label = ent.name || ent.type;
+        if (ent.type === 'industry') {
+          const room = Battle.battlefield.roomId ? MapSystem.getRoom(Battle.battlefield.roomId) : null;
+          const n = room && room.industryZone ? (room.industryZone.facilities || []).length : 0;
+          label += n > 0 ? ` (${n}设施)` : ' (空)';
+        }
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.font = `${Math.round(11 * (canvas.width / 200))}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, ex, ey);
+      }
+    }
+
     // 危害区域
     if (Battle.active && Battle.battlefield && Battle.battlefield.hazards) {
       for (const hazard of Battle.battlefield.hazards) {
@@ -249,6 +284,28 @@ const BattleUI = {
       }
     }
 
+    // 掩体
+    if (Battle.active && Battle.battlefield && Battle.battlefield.covers) {
+      for (const cover of Battle.battlefield.covers) {
+        const mx = cx + (cover.pos[0] - 500) * scale;
+        const my = cy + (cover.pos[1] - 500) * scale;
+        const mw = (cover.size[0] || 80) * scale;
+        const mh = (cover.size[1] || 60) * scale;
+        ctx.fillStyle = 'rgba(136, 204, 255, 0.14)';
+        ctx.fillRect(mx - mw / 2, my - mh / 2, mw, mh);
+        ctx.strokeStyle = 'rgba(136, 204, 255, 0.55)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.strokeRect(mx - mw / 2, my - mh / 2, mw, mh);
+        ctx.setLineDash([]);
+        const label = cover.label || '掩体';
+        ctx.fillStyle = 'rgba(136, 204, 255, 0.8)';
+        ctx.font = `${Math.round(8 * (canvas.width / 200))}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText(label, mx, my - mh / 2 - 3);
+      }
+    }
+
     // 玩家位置
     let playerX = 500, playerY = 500;
     if (Battle.active && Battle.battlefield) {
@@ -258,14 +315,25 @@ const BattleUI = {
     const px = cx + (playerX - 500) * scale;
     const py = cy + (playerY - 500) * scale;
 
-    // 玩家视野圈
+    // 玩家视野/扫描圈（受雷达加成与干扰影响）
+    const effectiveScan = Player.getEffectiveScanRange();
+    const scanAcc = Player.getEWBonus().scanAccuracy || 0;
     ctx.strokeStyle = 'rgba(0, 255, 136, 0.25)';
     ctx.fillStyle = 'rgba(0, 255, 136, 0.05)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(px, py, Player.visionRadius * scale, 0, Math.PI * 2);
+    ctx.arc(px, py, effectiveScan * scale, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+    // 雷达加成：额外环绕扫描圈
+    if (Player.getBaseScanRange() > effectiveScan + 0.5) {
+      ctx.strokeStyle = 'rgba(0, 200, 255, 0.35)';
+      ctx.setLineDash([6, 5]);
+      ctx.beginPath();
+      ctx.arc(px, py, (Player.getBaseScanRange() + 30) * scale, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
 
     // 锁定目标后绘制武器散布扇形（位于敌人标记下层）
     this.drawSpreadSector(ctx, cx, cy, scale);
@@ -278,8 +346,9 @@ const BattleUI = {
         if (!npcDef) continue;
         const dist = Battle.getDistance(Player.position, npcUnit.position);
         const broadcast = npcDef.broadcastPosition === true;
-        if (!broadcast && dist > Player.visionRadius) continue;
+        if (!broadcast && dist > effectiveScan) continue;
 
+        ctx.globalAlpha = Math.max(0.35, Math.min(1, scanAcc || 0.4));
         const nx = cx + (npcUnit.position[0] - 500) * scale;
         const ny = cy + (npcUnit.position[1] - 500) * scale;
         ctx.fillStyle = '#8cf';
@@ -290,13 +359,14 @@ const BattleUI = {
         ctx.font = `${Math.round(9 * (canvas.width / 200))}px monospace`;
         ctx.textAlign = 'center';
         ctx.fillText(npcUnit.instanceId, nx, ny - 7);
+        ctx.globalAlpha = 1;
       }
 
-      // 敌人
+      // 敌人（仅在有效扫描范围内显示，扫描精度越低光点越淡）
       for (const enemy of Battle.battlefield.enemies) {
         if (enemy.hp <= 0) continue;
         const dist = Battle.getDistance(Player.position, enemy.position);
-        if (dist > Player.visionRadius * 1.5) continue;
+        if (dist > effectiveScan) continue;
         const ex = cx + (enemy.position[0] - 500) * scale;
         const ey = cy + (enemy.position[1] - 500) * scale;
 
@@ -308,9 +378,11 @@ const BattleUI = {
           ctx.fillStyle = '#fd0';
         }
 
+        ctx.globalAlpha = Math.max(0.35, Math.min(1, scanAcc || 0.4));
         ctx.beginPath();
         ctx.arc(ex, ey, 4, 0, Math.PI * 2);
         ctx.fill();
+        ctx.globalAlpha = 1;
 
         ctx.fillStyle = '#fff';
         ctx.font = `${Math.round(9 * (canvas.width / 200))}px monospace`;
@@ -419,7 +491,10 @@ const BattleUI = {
       corrosion: { icon: '🧪', name: '腐蚀', color: '#0f0' },
       poison: { icon: '☠', name: '中毒', color: '#8f0' },
       shock: { icon: '⚡', name: '电击', color: '#ff0' },
-      stun: { icon: '💫', name: '眩晕', color: '#f0f' }
+      stun: { icon: '💫', name: '眩晕', color: '#f0f' },
+      jam: { icon: '📡', name: '干扰', color: '#c8f' },
+      track: { icon: '🎯', name: '锁定', color: '#0cf' },
+      em_interference: { icon: '🌩', name: '电磁干扰', color: '#68f' }
     };
     let html = '<span class="status-effects-tags">';
     for (const eff of statusEffects) {
@@ -508,6 +583,16 @@ const BattleUI = {
     if (typeof TimelineGraphic !== 'undefined') TimelineGraphic.render();
   },
 
+  // 每帧高频动态刷新（由 Timeline.onTickEnd 调用）：
+  // 仅更新随连续时间流逝而变化的内容，避免 60fps 重建静态 DOM
+  updateDynamic() {
+    if (typeof Game !== 'undefined' && Game.updateEquipInfoDynamic) {
+      Game.updateEquipInfoDynamic();
+    }
+    this.updateBattleTime();
+    if (typeof TimelineGraphic !== 'undefined') TimelineGraphic.render();
+  },
+
   updateBattleTime() {
     const el = document.getElementById('battle-time');
     if (!el) return;
@@ -533,7 +618,10 @@ const BattleUI = {
       corrosion: { icon: '🧪', name: '腐蚀', color: '#0f0', desc: '装甲持续受损' },
       poison: { icon: '☠', name: '中毒', color: '#8f0', desc: '持续受到结构伤害' },
       shock: { icon: '⚡', name: '电击', color: '#ff0', desc: '收到震荡伤害' },
-      stun: { icon: '💫', name: '眩晕', color: '#f0f', desc: '无法行动' }
+      stun: { icon: '💫', name: '眩晕', color: '#f0f', desc: '无法行动' },
+      jam: { icon: '📡', name: '干扰', color: '#c8f', desc: '被干扰器压制，命中率与扫描范围降低' },
+      track: { icon: '🎯', name: '锁定', color: '#0cf', desc: '被火控雷达锁定，受到攻击命中率提升' },
+      em_interference: { icon: '🌩', name: '电磁干扰', color: '#68f', desc: '处于电磁干扰区，扫描范围与命中率下降' }
     };
     let html = '<div class="status-effects-tags">';
     for (const eff of effects) {

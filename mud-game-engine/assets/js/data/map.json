@@ -30,6 +30,34 @@
           "biped": 1,
           "wheel": 0.9
         },
+        "entities": [
+          {
+            "id": "industry_zone",
+            "type": "industry",
+            "name": "工业区",
+            "pos": [
+              180,
+              260
+            ],
+            "size": [
+              300,
+              220
+            ]
+          },
+          {
+            "id": "trade_zone",
+            "type": "trade",
+            "name": "交易中心",
+            "pos": [
+              760,
+              260
+            ],
+            "size": [
+              220,
+              190
+            ]
+          }
+        ],
         "covers": [
           {
             "id": "c1",

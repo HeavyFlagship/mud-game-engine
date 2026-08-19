@@ -112,6 +112,7 @@ const MapSystem = {
       covers: JSON.parse(JSON.stringify(bf.covers || [])),
       hazards: JSON.parse(JSON.stringify(bf.hazards || [])),
       lootPoints: JSON.parse(JSON.stringify(bf.lootPoints || [])),
+      entities: JSON.parse(JSON.stringify(bf.entities || [])),
       enemies: [],
       npcs: [],
       patrolTimers: [],
