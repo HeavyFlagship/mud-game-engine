@@ -1,0 +1,56 @@
+{
+  "id": "loot-tables",
+  "nameZh": "掉落表数据库",
+  "description": "按敌人分组的战利品掉落表：顶层键为敌人 id（ref enemies 敌人库，如 worker_bug），值为该敌人的掉落条目数组；击杀敌人时逐条按 chance 概率掷骰，命中则掉落 [min, max] 区间内随机数量的对应物品",
+  "globalVar": "LootTableDB",
+  "dataFile": "loot-tables.json",
+  "primaryKey": null,
+  "recordNameZh": "掉落条目",
+  "structure": "grouped-array",
+  "fields": [
+    {
+      "name": "item",
+      "nameZh": "物品ID",
+      "comment": "掉落物品 id（ref 物品类：主要为 materials 材料库的战利品材料，如 chitin_fragment 甲壳碎片、mech_parts 机械零件；含 items 物品库的补给品，如 repair_kit_large 大型维修包）",
+      "type": "ref",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": "items",
+      "scope": null
+    },
+    {
+      "name": "chance",
+      "nameZh": "掉落概率",
+      "comment": "该条目的掉落概率，取值 0-1 的小数（0.6=60% 概率掉落，1=必掉，如 Boss 守护者的核心掉落）",
+      "type": "number",
+      "required": true,
+      "default": 1,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "min",
+      "nameZh": "最小数量",
+      "comment": "掉落时随机数量的下限（单位：个），与 max 构成闭区间 [min, max]，命中概率后从中随机取值",
+      "type": "number",
+      "required": true,
+      "default": 1,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "max",
+      "nameZh": "最大数量",
+      "comment": "掉落时随机数量的上限（单位：个），需不小于 min",
+      "type": "number",
+      "required": true,
+      "default": 1,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    }
+  ]
+}

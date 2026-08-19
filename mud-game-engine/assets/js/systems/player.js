@@ -49,7 +49,7 @@ const Player = {
   statusEffects: [],
   killCount: {},
   stats: { totalDmg:0, totalHeal:0, monstersKilled:0, deaths:0 },
-  gold: 100000,
+  credits: 100000,
   level: 1,
   exp: 0,
   expToNext: 50,
@@ -268,11 +268,11 @@ const Player = {
       return false;
     }
     const price = vehicle.price || 0;
-    if (this.gold < price) {
-      Msg.error(`金币不足，需要 ${price} 金币。`);
+    if (this.credits < price) {
+      Msg.error(`信用点不足，需要 ${price} 信用点。`);
       return false;
     }
-    this.gold -= price;
+    this.credits -= price;
     // 创建空白配置存入机库
     this.hangar.push({
       vehicleId,
@@ -620,7 +620,9 @@ const Player = {
     if (slotKey === 'coreComputer' || slotKey === 'core_power') {
       const core = slotKey === 'coreComputer' ? this.coreComputer : this.corePower;
       if (!core) return false;
-      if (toInventory) this.addItem(core.id);
+      if (toInventory) {
+        if (!this.addItem(core.id)) { Msg.error(`货舱体积不足，无法卸载 ${core.name}。`); return false; }
+      }
       if (slotKey === 'coreComputer') {
         this.budget.computeMax -= core.coreOutput || 0;
         this.coreComputer = null;
@@ -638,7 +640,7 @@ const Player = {
 
     const equip = slot.equip;
     if (toInventory) {
-      this.addItem(equip.id);
+      if (!this.addItem(equip.id)) { Msg.error(`货舱体积不足，无法卸载 ${equip.name}。`); return false; }
     }
     slot.equip = null;
     delete this.weaponCooldowns[slotKey];
@@ -728,7 +730,7 @@ const Player = {
     const used = this.calcUsedBudget();
     const newPower = used.power + (equip.powerReq || 0);
     const newCompute = used.compute + (equip.computeReq || 0);
-    const newBay = used.bay + (equip.bayReq || 0);
+    const newVol = used.volume + (equip.equipVolume || 0);
 
     if (newPower > this.budget.powerMax) {
       return { ok: false, reason: `功率不足（需要${equip.powerReq}kW，剩余${this.budget.powerMax - used.power}kW）` };
@@ -736,30 +738,30 @@ const Player = {
     if (newCompute > this.budget.computeMax) {
       return { ok: false, reason: `算力不足（需要${equip.computeReq}MFlops，剩余${this.budget.computeMax - used.compute}MFlops）` };
     }
-    if (newBay > this.budget.bayMax) {
-      return { ok: false, reason: `装备舱不足（需要${equip.bayReq}m³，剩余${(this.budget.bayMax - used.bay).toFixed(2)}m³）` };
+    if (newVol > this.budget.bayMax) {
+      return { ok: false, reason: `装备舱不足（需要${(equip.equipVolume||0)}m³，剩余${(this.budget.bayMax - used.volume).toFixed(2)}m³）` };
     }
     return { ok: true };
   },
 
   calcUsedBudget() {
-    let power = 0, compute = 0, bay = 0;
+    let power = 0, compute = 0, volume = 0;
     for (const slot of Object.values(this.equipment)) {
       const e = slot.equip;
       if (e) {
         power += e.powerReq || 0;
         compute += e.computeReq || 0;
-        bay += e.bayReq || 0;
+        volume += e.equipVolume || 0;
       }
     }
-    return { power, compute, bay };
+    return { power, compute, volume };
   },
 
   recalcBudget() {
     const used = this.calcUsedBudget();
     this.budget.powerUsed = used.power;
     this.budget.computeUsed = used.compute;
-    this.budget.bayUsed = used.bay;
+    this.budget.bayUsed = used.volume;
   },
 
   recalcResources() {
@@ -885,6 +887,98 @@ const Player = {
     return bonus;
   },
 
+  // 基础扫描/侦测半径（来自机体视野 + 雷达加成）
+  getBaseScanRange() {
+    const vehicle = VehicleDB[this.vehicleId];
+    const bonus = this.getEWBonus();
+    const base = (vehicle && vehicle.visionRadius) || this.visionRadius || 200;
+    return base + (bonus.scanRange || 0) + (bonus.vision || 0);
+  },
+
+  // 有效扫描距离：受 jam / 电磁干扰 buff 按 jamStrength 缩减，jamResist 可抵消
+  getEffectiveScanRange() {
+    let range = this.getBaseScanRange();
+    const strength = Math.max(
+      (this.statusEffects.find(e => e.type === 'jam') || {}).strength || 0,
+      (this.statusEffects.find(e => e.type === 'em_interference') || {}).strength || 0
+    );
+    if (strength > 0) {
+      const resist = Math.max(0, Math.min(1, this.getEWBonus().jamResist || 0));
+      range *= Math.max(0, 1 - strength * (1 - resist));
+    }
+    return range;
+  },
+
+  // 装备周期逻辑（由战斗时间轴驱动）：生成器产生离子、修复器修复装甲/结构
+  processEquipmentCycle(delta) {
+    if (!this._equipCycleAcc) this._equipCycleAcc = {};
+    if (!this._equipMat) this._equipMat = {};
+    const inBattle = typeof Battle !== 'undefined' && Battle.active;
+
+    for (const [slotKey, slot] of Object.entries(this.equipment)) {
+      const e = slot && slot.equip;
+      if (!e) continue;
+
+      // 生成器：消耗材料产出离子
+      if (e.category === 'generator' && e.generateAmount) {
+        const cycle = (e.cycle && e.cycle !== '持续') ? e.cycle : 1;
+        this._equipCycleAcc[slotKey] = (this._equipCycleAcc[slotKey] || 0) + delta;
+        while (this._equipCycleAcc[slotKey] >= cycle) {
+          this._equipCycleAcc[slotKey] -= cycle;
+          if (!this._consumeEquipmentMaterial(slotKey, e, e.materialCost || 0)) break;
+          this.resources.ion = Math.min(this.resources.maxIon || 0, (this.resources.ion || 0) + e.generateAmount);
+        }
+      }
+
+      // 修复器：消耗能量与材料恢复目标
+      if (e.category === 'repairer' && e.repairAmount) {
+        const cycle = (e.cycle && e.cycle !== '持续') ? e.cycle : 1;
+        this._equipCycleAcc[slotKey] = (this._equipCycleAcc[slotKey] || 0) + delta;
+        while (this._equipCycleAcc[slotKey] >= cycle) {
+          this._equipCycleAcc[slotKey] -= cycle;
+          // inCombat=false 的修复器仅脱战可用
+          if (e.inCombat === false && inBattle) break;
+          const full = e.repairTarget === 'armor'
+            ? (this.armor >= this.maxArmor)
+            : (this.hp >= this.maxHp);
+          if (full) break;
+          const energyCost = e.energyPerCycle || 0;
+          if (energyCost > 0 && (this.energy || 0) < energyCost) break;
+          if (!this._consumeEquipmentMaterial(slotKey, e, e.repairMaterialCost || 0)) break;
+          if (energyCost > 0) this.energy = Math.max(0, (this.energy || 0) - energyCost);
+          if (e.repairTarget === 'armor') {
+            this.armor = Math.min(this.maxArmor, this.armor + e.repairAmount);
+          } else {
+            this.hp = Math.min(this.maxHp, this.hp + e.repairAmount);
+          }
+        }
+      }
+    }
+  },
+
+  // 从装备材料仓消耗材料；仓内不足时自动从背包整体补充
+  _consumeEquipmentMaterial(slotKey, equip, amount) {
+    const mat = this._equipMat[slotKey] || { stock: 0 };
+    this._equipMat[slotKey] = mat;
+    const capacity = equip.materialBay || 0;
+    const wantedName = equip.repairMaterial || null;
+    if (capacity > 0 && mat.stock < capacity - 1e-9) {
+      for (const inv of this.inventory) {
+        const it = ItemDB.get(inv.id);
+        if (!it || it.type !== 'material') continue;
+        if (wantedName && inv.id !== wantedName && it.name !== wantedName) continue;
+        const take = Math.min(1, inv.count, capacity - mat.stock);
+        if (take <= 0) continue;
+        mat.stock += take;
+        this.removeItem(inv.id, take);
+        break;
+      }
+    }
+    if (amount > 0 && mat.stock < amount - 1e-9) return false;
+    mat.stock -= amount;
+    return true;
+  },
+
   _getAmmoType(weapon) {
     if (!weapon || !weapon.subCategory) return null;
     const ammoMap = {
@@ -959,28 +1053,43 @@ const Player = {
   },
 
   gainExp(amount) {
-    this.exp += amount;
-    while (this.exp >= this.expToNext) {
-      this.exp -= this.expToNext;
-      this.level++;
-      this.expToNext = Math.floor(this.expToNext * 1.5);
-      const hpUp = Utils.rand(15, 25);
-      this.maxHp += hpUp;
-      this.hp = this.maxHp;
-      this.armor = this.maxArmor;
-      Msg.divider();
-      Msg.success(`🎉 升级！你现在是 Lv.${this.level}！`);
-      Msg.info(`结构值+${hpUp}`);
+    // 等级系统暂时取消：不再累积经验、升级或提升机体属性，
+    // 避免升级获得的属性加成在切换机体后被重置丢失。
+    return;
+  },
+
+  // 货舱容量（m³）：来自当前载具
+  getCargoCapacity() {
+    const vehicle = VehicleDB[this.vehicleId];
+    return vehicle ? (vehicle.cargo || 0) : 0;
+  },
+
+  // 背包当前占用体积（m³）
+  getUsedCargoVolume() {
+    let total = 0;
+    for (const inv of this.inventory) {
+      const it = ItemDB.get(inv.id);
+      if (it && it.cargoVolume) total += it.cargoVolume * inv.count;
     }
+    return total;
   },
 
   addItem(id, count = 1) {
+    const item = ItemDB.get(id);
+    const vol = (item && item.cargoVolume) ? item.cargoVolume : 0;
+    const capacity = this.getCargoCapacity();
+    const used = this.getUsedCargoVolume();
+    if (vol > 0 && capacity > 0 && used + vol * count > capacity + 1e-9) {
+      Msg.error(`货舱体积不足（需要 ${(vol * count).toFixed(2)}m³，剩余 ${(capacity - used).toFixed(2)}m³）`);
+      return false;
+    }
     const existing = this.inventory.find(i => i.id === id);
     if (existing) {
       existing.count += count;
     } else {
       this.inventory.push({ id, count });
     }
+    return true;
   },
 
   removeItem(id, count = 1) {

@@ -18,14 +18,29 @@ const CommandSystem = {
     tm:'timeline', tl_b:'timeline',
     re:'retreat', rt:'retreat',
     rl:'reload',
-    hg:'hangar', wh:'warehouse'
+    hg:'hangar', wh:'warehouse',
+    ind:'industry', ins:'install',
+    quest:'任务'
   },
 
-  // 战场专用指令（仅当 Battle.active 时由 handleBattleCmd 处理）
-  battleOnlyCmds: ['move','go','enter','进入','fire','shoot','attack','攻击',
-                   'retreat','flee','撤退','timeline','wait','等待','idle','待机',
-                   'call','通信','hailing','look','查看','movepredict','mp','continue','cont'],
- 
+  // 查询类指令：信息显示在查询窗口
+  queryCommands: {
+    help: '指令帮助',
+    status: '机体状态',
+    bag: '背包',
+    item: '物品详情',
+    skills: '技能',
+    map: '世界地图',
+    score: '统计信息',
+    hangar: '机库',
+    机库: '机库',
+    warehouse: '仓库',
+    仓库: '仓库',
+    industry: '工业区',
+    timeline: '战场时间轴',
+    工业: '工业区',
+  },
+
   parse(input) {
     input = input.trim().toLowerCase();
     if (!input) return null;
@@ -42,79 +57,97 @@ const CommandSystem = {
   execute(input) {
     const parsed = this.parse(input);
     if (!parsed) return;
-    Msg.cmd(`> ${parsed.raw}`);
 
-    // 战场/场景指令：当场景有战场时由 handleBattleCmd 处理
-    // 其余指令（shop/equip/unequip/talk/方向移动等）在任何状态下均可使用
-    if ((Battle.active || Battle.battlefield) && this.battleOnlyCmds.includes(parsed.cmd)) {
-      this.handleBattleCmd(parsed);
+    // Determine scene type
+    const room = MapSystem.getRoom(Player.room);
+    const sceneType = (room && room.sceneType === 'safe') ? 'safe' : 'battle';
+    
+    // Check if command is available for current scene
+    const found = CommandRegistry.findCommand(parsed.cmd);
+    if (!found) {
+      Msg.cmd(`> ${parsed.raw}`);
+      Msg.warning(`未知指令: ${parsed.cmd}。输入 <span class="help-cmd">help</span> 查看帮助。`);
       Game.updateUI();
       return;
     }
-
-    switch (parsed.cmd) {
-      case 'north': case 'south': case 'east': case 'west':
-      case 'up': case 'down': case '上': case '下':
-        Game.move(parsed.cmd); break;
-      case 'look': case '查看':
-        Game.look(); break;
-      case 'bag': case '背包':
-        this.runQuery(parsed, '背包', () => Game.showBag(parsed.args.includes('-d'))); break;
-      case 'status': case '状态':
-        this.runQuery(parsed, '机体状态', () => Game.showStatus()); break;
-      case 'equip': case '装备':
-        Game.equip(parsed.args.join(' ')); break;
-      case 'unequip': case '卸下':
-        Game.unequip(parsed.args[0] || ''); break;
-      case 'reload': case '装填':
-        Game.reload(parsed.args[0] || ''); break;
-      case 'hangar': case '机库':
-        Game.showHangar(); break;
-      case 'switch': case '切换':
-        Game.switchVehicle(parsed.args[0] || ''); break;
-      case 'warehouse': case '仓库':
-        Game.showWarehouse(); break;
-      case 'deposit': case 'export': case '存入': case '存仓':
-        Game.depositToWarehouse(parsed.args[0] || '', parseInt(parsed.args[1]) || 1); break;
-      case 'withdraw': case 'import': case '取出': case '取回':
-        Game.withdrawFromWarehouse(parsed.args[0] || '', parseInt(parsed.args[1]) || 1); break;
-      case 'wequip': case '仓装':
-        Game.equipFromWarehouse(parsed.args[0] || ''); break;
-      case 'use': case '使用': case 'drink': case '喝':
-        Game.useItem(parsed.args.join(' ')); break;
-      case 'skills': case '技能':
-        this.runQuery(parsed, '技能列表', () => Game.showSkills()); break;
-      case 'pick': case 'get': case '拾取':
-        Game.pickItem(parsed.args.join(' ')); break;
-      case 'drop': case '丢弃':
-        Game.dropItem(parsed.args.join(' ')); break;
-      case 'talk': case '对话':
-        Game.talk(parsed.args.join(' ')); break;
-      case 'shop': case '商店': case 'buy': case '购买':
-        Game.shop(parsed.args[0] || 'list'); break;
-      case 'sell': case '出售':
-        Game.sell(parsed.args.join(' ')); break;
-      case 'upgrade': case '改装':
-        Game.upgrade(parsed.args.join(' ')); break;
-      case 'score': case 'stats': case '统计':
-        this.runQuery(parsed, '任务统计', () => Game.showStats()); break;
-      case 'help': case '帮助':
-        this.runQuery(parsed, '指令帮助', () => Game.showHelp(parsed.args[0])); break;
-      case 'map': case '地图':
-        this.runQuery(parsed, '区域地图', () => Game.showMap()); break;
-      case 'save': case '存档':
-        Game.save(); break;
-      case 'load': case '读档':
-        Game.load(); break;
-      case 'clear': case '清屏':
-        Msg.clear(); break;
-      case 'cast': case '施法':
-        Game.castOutside(parsed.args.join(' ')); break;
-      default:
-        Msg.warning(`未知指令: ${parsed.cmd}。输入 <span class="help-cmd">help</span> 查看帮助。`);
+    
+    // Check scene availability
+    if (found.layer === 'battle' && sceneType !== 'battle') {
+      Msg.cmd(`> ${parsed.raw}`);
+      Msg.warning(`指令 ${parsed.cmd} 仅在战场场景可用。`);
+      Game.updateUI();
+      return;
+    }
+    if (found.layer === 'base' && sceneType !== 'safe') {
+      Msg.cmd(`> ${parsed.raw}`);
+      Msg.warning(`指令 ${parsed.cmd} 仅在安全区可用。`);
+      Game.updateUI();
+      return;
+    }
+    
+    // 查询类指令：在查询窗口显示信息
+    const queryTitle = this.queryCommands[parsed.cmd];
+    if (queryTitle) {
+      this.runQuery(parsed, queryTitle, () => {
+        this.routeCommand(parsed, found);
+      });
+    } else {
+      Msg.cmd(`> ${parsed.raw}`);
+      this.routeCommand(parsed, found);
     }
     Game.updateUI();
   },
+
+routeCommand(parsed, found) {
+    const { entry, layer } = found;
+    const handler = entry.handler;
+    
+    // Route to appropriate handler
+    if (layer === 'battle') {
+      // Battle commands stay in CommandSystem
+      this.handleBattleCmd(parsed);
+    } else if (layer === 'base') {
+      // Base commands - delegate to base-commands module or handle inline
+      this.handleBaseCmd(parsed);
+    } else {
+      // Global commands
+      this.handleGlobalCmd(parsed);
+    }
+},
+
+handleGlobalCmd(parsed) {
+    // Route to GlobalCommands module
+    const found = CommandRegistry.findCommand(parsed.cmd);
+    if (!found || !found.entry) return;
+    
+    const handler = found.entry.handler;
+    const args = parsed.args;
+    
+    // Dispatch to GlobalCommands
+    if (typeof GlobalCommands !== 'undefined' && GlobalCommands[handler]) {
+      GlobalCommands[handler](args);
+      return;
+    }
+    
+    // Fallback: inline handling
+    Msg.warning(`指令处理器 ${handler} 未实现。`);
+},
+
+handleBaseCmd(parsed) {
+    const found = CommandRegistry.findCommand(parsed.cmd);
+    if (!found || !found.entry) return;
+    
+    const handler = found.entry.handler;
+    const args = parsed.args;
+    
+    if (typeof BaseCommands !== 'undefined' && BaseCommands[handler]) {
+      BaseCommands[handler](args);
+      return;
+    }
+    
+    // Fallback
+    Msg.warning(`基地指令 ${handler} 未实现。`);
+},
  
   handleBattleCmd(parsed) {
     switch (parsed.cmd) {
@@ -140,6 +173,12 @@ const CommandSystem = {
         this.cmdBattleIdle(parsed.args); break;
       case 'continue': case 'cont':
         this.cmdBattleContinue(parsed.args); break;
+      case 'execute':
+        this.cmdBattleExecute(parsed.args); break;
+      case 'lock':
+        this.cmdBattleLock(parsed.args); break;
+      case 'hold':
+        this.cmdBattleHold(parsed.args); break;
       case 'use': case '使用':
         Game.useItem(parsed.args); break;
       default:
@@ -234,10 +273,20 @@ const CommandSystem = {
           Msg.warning('等待时间过长，已限制为300秒。');
           waitTime = 300;
         }
-        // 先开始移动（setPlayerTask 会取消当前回合并启动移动）
+        // 基准时间：waitTime 必须相对 continue 执行时刻计算。
+        // startPlayerMove 内部 scheduleNext 会把 Timeline.time 推进一个移动时长，
+        // 若用推进后的时间 + waitTime 调度，player_turn 会晚 moveDuration，导致
+        // 第一次 continue 实际推进接近 moveDuration + waitTime（如 20 秒）。
+        const baseTime = Timeline.time;
+        // 清理旧玩家移动事件/动作，避免 startPlayerMove 重复入队 move_complete
+        Timeline.cancelEvents(e => e.type === 'move_complete' && e.actor === 'player');
+        Timeline.removeContinuousAction('player', 'move');
+        BattleUI.removeCurrentAction('移动中...');
+        // 开始移动（setPlayerTask 会取消当前回合并启动移动）
         Battle.setPlayerTask({ type: 'move', target: hint.pendingMove, autoExit: hint.autoExit });
-        // 调度 N 秒后重新询问开火
-        Timeline.scheduleEvent({ type: 'player_turn', actor: 'player' }, waitTime);
+        // 调度 N 秒后重新询问开火：精确排在 baseTime + waitTime
+        const delay = Math.max(0, (baseTime + waitTime) - Timeline.time);
+        Timeline.scheduleEvent({ type: 'player_turn', actor: 'player' }, delay);
         Timeline.paused = false;
         Timeline.scheduleNext();
         Msg.info(`移动中，${waitTime} 秒后重新询问开火...`);
@@ -245,6 +294,9 @@ const CommandSystem = {
       }
       // continue 无参数：跳过开火，仅执行移动
       Battle.playerFireHint = null;
+      Timeline.cancelEvents(e => e.type === 'move_complete' && e.actor === 'player');
+      Timeline.removeContinuousAction('player', 'move');
+      BattleUI.removeCurrentAction('移动中...');
       Battle.setPlayerTask({ type: 'move', target: hint.pendingMove, autoExit: hint.autoExit });
       return;
     }
@@ -294,9 +346,100 @@ const CommandSystem = {
     Timeline.scheduleNext();
     Msg.info(`时间轴推进至 ${wName} 冷却完成（约${waitTime.toFixed(1)}秒后），不打断当前动作。`);
   },
+
+  /** 执行待操作并推进时间轴 */
+  cmdBattleExecute(args) {
+    if (!Battle.battlefield) return;
+    if (!Battle.isPlayerActionPhase() || !Battle.playerActionState) {
+      Msg.warning('当前没有待执行的操作。');
+      return;
+    }
+    // execute force：未指定操作的项自动待命
+    if (args.includes('force')) {
+      const st = Battle.playerActionState;
+      if (st.chassis.action === null) Battle.setChassisAction('hold');
+      for (const [slot, w] of Object.entries(st.weapons)) {
+        if (w.ready && !w.action) Battle.setWeaponAction(slot, 'hold');
+      }
+    }
+    Battle.executeActions();
+  },
+
+  /** 锁定/取消锁定目标 */
+  cmdBattleLock(args) {
+    if (!Battle.battlefield) return;
+    if (args.length < 1) {
+      const cur = Battle.getLockedEnemy();
+      if (cur) Msg.info(`当前锁定：${cur.name}[${cur.instanceId}]（再次 lock <编号> 可切换）。`);
+      else Msg.info('未锁定目标。用法：lock <目标编号>（如 lock E1）。');
+      return;
+    }
+    const targetId = args[0].toUpperCase();
+    const enemy = Battle.battlefield.enemies.find(e => e.instanceId === targetId);
+    if (!enemy || enemy.hp <= 0) {
+      Msg.error(`未找到目标 ${targetId}`);
+      return;
+    }
+    Battle.setLockedTarget(targetId);
+    const locked = Battle.getLockedEnemy();
+    if (locked) Msg.info(`🔒 已锁定 ${locked.name}[${locked.instanceId}]。`);
+    else Msg.info('已取消锁定。');
+  },
+
+  /** 待命（操作阶段）：hold [机体|接口编号] [秒数] */
+  cmdBattleHold(args) {
+    if (!Battle.battlefield) return;
+    if (!Battle.isPlayerActionPhase() || !Battle.playerActionState) {
+      Msg.warning('hold 指令仅在操作阶段可用（移动/开火等操作出现时）。');
+      return;
+    }
+    // 解析秒数：最后一个数字参数视为秒数
+    let seconds = 0;
+    const rest = args.slice();
+    const last = rest[rest.length - 1];
+    if (last && /^\d+$/.test(last)) {
+      seconds = parseInt(last, 10);
+      rest.pop();
+    }
+    const target = rest[0] ? rest[0].toLowerCase() : null;
+
+    if (!target) {
+      // hold：全部未指定的可操作项待命
+      const st = Battle.playerActionState;
+      if (st.chassis.action === null) Battle.setChassisAction('hold', null, null, seconds);
+      for (const [slot, w] of Object.entries(st.weapons)) {
+        if (w.ready && !w.action) Battle.setWeaponAction(slot, 'hold', null, seconds);
+      }
+      Msg.hint(`全部待命${seconds > 0 ? ` ${seconds} 秒` : ''}（点击执行提交）。`);
+      return;
+    }
+    if (target === 'chassis' || target === '机体') {
+      Battle.setChassisAction('hold', null, null, seconds);
+      Msg.hint(`机体待命${seconds > 0 ? ` ${seconds} 秒` : ''}。`);
+      return;
+    }
+    const num = parseInt(target, 10);
+    if (!isNaN(num) && num >= 1) {
+      const keys = Object.keys(Player.equipment);
+      const slotKey = keys[num - 1];
+      if (slotKey && Battle.playerActionState.weapons[slotKey]) {
+        const weapon = Player.equipment[slotKey]?.equip;
+        Battle.setWeaponAction(slotKey, 'hold', null, seconds);
+        Msg.hint(`${weapon ? weapon.name : '武器槽' + num}待命${seconds > 0 ? ` ${seconds} 秒` : ''}。`);
+      } else {
+        Msg.warning(`武器槽 ${num} 不存在或不可操作。`);
+      }
+      return;
+    }
+    Msg.warning('用法：hold [机体|接口编号] [秒数]（如 hold 2 5 = 2号武器待命5秒）。');
+  },
  
   cmdBattleCall(args) {
-    if (!Battle.battlefield) return;
+    // call 在战场与安全区（基地）均可用；无战场时走基地 NPC 对话
+    if (!Battle.battlefield) {
+      Game.callNPC(args.join(' '));
+      return;
+    }
     if (!args[0]) {
       const npcs = Battle.battlefield.npcs || [];
       if (npcs.length === 0) {
@@ -344,11 +487,13 @@ const CommandSystem = {
     if (/^\d+$/.test(first) && args.length >= 2 && /^\d+$/.test(args[1])) {
       targetX = parseInt(first);
       targetY = parseInt(args[1]);
-    } else if (/^[nsew]$/.test(first.toLowerCase()) || /^(ne|nw|se|sw)$/.test(first.toLowerCase())) {
+    } else if (/^(n|s|e|w|north|south|east|west|ne|nw|se|sw|northeast|northwest|southeast|southwest)$/i.test(first)) {
       const dir = first.toLowerCase();
       const dirMap = {
-        n:[0,-1], s:[0,1], e:[1,0], w:[-1,0],
-        ne:[0.707,-0.707], nw:[-0.707,-0.707], se:[0.707,0.707], sw:[-0.707,0.707]
+        n:[0,-1], north:[0,-1], s:[0,1], south:[0,1],
+        e:[1,0], east:[1,0], w:[-1,0], west:[-1,0],
+        ne:[0.707,-0.707], northeast:[0.707,-0.707], nw:[-0.707,-0.707], northwest:[-0.707,-0.707],
+        se:[0.707,0.707], southeast:[0.707,0.707], sw:[-0.707,0.707], southwest:[-0.707,0.707]
       };
       const d = dirMap[dir];
       if (!d) {
@@ -409,17 +554,26 @@ const CommandSystem = {
     }
 
     let targetX, targetY, autoExit = null;
+    let moveLabel = '';
     const first = args[0];
+
+    // 方向映射：支持缩写与全称（n=north 等）
+    const dirMap = {
+      n:[0,-1], north:[0,-1], s:[0,1], south:[0,1],
+      e:[1,0], east:[1,0], w:[-1,0], west:[-1,0],
+      ne:[0.707,-0.707], northeast:[0.707,-0.707],
+      nw:[-0.707,-0.707], northwest:[-0.707,-0.707],
+      se:[0.707,0.707], southeast:[0.707,0.707],
+      sw:[-0.707,0.707], southwest:[-0.707,0.707]
+    };
+    const mainDirRe = /^(n|s|e|w|north|south|east|west)$/i;
+    const diagDirRe = /^(ne|nw|se|sw|northeast|northwest|southeast|southwest)$/i;
 
     if (/^\d+$/.test(first) && args.length >= 2 && /^\d+$/.test(args[1])) {
       targetX = parseInt(first);
       targetY = parseInt(args[1]);
-    } else if (/^[nsew]$/.test(first.toLowerCase()) || /^(ne|nw|se|sw)$/.test(first.toLowerCase())) {
+    } else if (mainDirRe.test(first) || diagDirRe.test(first)) {
       const dir = first.toLowerCase();
-      const dirMap = {
-        n:[0,-1], s:[0,1], e:[1,0], w:[-1,0],
-        ne:[0.707,-0.707], nw:[-0.707,-0.707], se:[0.707,0.707], sw:[-0.707,0.707]
-      };
       const d = dirMap[dir];
       if (!d) {
         Msg.error('方向无效。使用 n/s/e/w/ne/nw/se/sw');
@@ -434,15 +588,17 @@ const CommandSystem = {
         }
         targetX = Player.position[0] + d[0] * dist;
         targetY = Player.position[1] + d[1] * dist;
-      } else if (/^[nsew]$/.test(dir)) {
+      } else if (mainDirRe.test(dir)) {
         // 主方向无距离：移动到该方向边界点（距边界5m），到达后自动切换场景
         const [bw, bh] = Battle.battlefield.size;
         const margin = 5;
-        switch (dir) {
-          case 'n': targetX = Player.position[0]; targetY = margin; autoExit = 'north'; break;
-          case 's': targetX = Player.position[0]; targetY = bh - margin; autoExit = 'south'; break;
-          case 'e': targetX = bw - margin; targetY = Player.position[1]; autoExit = 'east'; break;
-          case 'w': targetX = margin; targetY = Player.position[1]; autoExit = 'west'; break;
+        const exitMap = { n:'north', north:'north', s:'south', south:'south', e:'east', east:'east', w:'west', west:'west' };
+        autoExit = exitMap[dir];
+        switch (autoExit) {
+          case 'north': targetX = Player.position[0]; targetY = margin; break;
+          case 'south': targetX = Player.position[0]; targetY = bh - margin; break;
+          case 'east': targetX = bw - margin; targetY = Player.position[1]; break;
+          case 'west': targetX = margin; targetY = Player.position[1]; break;
         }
         Msg.info(`向${MapSystem.getDirectionName(autoExit)}边界移动，到达后自动切换场景...`);
       } else {
@@ -464,6 +620,7 @@ const CommandSystem = {
         const ratio = approachDist / dist;
         targetX = Player.position[0] + (enemy.position[0] - Player.position[0]) * ratio;
         targetY = Player.position[1] + (enemy.position[1] - Player.position[1]) * ratio;
+        moveLabel = `靠近 ${enemy.name}[${enemy.instanceId}]`;
         Msg.info(`向 ${enemy.name}[${enemy.instanceId}] 移动，接近到 ${approachDist.toFixed(0)}m`);
       } else if (npc) {
         const dx = npc.position[0] - Player.position[0];
@@ -477,11 +634,21 @@ const CommandSystem = {
         const ratio = (dist - stopDist) / dist;
         targetX = Player.position[0] + dx * ratio;
         targetY = Player.position[1] + dy * ratio;
+        moveLabel = `靠近 ${npc.name}[${npc.instanceId}]`;
         Msg.info(`向 ${npc.name}[${npc.instanceId}] 移动...`);
       } else {
         Msg.error(`未找到目标 ${first}。用法：move <x> <y> 或 move <方向> [距离] 或 move <目标编号>`);
         return;
       }
+    }
+
+    // 操作阶段：记录机体移动意图，等待 execute 提交（不立即开始移动）
+    if (Battle.isPlayerActionPhase() && Battle.playerActionState) {
+      if (!moveLabel) moveLabel = `移动至 (${Math.round(targetX)}, ${Math.round(targetY)})`;
+      if (autoExit) moveLabel = `向${MapSystem.getDirectionName(autoExit)}边界移动（到达后切换场景）`;
+      Battle.setChassisAction('move', [targetX, targetY], moveLabel, 0, autoExit);
+      Msg.hint(`机体：${moveLabel}（点击执行提交）。`);
+      return;
     }
 
     // 仅当目标超出边界（非 autoExit 模式）才尝试立即切换场景
@@ -607,22 +774,28 @@ const CommandSystem = {
   cmdBattleFire(args) {
     if (!Battle.battlefield) return;
     if (args.length < 1) {
-      const enemies = Battle.battlefield.enemies.filter(e => e.hp > 0);
-      if (enemies.length === 0) {
-        Msg.info('附近没有敌人。');
+      // 有锁定目标时默认使用锁定目标（fire 无参 = fire <锁定目标>）
+      const locked = Battle.getLockedEnemy();
+      if (locked) {
+        args = [locked.instanceId];
+      } else {
+        const enemies = Battle.battlefield.enemies.filter(e => e.hp > 0);
+        if (enemies.length === 0) {
+          Msg.info('附近没有敌人。');
+          return;
+        }
+        let info = '可用目标：\n';
+        for (const e of enemies) {
+          const dist = Battle.getDistance(Player.position, e.position);
+          const primaryWeapon = Player.getEquippedWeapons()[0];
+          const inRange = primaryWeapon && dist <= primaryWeapon.range;
+          info += `  ${e.instanceId} - ${e.name} (距离${dist.toFixed(0)}m) ${inRange ? '[射程内]' : '[超射程]'}\n`;
+        }
+        info += '用法：fire <目标编号> [武器槽]\n';
+        info += '  武器槽: all(默认) 或接口编号（见 bag），默认所有就绪武器开火';
+        Msg.info(info);
         return;
       }
-      let info = '可用目标：\n';
-      for (const e of enemies) {
-        const dist = Battle.getDistance(Player.position, e.position);
-        const primaryWeapon = Player.getEquippedWeapons()[0];
-        const inRange = primaryWeapon && dist <= primaryWeapon.range;
-        info += `  ${e.instanceId} - ${e.name} (距离${dist.toFixed(0)}m) ${inRange ? '[射程内]' : '[超射程]'}\n`;
-      }
-      info += '用法：fire <目标编号> [武器槽]\n';
-      info += '  武器槽: all(默认) 或接口编号（见 bag），默认所有就绪武器开火';
-      Msg.info(info);
-      return;
     }
     const targetId = args[0].toUpperCase();
     const slotArg = args[1] || 'all';
@@ -671,6 +844,25 @@ const CommandSystem = {
         return `${w ? w.name : s}:${(Player.weaponCooldowns[s]||0).toFixed(1)}s`;
       }).join(', ');
       Msg.warn(`所有指定武器都在冷却中（${cdInfo}）。`);
+      return;
+    }
+
+    // 操作阶段：记录武器开火意图，等待 execute 提交（不立即开火）
+    if (Battle.isPlayerActionPhase() && Battle.playerActionState) {
+      let assigned = 0;
+      for (const s of readySlots) {
+        const w = Battle.playerActionState.weapons[s];
+        if (w && w.ready) {
+          Battle.setWeaponAction(s, 'fire', targetId);
+          assigned++;
+        }
+      }
+      if (assigned > 0) {
+        const names = readySlots.map(s => Player.equipment[s]?.equip?.name).filter(Boolean).join('/');
+        Msg.hint(`已指定 ${names} 开火 → ${enemy.name}[${targetId}]（点击执行提交）。`);
+      } else {
+        Msg.hint('没有就绪武器可指定开火。');
+      }
       return;
     }
 
@@ -807,25 +999,24 @@ const CommandSystem = {
   },
  
   showBattleHelp() {
-    const help = `🚀 战场指令帮助：
-move <x> <y>     - 移动到指定坐标（点击雷达图自动填充）
-move <方向> <距离> - 向方向移动指定距离 (n/s/e/w/ne/nw/se/sw)
-move <方向>      - 主方向(n/s/e/w)：移动到边界并切换场景
-move <目标编号>   - 移动到敌人/NPC附近
-enter <方向>     - 切换相邻场景（需位于该方向边界 10m 内）
-fire <目标> [槽] - 攻击目标 (目标如A1，槽:#1/#2/all，默认all所有就绪武器)
-call <目标>      - 与 NPC 通信（需距离 ≤ 100m）
-wait [秒数]      - 打断所有行动，等待指定秒数；无参数则等待至下一个事件
-continue/cont    - 不打断当前动作，等待N秒或下一个武器冷却；移动中跳过开火
-use <物品>       - 使用物品（如修复装甲）
-reload <槽>      - 手动装填弹药（槽:#1/#2，见bag）
-look [目标]      - 查看战场或指定目标（如 look N1）
-timeline         - 查看时间轴
-retreat          - 撤退
-status / bag     - 查看状态/背包
-help             - 查看帮助
-movepredict/mp   - 预测移动时间`;
-    Msg.info(help);
+    const help = CommandRegistry.getCommandHelp('battle');
+    let text = '🚀 战场指令帮助：\n';
+    
+    // 全局指令
+    text += '── 全局指令 ──\n';
+    for (const entry of help.global) {
+      const args = entry.args ? ` ${entry.args}` : '';
+      text += `  ${entry.cmd}${args} - ${entry.desc}\n`;
+    }
+    
+    // 战场指令
+    text += '\n── 战场指令 ──\n';
+    for (const entry of help.battle) {
+      const args = entry.args ? ` ${entry.args}` : '';
+      text += `  ${entry.cmd}${args} - ${entry.desc}\n`;
+    }
+    
+    Msg.info(text);
   }
 };
 

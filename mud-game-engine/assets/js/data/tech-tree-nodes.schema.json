@@ -1,0 +1,100 @@
+{
+  "id": "tech-tree",
+  "nameZh": "科技树节点数据库",
+  "description": "工业开发树节点（原材料→工业品→装备三级供应链），节点解锁后开放下游节点依赖、允许建造对应设施并通知经济系统开放物资供应",
+  "globalVar": "TechTreeDB",
+  "dataFile": "tech-tree-nodes.json",
+  "primaryKey": "nodeId",
+  "recordNameZh": "科技树节点",
+  "structure": "records",
+  "fields": [
+    {
+      "name": "nodeId",
+      "nameZh": "节点ID",
+      "comment": "节点唯一标识（主键，通常与对应物资 id 同名，如 iron_ore 铁矿石），供前置依赖与解锁奖励引用",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "name",
+      "nameZh": "节点名称",
+      "comment": "节点显示名称（开发树面板与解锁新闻通知中使用，如：铁矿石）",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "layer",
+      "nameZh": "层级",
+      "comment": "节点所在的供应链层级：1=原材料（第一层，如铁矿石），2=工业品（第二层，如铁锭/钢锭），3=装备（第三层，如装甲板），用于控制解锁逻辑分支",
+      "type": "number",
+      "required": true,
+      "default": 1,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "type",
+      "nameZh": "节点类型",
+      "comment": "节点分类：raw_material=原材料产地、industrial=加工生产线（工业品）、equipment=装备供应，决定解锁条件与奖励类型的分支",
+      "type": "enum",
+      "required": true,
+      "default": "raw_material",
+      "options": ["raw_material", "industrial", "equipment"],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "prerequisites",
+      "nameZh": "前置节点",
+      "comment": "前置节点 id 列表，元素为本库其他节点的 nodeId（ref tech-tree，如 ['iron_ore']）；全部前置解锁后本节点才具备解锁条件，源头节点为空数组",
+      "type": "array",
+      "required": true,
+      "default": [],
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "isUnlocked",
+      "nameZh": "是否已解锁",
+      "comment": "节点解锁状态（存档初始值）：解锁后开放下游节点依赖并触发 unlockRewards 奖励；true=初始已解锁（基础节点，如铁矿石），false=需通过 NPC 时间确认或玩家生产解锁",
+      "type": "boolean",
+      "required": true,
+      "default": false,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "unlockRewards",
+      "nameZh": "解锁奖励",
+      "comment": "节点解锁后触发的效果列表，元素结构：{type: 效果类型, target: 目标 id}；type 取值：allow_build=允许建造设施（target 为 facility 库的设施 facilityId，如 furnace_small）、notify_economy=通知经济系统开放物资供应/配额（target 为物资 id，如 iron_ore）",
+      "type": "array",
+      "required": true,
+      "default": [],
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "newsText",
+      "nameZh": "新闻文本",
+      "comment": "节点解锁时在日志/通知中显示的新闻消息（🏭 前缀工业新闻，如：🏭 基地宣布：铁锭供应已就绪……）",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    }
+  ]
+}

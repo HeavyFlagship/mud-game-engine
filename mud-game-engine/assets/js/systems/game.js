@@ -2,6 +2,9 @@
 const Game = {
   commandHistory: [],
   historyIndex: -1,
+  // 冷却条平滑显示状态：slotKey -> { value }；_cdLastReal 为上次刷新的真实时间戳（秒）
+  _cdSmooth: {},
+  _cdLastReal: 0,
  
   init() {
     Msg.init();
@@ -10,6 +13,11 @@ const Game = {
     Player.visitedRooms.add(Player.room);
     Timeline.init();
     BattleUI.init();
+    if (typeof TechTree !== 'undefined') TechTree.init();
+    if (typeof FacilitySystem !== 'undefined') FacilitySystem.init();
+    if (typeof SupplyDemand !== 'undefined') SupplyDemand.init();
+    if (typeof QuotaSystem !== 'undefined') QuotaSystem.init();
+    if (typeof QuestSystem !== 'undefined') QuestSystem.init();
  
     const inputEl = document.getElementById('input');
     inputEl.addEventListener('keydown', (e) => {
@@ -72,7 +80,13 @@ const Game = {
     Msg.divider();
     Msg.add(`<span class="room-name">【${room.name}】</span>`, 'info');
     Msg.info(room.desc);
- 
+
+    // 丰富描述
+    const enriched = this.getRoomDescription(room);
+    if (enriched) {
+      Msg.info(enriched);
+    }
+
     const exits = Object.keys(room.exits || {});
     if (exits.length > 0) {
       const exitStr = exits.map(e => `<span class="direction">${MapSystem.getDirectionName(e)}</span>`).join('、');
@@ -119,6 +133,98 @@ const Game = {
     if (room.id === 'outpost_repair') {
       Msg.info('🔧 维修站提供改装服务。输入 <span class="help-cmd">upgrade</span> 升级核心计算机或核心动力。');
     }
+
+    // 显示可采集资源点
+    const resourcePoints = MapSystem.getResourcePoints(room.id);
+    if (resourcePoints.length > 0) {
+      const nameList = resourcePoints.map(r => r.name).join('、');
+      Msg.info(`🔍 可采集资源: ${nameList}`);
+      Msg.system('提示: 输入 <span class="help-cmd">gather</span> 采集所有资源点。');
+    }
+  },
+
+  getRoomDescription(room) {
+    if (!room) return '';
+    const parts = [];
+    const id = room.id.toLowerCase();
+
+    // 地形描述
+    if (room.battlefield && room.battlefield.terrain) {
+      const terrainDescs = {
+        flat: '地表平坦坚实，适合快速行进。',
+        rocky: '地表由碎石覆盖，行走困难。',
+        sandy: '松软的沙地使每一步都陷入其中。',
+        crystal: '地面覆盖着闪烁的结晶矿脉，踩上去发出清脆的声响。',
+        cave: '洞穴地面凹凸不平，洞壁上镶嵌着发光的矿脉。',
+        metal_floor: '金属地板在脚下发出沉闷的回响。'
+      };
+      const desc = terrainDescs[room.battlefield.terrain];
+      if (desc) parts.push(desc);
+    }
+
+    // 区域类型描述
+    if (id.startsWith('wasteland_') || id.startsWith('arid_')) {
+      parts.push('赤褐色的荒原向远方延伸，空气中弥漫着干燥的硫化物气味。');
+    } else if (id.startsWith('wild_')) {
+      parts.push('荒野地带，风化的岩屑和稀疏的结晶矿脉散布四周。');
+    } else if (id.startsWith('cave_') || id.startsWith('mine_')) {
+      parts.push('矿洞的黑暗被辉锗矿的幽蓝光芒照亮，虫群的活动痕迹随处可见。');
+    } else if (id.startsWith('mech_')) {
+      parts.push('远古机械的遗迹中，锈蚀的金属结构在昏暗的光线中若隐若现。');
+    } else if (id.startsWith('front_')) {
+      parts.push('前沿区域危机四伏，空气中弥漫着紧张的气息。');
+    } else if (id.startsWith('spec_')) {
+      parts.push('奇异的自然地貌让人不禁驻足，地表呈现出不自然的色彩和纹理。');
+    } else if (id.startsWith('trans_')) {
+      parts.push('地形逐渐发生变化，过渡地带连接着两个截然不同的区域。');
+    }
+
+    // 危险信息
+    if (room.battlefield && room.battlefield.hazards && room.battlefield.hazards.length > 0) {
+      const hazardDescs = room.battlefield.hazards.map(h => {
+        if (h.type === 'acid_pool' || h.type === 'emi' || h.type === 'em_interference' || h.type === 'toxic_fog') {
+          const names = { acid_pool: '酸性雾气弥漫在空气中', emi: '空气中充满了电磁干扰的嗡嗡声', em_interference: '空气中充满了电磁干扰的嗡嗡声', toxic_fog: '有毒的雾气在地面低洼处聚集' };
+          return names[h.type] || '';
+        }
+        return '';
+      }).filter(Boolean);
+      if (hazardDescs.length > 0) {
+        parts.push(hazardDescs.join('；') + '。');
+      }
+    }
+
+    // 资源信息
+    const resourcePoints = MapSystem.getResourcePoints(room.id);
+    if (resourcePoints.length > 0) {
+      const hasIron = resourcePoints.some(r => r.itemId === 'iron_ore');
+      const hasCopper = resourcePoints.some(r => r.itemId === 'copper_ore');
+      const hasGermanite = resourcePoints.some(r => r.itemId === 'germanite_shard');
+      const hasMechParts = resourcePoints.some(r => r.itemId === 'mech_parts');
+      const hasAlloy = resourcePoints.some(r => r.itemId === 'alloy_fragment');
+
+      if (hasGermanite) {
+        parts.push('岩壁上闪烁着辉锗矿的幽蓝光泽，仿佛星辰落入凡间。');
+      } else if (hasIron || hasCopper) {
+        parts.push('岩壁上闪烁着矿石的光泽，隐约可见矿脉的轮廓。');
+      } else if (hasMechParts || hasAlloy) {
+        parts.push('残骸中散落着可用的机械零件，金属碎片在光线下反射着微光。');
+      }
+    }
+
+    // 敌人信息
+    if (room.battlefield && room.battlefield.enemies && room.battlefield.enemies.length > 0) {
+      const bf = MapSystem.getBattlefield(room.id);
+      if (bf) {
+        const alive = bf.enemies.filter(e => e.hp > 0).length;
+        if (alive > 0) {
+          parts.push(`雷达探测到${alive}个敌对信号，保持警惕。`);
+        }
+      } else {
+        parts.push(`雷达探测到${room.battlefield.enemies.length}个敌对信号。`);
+      }
+    }
+
+    return parts.join(' ');
   },
  
   move(direction) {
@@ -155,14 +261,25 @@ const Game = {
       Player.position = entryPos;
       BattleUI.remove();
     }
+    // Update quest explore objectives
+    if (typeof QuestSystem !== 'undefined') {
+      for (const [questId, active] of Object.entries(QuestSystem.activeQuests)) {
+        if (active.completed) continue;
+        const quest = QuestDB[questId];
+        if (!quest) continue;
+        for (const obj of quest.objectives) {
+          if (obj.type === 'explore') {
+            QuestSystem.updateProgress(questId, obj.id, 1);
+          }
+        }
+      }
+    }
     this.look();
     this.updateUI();
   },
- 
-  showBag(showDetail = false) {
-    Msg.divider();
-    Msg.add('🎒 背包', 'info');
 
+  // 机体与装备信息（背包/状态指令共用），保证两处显示一致
+  showMechaEquip() {
     // 预算信息
     Msg.info(`功率: ${Player.budget.powerUsed.toFixed(1)}/${Player.budget.powerMax}kW  算力: ${Player.budget.computeUsed.toFixed(1)}/${Player.budget.computeMax}MFlops  装备舱: ${Player.budget.bayUsed.toFixed(2)}/${Player.budget.bayMax}m³`);
 
@@ -209,6 +326,14 @@ const Game = {
     if (!hasEquip) {
       Msg.system('（接口无装备）');
     }
+  },
+
+  showBag(showDetail = false) {
+    Msg.divider();
+    Msg.add('🎒 背包', 'info');
+
+    // 机体与装备信息（与状态指令共用同一套详细显示）
+    this.showMechaEquip();
 
     // 资源信息
     const res = Player.resources;
@@ -221,6 +346,7 @@ const Game = {
     }
 
     Msg.info('── 背包物品 ──');
+    Msg.info(`货舱体积: ${Player.getUsedCargoVolume().toFixed(2)}/${Player.getCargoCapacity().toFixed(2)}m³`);
     if (Player.inventory.length === 0) {
       Msg.system('背包是空的。');
     } else {
@@ -240,6 +366,7 @@ const Game = {
             const syms = item.interfaceReq.map(t => Player.getInterfaceSymbol(t)).join('');
             statsStr.push(`[${syms}]`);
           }
+          if (item.cargoVolume) statsStr.push(`体积${item.cargoVolume}m³`);
           const extra = statsStr.length ? ` [${statsStr.join(', ')}]` : '';
           const desc = showDetail ? ` - ${item.desc}` : '';
           Msg.info(`  #${idx + 1} <span class="item-tag ${item.type}">${item.name}</span>${countStr}${extra}${desc}`);
@@ -253,38 +380,20 @@ const Game = {
     Msg.divider();
     Msg.add('📜 机体状态', 'info');
     Msg.info(`驾驶员: ${Player.name}  等级: <span class="stat-value exp">Lv.${Player.level}</span>`);
-    Msg.info(`机体: ${VehicleDB[Player.vehicleId]?.name || Player.vehicleId}`);
+
+    // 机体基础信息（含重量/目标半径/信号半径等此前未显示的属性）
+    const vehicle = VehicleDB[Player.vehicleId];
+    const chassisNames = { biped: '双足', quad: '四足', wheel: '轮式', tracked: '履带' };
+    const chassisName = vehicle ? (chassisNames[vehicle.chassis] || vehicle.chassis) : '';
+    Msg.info(`机体: <span class="item-tag core">${vehicle?.name || Player.vehicleId}</span>${chassisName ? ` (${chassisName})` : ''}  重量: ${Player.weight}kg`);
     Msg.info(`结构值: <span class="stat-value hp">${Player.hp}</span>/${Player.maxHp}  装甲: <span class="stat-value">${Player.armor}</span>/${Player.maxArmor}`);
     Msg.info(`能量: <span class="stat-value mp">${Math.floor(Player.energy)}</span>/${Player.maxEnergy} (恢复+${Player.energyRegen}/s)`);
     Msg.info(`速度: ${Player.currentSpeed.toFixed(1)}m/s  视野: ${Player.visionRadius}m`);
-    Msg.info(`功率: ${Player.budget.powerUsed}/${Player.budget.powerMax}kW  算力: ${Player.budget.computeUsed}/${Player.budget.computeMax}MFlops  装备舱: ${Player.budget.bayUsed}/${Player.budget.bayMax}m³`);
+    Msg.info(`货舱: ${Player.getUsedCargoVolume().toFixed(2)}/${Player.getCargoCapacity().toFixed(2)}m³  目标半径: ${Player.targetRadius}m  信号半径: ${Player.signalRadius}m`);
     Msg.info(`经验: ${Player.exp}/${Player.expToNext}`);
 
-    // 显示核心模块
-    if (Player.coreComputer) {
-      Msg.info(`  核心计算机: ${Player.coreComputer.name} [算力+${Player.coreComputer.coreOutput}]`);
-    }
-    if (Player.corePower) {
-      Msg.info(`  核心动力: ${Player.corePower.name} [功率+${Player.corePower.coreOutput}]`);
-    }
-
-    // 显示接口装备
-    let statusSlotNum = 0;
-    for (const [key, slot] of Object.entries(Player.equipment)) {
-      statusSlotNum++;
-      const desc = Player.getSlotDesc(key);
-      const e = slot.equip;
-      if (e) {
-        const stats = [];
-        if (e.damage) stats.push(`伤害${e.damage}`);
-        if (e.armorValue) stats.push(`装甲${e.armorValue}`);
-        if (e.range) stats.push(`射程${e.range}m`);
-        if (e.cooldown) stats.push(`冷却${e.cooldown}s`);
-        if (e.capacity) stats.push(`容量${e.capacity}`);
-        const extra = stats.length ? ` [${stats.join(' ')}]` : '';
-        Msg.info(`  #${statusSlotNum} ${desc}: ${e.name}${extra}`);
-      }
-    }
+    // 机体与装备信息（与背包共用同一套详细显示：功率/算力/装备舱、接口、核心模块、接口装备）
+    this.showMechaEquip();
 
     // 资源
     const res = Player.resources;
@@ -307,7 +416,7 @@ const Game = {
 
     if (Player.statusEffects.length > 0) {
       const effStr = Player.statusEffects.map(e => {
-        const names = { slow:'减速', poison:'中毒', burn:'灼烧', shock:'电击', corrosion:'腐蚀', stun:'眩晕', ion_disrupt:'EMP干扰' };
+        const names = { slow:'减速', poison:'中毒', burn:'灼烧', shock:'电击', corrosion:'腐蚀', stun:'眩晕', ion_disrupt:'EMP干扰', jam:'干扰', track:'锁定', em_interference:'电磁干扰' };
         return `${names[e.type] || e.type}(${e.duration.toFixed(0)}秒)`;
       }).join(' ');
       Msg.info(`状态效果: ${effStr}`);
@@ -490,6 +599,102 @@ const Game = {
       Msg.warning('该物品无法直接使用。');
     }
   },
+
+  // ===== 物品详情 =====
+  // 已知属性 -> [中文标签, 单位]（无单位则只给标签）
+  _itemAttrMeta: {
+    id: 'ID', name: '名称', desc: '描述',
+    type: '类型', category: '类别', subCategory: '子类别',
+    price: ['价格', 'G'], weight: ['质量', 'kg'], cargoVolume: ['货舱体积', 'm³'],
+    equipVolume: ['装备体积', 'm³'], powerReq: ['功率需求', 'kW'], computeReq: ['算力需求', 'MFlops'], interfaceReq: '接口需求',
+    cooldown: ['冷却', 's'], cycle: '循环',
+    damage: '伤害', damageType: '伤害类型', damageVariance: '伤害浮动', damageTable: '伤害分布', damageRange: '爆炸范围',
+    range: ['射程', 'm'], optimalRange: ['最佳射程', 'm'], minRange: ['最小射程', 'm'], spread: '散布', energyCost: ['能量消耗', 'MJ'], energyPerShot: ['每发能量', 'MJ'], magazine: '弹匣容量', ammoPerShot: '每发弹药',
+    flightSpeed: ['飞行速度', 'm/s'], flightTime: ['飞行时间', 's'], launchBay: '发射仓', launchCount: '齐射数量',
+    scanRange: ['扫描半径', 'm'], scanAccuracy: '扫描精度', jamResist: '抗干扰', trackDuration: ['锁定时间', 's'], visionBonus: ['视野加成', 'm'], jamRange: ['干扰半径', 'm'], jamStrength: '干扰强度', effectRange: ['效果半径', 'm'], effectDuration: ['效果时间', 's'],
+    armorValue: '装甲值', kinResist: '动能抗性', thermResist: '热能抗性', shockResist: '震荡抗性', dynamicResist: '动态抗性',
+    repairAmount: '修复量', generateAmount: ['产生量', '/s'], materialBay: '材料仓', materialCost: '材料消耗',
+    capacity: '容量', containerType: '容器类型',
+    repairTarget: '修复目标', repairMaterial: '修复材料', repairMaterialCost: '材料消耗', energyPerCycle: ['每周期能量', 'MJ'], inCombat: '战斗可用',
+    coreType: '核心类型', coreOutput: '核心输出',
+    healHp: '修复结构', healArmor: '修复装甲', energy: ['恢复能量', 'MJ'],
+    chassis: '机体结构', maxHp: '结构上限', maxArmor: '装甲上限', maxSpeed: ['最大速度', 'm/s'], visionRadius: ['视野', 'm'], signalRadius: ['信号半径', 'm'], targetRadius: ['目标半径', 'm'], equipmentBay: ['装备舱', 'm³'], cargo: ['货舱', 'm³'], energyCapacity: ['能量上限', 'MJ'], energyRegen: ['能量恢复', 'MJ/s'], overweightCoeff: '超重系数', interfaces: '接口配置', defaultWeapons: '默认武器', defaultArmor: '默认装甲', compatibleComputers: '兼容计算机', compatiblePowers: '兼容动力', defaultCoreComputer: '默认核心计算机', defaultCorePower: '默认核心动力'
+  },
+
+  _itemTypeNames: {
+    weapon: '武器', ew: '电子战', armor: '装甲', generator: '生成器', container: '容器',
+    repairer: '修复器', core: '核心模块', consumable: '消耗品', material: '材料', ammo: '弹药', vehicle: '机体'
+  },
+  _damageTypeNames: { kinetic: '动能', thermal: '热能', shock: '震荡', ion: '离子', explosive: '爆炸', emp: '电磁' },
+  _containerTypeNames: { energy: '能量', ion: '离子', fuel: '燃料' },
+  _coreTypeNames: { computer: '计算机', power: '动力' },
+  _chassisNames: { biped: '双足', quad: '四足', wheel: '轮式', tracked: '履带' },
+
+  _formatItemAttr(key, value) {
+    if (value === undefined || value === null) return null;
+    if (key === 'type' || key === 'category') return this._itemTypeNames[value] || value;
+    if (key === 'damageType') return this._damageTypeNames[value] || value;
+    if (key === 'containerType') return this._containerTypeNames[value] || value;
+    if (key === 'coreType') return this._coreTypeNames[value] || value;
+    if (key === 'chassis') return this._chassisNames[value] || value;
+    if (key === 'inCombat') return value ? '是' : '否';
+    if (Array.isArray(value)) {
+      if (key === 'interfaceReq') return value.join(' / ');
+      if (key === 'defaultWeapons' || key === 'defaultArmor' || key === 'compatibleComputers' || key === 'compatiblePowers') {
+        return value.map(id => (ItemDB.get(id)?.name) || id).join(' / ');
+      }
+      if (key === 'interfaces') {
+        return value.map(intf => `${intf.count}×[${(intf.types || []).join('/')}]`).join('  ');
+      }
+      return value.join(' / ');
+    }
+    if (typeof value === 'object') {
+      return Object.entries(value).map(([k, v]) => `${k}:${v}`).join(', ');
+    }
+    return String(value);
+  },
+
+  // 查看物品详情：item <编号|物品名>
+  showItemDetail(arg) {
+    if (!arg) { Msg.warning('用法: item <编号|物品名>  查看物品全部属性'); return; }
+    let item = null;
+    const num = parseInt(arg);
+    if (!isNaN(num) && num >= 1) {
+      item = Player.inventory[num - 1];
+      if (!item) { Msg.danger(`背包中没有第 ${num} 件物品。`); return; }
+    } else {
+      item = this.findItemInBag(arg);
+      if (!item) {
+        const direct = ItemDB.get(arg);
+        if (direct) item = { id: arg, count: 1 };
+      }
+      if (!item) { Msg.danger('背包中没有该物品，也未找到该物品。'); return; }
+    }
+    // 载具直接取完整定义，其余物品经 ItemDB 查询
+    const template = VehicleDB[item.id] || ItemDB.get(item.id);
+    if (!template) { Msg.danger('未找到该物品的定义。'); return; }
+
+    Msg.divider();
+    Msg.add(`📦 物品详情: <span class="item-tag ${template.type}">${template.name}</span>${item.count > 1 ? ` ×${item.count}` : ''}`, 'info');
+
+    let desc = null;
+    const lines = [];
+    for (const key of Object.keys(template)) {
+      if (key === 'desc') { desc = template.desc; continue; }
+      const raw = template[key];
+      const val = this._formatItemAttr(key, raw);
+      if (val === null || val === '') continue;
+      const meta = this._itemAttrMeta[key];
+      if (meta) {
+        if (Array.isArray(meta)) lines.push(`${meta[0]}: <span class="stat-value">${val}</span>${meta[1] ? ` ${meta[1]}` : ''}`);
+        else lines.push(`${meta}: <span class="stat-value">${val}</span>`);
+      } else {
+        lines.push(`${key}: <span class="stat-value">${val}</span>`);
+      }
+    }
+    for (const line of lines) Msg.info(`  ${line}`);
+    if (desc) Msg.info(`  📝 ${desc}`);
+  },
  
   callNPC(npcName) {
     if (Battle.active && Battle.battlefield) {
@@ -518,11 +723,31 @@ const Game = {
 
   pickItem(itemName) {
     const room = MapSystem.getRoom(Player.room);
-    if (!room || !room.items || room.items.length === 0) {
+    
+    // 检查是否在指定资源点采集
+    const resourcePoints = MapSystem.getResourcePoints(room.id);
+    const hasResources = resourcePoints.length > 0;
+    
+    if ((!room || !room.items || room.items.length === 0) && !hasResources) {
       Msg.warning('这里没有可拾取的物品。');
       return;
     }
+    
     if (itemName) {
+      // 先尝试匹配资源点
+      const resourceMatch = resourcePoints.find(r => r.name === itemName || r.itemId === itemName);
+      if (resourceMatch) {
+        const count = resourceMatch.rarity === 'rare' ? Utils.rand(1, 2) : Utils.rand(1, 3);
+        Player.addItem(resourceMatch.itemId, count);
+        Msg.success(`⛏ 采集了 <span class="item-tag material">${resourceMatch.name}</span> x${count}`);
+        return;
+      }
+      
+      if (!room || !room.items || room.items.length === 0) {
+        Msg.warning('没有找到该物品。');
+        return;
+      }
+      
       const num = parseInt(itemName, 10);
       let idx = -1;
       if (!isNaN(num) && num >= 1 && num <= room.items.length) {
@@ -541,8 +766,8 @@ const Game = {
       MapSystem.recordChange(room.id, 'remove', itemId);
       Msg.success(`📦 拾取了 <span class="item-tag ${item.type}">${item.name}</span>`);
     } else {
-      const items = [...room.items];
-      room.items = [];
+      const items = room.items ? [...room.items] : [];
+      if (room.items) room.items = [];
       items.forEach(id => {
         const item = ItemDB[id];
         if (item) {
@@ -599,6 +824,31 @@ const Game = {
     }
   },
  
+  compareEquipment(shopItem, equippedItem) {
+    const stats = [
+      { key: 'damage',       label: '伤害',   unit: '' },
+      { key: 'armorValue',   label: '装甲',   unit: '' },
+      { key: 'range',        label: '射程',   unit: 'm' },
+      { key: 'cooldown',     label: '冷却',   unit: 's' },
+      { key: 'powerReq',     label: '功率',   unit: 'kW' },
+      { key: 'computeReq',   label: '算力',   unit: '' }
+    ];
+    const results = [];
+    for (const stat of stats) {
+      const shopVal = shopItem[stat.key] || 0;
+      const equipVal = equippedItem[stat.key] || 0;
+      if (shopVal === 0 && equipVal === 0) continue;
+      const diff = shopVal - equipVal;
+      if (diff === 0) continue;
+      const better = (stat.key === 'cooldown' || stat.key === 'powerReq' || stat.key === 'computeReq')
+        ? (diff < 0) : (diff > 0);
+      const arrow = better ? '▲' : '▼';
+      const sign = diff > 0 ? '+' : '';
+      results.push({ stat: stat.label, key: stat.key, diff, better, arrow, sign, unit: stat.unit });
+    }
+    return results;
+  },
+
   shop(action) {
     const room = MapSystem.getRoom(Player.room);
     if (!room || !room.isShop) {
@@ -662,6 +912,30 @@ const Game = {
             const extra = stats.length ? ` [${stats.join(',')}]` : '';
             const catTag = item.category ? `[${item.category}] ` : '';
             Msg.info(`  ${idx+1}. ${catTag}<span class="item-tag ${item.type}">${item.name}</span>${extra} - ${item.price}G`);
+
+            // 装备对比：仅对武器/装甲类装备显示
+            if (item.category === 'weapon' || item.category === 'armor' || item.type === 'weapon' || item.type === 'armor') {
+              let equippedItem = null;
+              let equippedSlotName = '';
+              const cmpType = item.type || item.category;
+              for (const [slotKey, slot] of Object.entries(Player.equipment)) {
+                const eq = slot.equip;
+                if (eq && (eq.type === cmpType || eq.category === cmpType)) {
+                  equippedItem = eq;
+                  equippedSlotName = Player.getSlotDesc(slotKey);
+                  break;
+                }
+              }
+              if (equippedItem) {
+                const comp = this.compareEquipment(item, equippedItem);
+                if (comp.length > 0) {
+                  const compStr = comp.map(c => `${c.stat} ${item[c.key] || 0}${c.unit} ${c.arrow}${c.sign}${c.diff}${c.unit}`).join(' | ');
+                  Msg.info(`    <span style="color:#888;font-size:0.85em;">对比 ${equippedSlotName}: ${compStr}</span>`);
+                } else {
+                  Msg.info(`    <span style="color:#888;font-size:0.85em;">对比 ${equippedSlotName}: ${equippedItem.name} (属性相同)</span>`);
+                }
+              }
+            }
           }
         });
       }
@@ -692,11 +966,11 @@ const Game = {
           Msg.warning('你已经拥有该机体了。');
           return;
         }
-        if (Player.gold < (vehicle.price || 0)) {
+        if (Player.credits < (vehicle.price || 0)) {
           Msg.danger('资金不足！');
           return;
         }
-        Player.gold -= vehicle.price || 0;
+        Player.credits -= vehicle.price || 0;
         Player.hangar.push({
           vehicleId: targetItem.id,
           equipment: {},
@@ -707,9 +981,12 @@ const Game = {
         Msg.success(`💰 购买了机体 <span class="item-tag core">${vehicle.name}</span>，花费 ${vehicle.price || 0}G`);
         Msg.info('输入 hangar 查看机库，switch <编号> 切换机体。');
       } else {
-        if (Player.gold < targetItem.price) { Msg.danger('资金不足！'); return; }
-        Player.gold -= targetItem.price;
-        Player.addItem(targetItem.id);
+        if (Player.credits < targetItem.price) { Msg.danger('资金不足！'); return; }
+        if (!Player.addItem(targetItem.id)) {
+          Msg.danger('货舱体积不足，购买失败。');
+          return;
+        }
+        Player.credits -= targetItem.price;
         Msg.success(`💰 购买了 <span class="item-tag ${targetItem.type}">${targetItem.name}</span>，花费 ${targetItem.price}G`);
       }
     }
@@ -723,7 +1000,7 @@ const Game = {
     if (!template || !template.price) { Msg.danger('该物品无法出售。'); return; }
     const sellPrice = Math.max(1, Math.floor(template.price * 0.5));
     Player.removeItem(item.id);
-    Player.gold += sellPrice;
+    Player.credits += sellPrice;
     Msg.success(`💰 出售了 <span class="item-tag ${template.type}">${template.name}</span>，获得 ${sellPrice}G`);
   },
 
@@ -774,7 +1051,7 @@ const Game = {
     if (!action) {
       Msg.divider();
       Msg.add(`🔧 ${vehicleName} 改装服务`, 'info');
-      Msg.info(`当前资金：${Player.gold}G`);
+      Msg.info(`当前资金：${Player.credits}G`);
       Msg.divider();
       Msg.add('💻 核心计算机', 'info');
       if (currentComputer) {
@@ -786,7 +1063,7 @@ const Game = {
         compatibleComputers.forEach((comp, idx) => {
           const owned = currentComputer && currentComputer.id === comp.id;
           const upgradeTag = owned ? ' ✅已装备' : '';
-          const canAfford = Player.gold >= comp.price ? '' : ' 🔒';
+          const canAfford = Player.credits >= comp.price ? '' : ' 🔒';
           Msg.info(`  ${idx+1}. <span class="item-tag core">${comp.name}</span> - 算力+${comp.coreOutput} MFlops - ${comp.price}G${upgradeTag}${canAfford}`);
         });
       } else {
@@ -803,7 +1080,7 @@ const Game = {
         compatiblePowers.forEach((power, idx) => {
           const owned = currentPower && currentPower.id === power.id;
           const upgradeTag = owned ? ' ✅已装备' : '';
-          const canAfford = Player.gold >= power.price ? '' : ' 🔒';
+          const canAfford = Player.credits >= power.price ? '' : ' 🔒';
           Msg.info(`  ${idx+1}. <span class="item-tag core">${power.name}</span> - 功率+${power.coreOutput} kW - ${power.price}G${upgradeTag}${canAfford}`);
         });
       } else {
@@ -829,14 +1106,14 @@ const Game = {
         Msg.warning('已经装备了该核心计算机。');
         return;
       }
-      if (Player.gold < target.price) {
-        Msg.danger(`资金不足！需要 ${target.price}G，当前 ${Player.gold}G`);
+      if (Player.credits < target.price) {
+        Msg.danger(`资金不足！需要 ${target.price}G，当前 ${Player.credits}G`);
         return;
       }
       if (currentComputer) {
         Player.budget.computeMax -= currentComputer.coreOutput || 0;
       }
-      Player.gold -= target.price;
+      Player.credits -= target.price;
       Player.coreComputer = { ...target };
       Player.budget.computeMax += target.coreOutput || 0;
       Msg.success(`💰 改装完成！安装了 <span class="item-tag core">${target.name}</span>，算力+${target.coreOutput} MFlops，花费 ${target.price}G`);
@@ -851,14 +1128,14 @@ const Game = {
         Msg.warning('已经装备了该核心动力。');
         return;
       }
-      if (Player.gold < target.price) {
-        Msg.danger(`资金不足！需要 ${target.price}G，当前 ${Player.gold}G`);
+      if (Player.credits < target.price) {
+        Msg.danger(`资金不足！需要 ${target.price}G，当前 ${Player.credits}G`);
         return;
       }
       if (currentPower) {
         Player.budget.powerMax -= currentPower.coreOutput || 0;
       }
-      Player.gold -= target.price;
+      Player.credits -= target.price;
       Player.corePower = { ...target };
       Player.budget.powerMax += target.coreOutput || 0;
       Msg.success(`💰 改装完成！安装了 <span class="item-tag core">${target.name}</span>，功率+${target.coreOutput} kW，花费 ${target.price}G`);
@@ -932,6 +1209,8 @@ const Game = {
           ['bag (inv/i)', '查看背包和装备'],
           ['status (sta)', '查看机体状态'],
           ['map', '查看区域地图'],
+          ['gather (采集)', '采集当前区域的资源点'],
+          ['pick [物品名]', '拾取物品/资源'],
           ['score/stats', '查看任务统计'],
           ['clear', '清空屏幕'],
         ]
@@ -973,6 +1252,10 @@ const Game = {
           ['import [物品]', '取出仓库'],
           ['wequip [物品]', '从仓库直接装备'],
           ['upgrade', '改装核心计算机/核心动力（维修站）'],
+          ['工业 (industry)', '查看工业区与科技树'],
+          ['安装 <设施ID> (install)', '安装工业设施'],
+          ['使用设施 <设施ID>', '收集设施产出'],
+          ['调度 <设施ID> [start|stop]', '调度设施运行状态'],
         ]
       },
       npc: {
@@ -1020,7 +1303,7 @@ const Game = {
       hp: Player.hp, maxHp: Player.maxHp,
       armor: Player.armor, maxArmor: Player.maxArmor,
       energy: Player.energy, maxEnergy: Player.maxEnergy,
-      gold: Player.gold,
+      credits: Player.credits,
       room: Player.room,
       position: Player.position,
       inventory: Player.inventory,
@@ -1037,6 +1320,11 @@ const Game = {
       mapChanges: MapSystem.changes,
       savedAt: new Date().toISOString()
     };
+    if (typeof TechTree !== 'undefined') data.techTree = TechTree.getState();
+    if (typeof FacilitySystem !== 'undefined') data.facilities = FacilitySystem.getState();
+    if (typeof SupplyDemand !== 'undefined') data.supplyDemand = SupplyDemand.getState();
+    if (typeof QuotaSystem !== 'undefined') data.quota = QuotaSystem.getState();
+    if (typeof QuestSystem !== 'undefined') data.quests = QuestSystem.getState();
     try {
       localStorage.setItem('mud_save', JSON.stringify(data));
       Msg.success('💾 游戏已保存！');
@@ -1060,7 +1348,7 @@ const Game = {
         hp: data.hp, maxHp: data.maxHp,
         armor: data.armor, maxArmor: data.maxArmor,
         energy: data.energy, maxEnergy: data.maxEnergy,
-        gold: data.gold, room: data.room,
+        credits: data.credits || data.gold || 0, room: data.room,
         position: data.position || [500, 500],
         inventory: data.inventory || [],
         equipment: data.equipment || {},
@@ -1075,6 +1363,11 @@ const Game = {
         stats: data.stats || { totalDmg:0, totalHeal:0, monstersKilled:0, deaths:0 }
       });
       Battle.end();
+      if (data.techTree && typeof TechTree !== 'undefined') TechTree.loadState(data.techTree);
+      if (data.facilities && typeof FacilitySystem !== 'undefined') FacilitySystem.loadState(data.facilities);
+      if (data.supplyDemand && typeof SupplyDemand !== 'undefined') SupplyDemand.loadState(data.supplyDemand);
+      if (data.quota && typeof QuotaSystem !== 'undefined') QuotaSystem.loadState(data.quota);
+      if (data.quests && typeof QuestSystem !== 'undefined') QuestSystem.loadState(data.quests);
       Msg.clear();
       Msg.success('📂 存档已读取！');
       if (data.savedAt) {
@@ -1107,7 +1400,7 @@ const Game = {
   updateUI() {
     this.updatePlayerInfo();
     this.updateEquipInfo();
-    this.updateMinimap();
+    this.updateRegionMap();
     this.updateLocation();
   },
  
@@ -1118,6 +1411,9 @@ const Game = {
     const arPct = Player.maxArmor > 0 ? (Player.armor / Player.maxArmor * 100).toFixed(1) : 0;
     const enPct = (Player.energy / Player.maxEnergy * 100).toFixed(1);
     const expPct = (Player.exp / Player.expToNext * 100).toFixed(1);
+    const cap = Player.getCargoCapacity();
+    const used = Player.getUsedCargoVolume();
+    const cargoPct = cap > 0 ? (used / cap * 100).toFixed(1) : 0;
     el.innerHTML = `
       <div class="stat-row"><span class="stat-label">等级</span><span class="stat-value exp">Lv.${Player.level}</span></div>
       <div class="stat-row"><span class="stat-label">结构</span><span class="stat-value hp">${Player.hp}/${Player.maxHp}</span></div>
@@ -1130,7 +1426,9 @@ const Game = {
       <div class="bar-container"><div class="bar-fill exp" style="width:${expPct}%"></div></div>
       <div class="stat-row"><span class="stat-label">速度</span><span class="stat-value">${Player.currentSpeed.toFixed(1)}</span></div>
       <div class="stat-row"><span class="stat-label">视野</span><span class="stat-value">${Player.visionRadius}m</span></div>
-      <div class="stat-row"><span class="stat-label">资金</span><span class="stat-value gold">${Player.gold}G</span></div>
+      <div class="stat-row"><span class="stat-label">货舱</span><span class="stat-value">${used.toFixed(2)}/${cap.toFixed(2)}m³</span></div>
+      <div class="bar-container"><div class="bar-fill mp" style="width:${cargoPct}%"></div></div>
+      <div class="stat-row"><span class="stat-label">信用点</span><span class="stat-value gold">${Player.credits}G</span></div>
     `;
   },
  
@@ -1138,30 +1436,53 @@ const Game = {
     const el = document.getElementById('equip-info');
     if (!el) return;
 
+    const actionPhase = typeof Battle !== 'undefined' && Battle.isPlayerActionPhase();
+    const st = (actionPhase && Battle.playerActionState) ? Battle.playerActionState : null;
+    const lockedEnemy = typeof Battle !== 'undefined' ? Battle.getLockedEnemy() : null;
+    const lockedId = lockedEnemy ? lockedEnemy.instanceId : '';
+
     let html = '';
 
-    // 显示当前载具型号
+    // 机体卡片：状态显示在机体名称下方
     const vehicle = VehicleDB[Player.vehicleId];
     if (vehicle) {
-      html += `<div class="equip-item" style="border-bottom: 1px solid var(--border);padding-bottom:0.5rem;margin-bottom:0.5rem;">`;
-      html += `<div class="equip-slot">`;
-      html += `<span class="equip-slot-name">机体</span>`;
-      html += `<span class="equip-slot-item" style="color:var(--accent);font-weight:bold;">${vehicle.name}</span>`;
-      html += `</div></div>`;
+      const cs = (typeof Battle !== 'undefined') ? Battle.getChassisState() : { text: '待命', cls: 'idle' };
+      const chassisActionable = !!actionPhase;
+      html += `<div class="equip-card${chassisActionable ? ' actionable' : ''}">`;
+      html += `<div class="equip-card-header">`;
+      html += `<span class="equip-card-name">机体</span>`;
+      html += `<span class="equip-card-header-right">`;
+      html += `<span class="equip-card-slot">${vehicle.name}</span>`;
+      html += `<span class="chassis-status ${cs.cls}">${cs.text}</span>`;
+      html += `</span>`;
+      html += `</div>`;
+      if (chassisActionable && st) {
+        const chassisAction = st.chassis.action;
+        html += `<div class="equip-actions">`;
+        html += `<button class="equip-action-btn${chassisAction === 'move' ? ' active' : ''}" ${lockedEnemy ? '' : 'disabled'} title="${lockedEnemy ? '向锁定目标移动' : '需先锁定目标'}" onclick="Battle.setChassisMoveToEnemy('${lockedId}')">靠近目标</button>`;
+        html += `<button class="equip-action-btn${chassisAction === 'hold' && !st.chassis.holdFor ? ' active' : ''}" onclick="Battle.setChassisAction('hold')">待命</button>`;
+        html += `<button class="equip-action-btn${chassisAction === 'hold' && st.chassis.holdFor > 0 ? ' active' : ''}" onclick="Battle.fillHoldCommand('机体')">待命X秒</button>`;
+        html += `</div>`;
+      }
+      html += `</div>`;
     }
 
-    // 接口装备
+    // 接口装备卡片
     const slotKeys = Object.keys(Player.equipment);
     for (let i = 0; i < slotKeys.length; i++) {
       const key = slotKeys[i];
       const slot = Player.equipment[key];
       const item = slot.equip;
       if (!item) continue;
-
       const slotNum = i + 1;
-      let extraHtml = '';
 
+      // 武器卡片：弹药+冷却横向一行，状态集成在冷却上，操作按钮集成在卡片内
       if (item.category === 'weapon') {
+        const ws = (typeof Battle !== 'undefined') ? Battle.getWeaponState(key) : { text: '就绪', cls: 'ready' };
+        const wState = st && st.weapons[key];
+        const weaponActionable = !!(actionPhase && wState && wState.ready);
+
+        // 弹药显示
         const ammoMap = {
           '火炮': { type: '20mm_ap', name: '20mm弹' },
           '电磁炮': { type: 'railgun_slug', name: '轨道弹' },
@@ -1171,40 +1492,56 @@ const Game = {
           '近战': null
         };
         const ammoInfo = ammoMap[item.subCategory];
+        let ammoHtml = '';
         if (ammoInfo) {
           const magCurrent = Player.magazines[key] || 0;
           const magMax = item.magazine || 0;
           const reserve = Player.ammo[ammoInfo.type] || 0;
           const pct = magMax > 0 ? (magCurrent / magMax * 100) : (reserve > 0 ? 100 : 0);
           const magDisplay = magMax > 0 ? `${magCurrent}/${magMax}` : `${magCurrent}`;
-          extraHtml += `
+          ammoHtml += `
             <div class="weapon-ammo">
               <div class="weapon-ammo-bar"><div class="weapon-ammo-fill" style="width:${Math.min(100, pct)}%"></div></div>
-              <div class="weapon-ammo-text">${ammoInfo.name}: ${magDisplay}${reserve > 0 ? ` (+${reserve}备弹)` : ''}</div>
+              <div class="weapon-ammo-text">${ammoInfo.name}: ${magDisplay}${reserve > 0 ? ` +${reserve}` : ''}</div>
             </div>`;
         }
 
+        // 冷却进度 + 状态
         const cd = Player.weaponCooldowns[key] || 0;
         const maxCd = item.cooldown || 1;
         const isReady = cd <= 0;
-        const pct = isReady ? 100 : Math.max(0, Math.min(100, (1 - cd / maxCd) * 100));
-        const statusText = isReady ? '就绪' : `冷却 ${cd.toFixed(1)}s`;
-        const fillClass = isReady ? 'ready' : 'cooling';
-        const statusClass = isReady ? 'ready' : 'cooling';
-        extraHtml += `
-          <div class="weapon-cooldown">
-            <div class="weapon-cooldown-bar"><div class="weapon-cooldown-fill ${fillClass}" style="width:${pct}%"></div></div>
-            <div class="weapon-cooldown-status ${statusClass}">${statusText}</div>
-          </div>`;
-      }
+        const cdPct = isReady ? 100 : Math.max(0, Math.min(100, (1 - cd / maxCd) * 100));
+        const fillCls = isReady ? 'ready' : 'cooling';
 
-      html += `<div class="equip-item">`;
-      html += `<div class="equip-slot">`;
-      html += `<span class="equip-slot-name">#${slotNum}</span>`;
-      html += `<span class="equip-slot-item">${item.name}</span>`;
-      html += `</div>`;
-      html += `${extraHtml}`;
-      html += `</div>`;
+        html += `<div class="equip-card${weaponActionable ? ' actionable' : ''}">`;
+        html += `<div class="equip-card-header">`;
+        html += `<span class="equip-card-name">${item.name}</span>`;
+        html += `<span class="equip-card-slot">#${slotNum}</span>`;
+        html += `</div>`;
+        html += `<div class="weapon-metrics">`;
+        html += `${ammoHtml}`;
+        html += `<div class="weapon-cooldown">
+          <div class="weapon-cooldown-bar"><div class="weapon-cooldown-fill ${fillCls}" data-slot="${key}" style="width:${cdPct}%"></div></div>
+          <div class="weapon-cooldown-status"><span class="weapon-status-tag ${ws.cls}">${ws.text}</span></div>
+        </div>`;
+        html += `</div>`;
+        if (weaponActionable) {
+          html += `<div class="equip-actions">`;
+          html += `<button class="equip-action-btn fire${wState.action === 'fire' ? ' active' : ''}" ${lockedEnemy ? '' : 'disabled'} title="${lockedEnemy ? '向锁定目标开火' : '需先锁定目标'}" onclick="Battle.setWeaponAction('${key}','fire','${lockedId}')">开火</button>`;
+          html += `<button class="equip-action-btn${wState.action === 'hold' && !wState.holdFor ? ' active' : ''}" onclick="Battle.setWeaponAction('${key}','hold')">待命</button>`;
+          html += `<button class="equip-action-btn${wState.action === 'hold' && wState.holdFor > 0 ? ' active' : ''}" onclick="Battle.fillHoldCommand('${slotNum}')">待命X秒</button>`;
+          html += `</div>`;
+        }
+        html += `</div>`;
+      } else {
+        // 被动装备（装甲板等）：无状态显示，仅展示名称
+        html += `<div class="equip-card">`;
+        html += `<div class="equip-card-header">`;
+        html += `<span class="equip-card-name">${item.name}</span>`;
+        html += `<span class="equip-card-slot">#${slotNum}</span>`;
+        html += `</div>`;
+        html += `</div>`;
+      }
     }
 
     if (html === '') {
@@ -1212,18 +1549,105 @@ const Game = {
     }
 
     el.innerHTML = html;
+
+    // 执行栏：操作阶段显示，否则隐藏
+    const execBar = document.getElementById('action-execute-bar');
+    if (execBar) execBar.style.display = actionPhase ? '' : 'none';
+  },
+
+  // 每帧动态刷新冷却进度条宽度（由 BattleUI.updateDynamic 调用）
+  // 直接改样式避免 60fps 重建装备面板 DOM。
+  // 通过"平滑插值"限制单帧冷却显示值的变化量：高 TIMESCALE / 掉帧造成的离散步进
+  // 会被削平为连续流动，避免冷却条跳变。
+  updateEquipInfoDynamic() {
+    const el = document.getElementById('equip-info');
+    if (!el) return;
+    const realNow = performance.now() / 1000;
+    let realDelta = this._cdLastReal ? (realNow - this._cdLastReal) : 0;
+    this._cdLastReal = realNow;
+    // 单帧真实时间步长上限：与时间轴 MAX_FRAME_DELTA 一致，避免暂停恢复/长时间卡顿后一次性大步进
+    realDelta = Math.min(realDelta, 0.1);
+    // 每帧允许的最大冷却变化量（游戏秒）：正常推进速率低于该值，仅在掉帧大步进时被削平
+    const maxStep = Math.min(realDelta * (Timeline.TIMESCALE || 10), 0.25);
+
+    for (const key of Object.keys(Player.equipment)) {
+      const item = Player.equipment[key].equip;
+      if (!item || item.category !== 'weapon') continue;
+      const fill = el.querySelector(`.weapon-cooldown-fill[data-slot="${key}"]`);
+      if (!fill) continue;
+      const maxCd = item.cooldown || 1;
+      const authoritative = Player.weaponCooldowns[key] || 0;
+
+      // 平滑显示值
+      let s = this._cdSmooth[key];
+      if (!s) s = this._cdSmooth[key] = { value: authoritative };
+      if (authoritative <= 0) {
+        s.value = 0;                        // 就绪：直接归零（宽度=100%）
+      } else if (authoritative > s.value) {
+        s.value = authoritative;            // 冷却被重置（开火/换装）：立即跟随
+      } else if (s.value - authoritative > maxStep) {
+        s.value -= maxStep;                 // 掉帧大步进：按最大速率滑动，避免跳变
+      } else {
+        s.value = authoritative;
+      }
+
+      const cd = s.value;
+      const cdPct = Math.max(0, Math.min(100, (1 - cd / maxCd) * 100));
+      fill.style.width = `${cdPct}%`;
+      fill.classList.toggle('ready', cd <= 0);
+      fill.classList.toggle('cooling', cd > 0);
+    }
   },
  
-  updateMinimap() {
-    const el = document.getElementById('minimap');
-    if (!el) return;
+  updateRegionMap() {
+    const canvas = document.getElementById('region-map-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const cellSize = 40;
+    const gridSize = 11;
     const levelEl = document.getElementById('map-level-info');
+    const legendEl = document.getElementById('minimap-legend');
     const currentRoom = MapSystem.getRoom(Player.room);
     if (!currentRoom) return;
     const currentZ = currentRoom.z || 0;
     if (levelEl) levelEl.textContent = `当前高度：${MapSystem.getLevelName(currentZ)}`;
- 
+
     const roomsOnLevel = Object.values(MapSystem.rooms).filter(room => (room.z || 0) === currentZ);
+
+    const roomAt = (x, y, z = currentZ) => roomsOnLevel.find(r => r.x === x && r.y === y && (r.z || 0) === z);
+
+    // 地形颜色表
+    const terrainColors = {
+      metal_floor: '#2a3a4a',
+      cave: '#2a2a2a',
+      crystal: '#1a3a5a',
+      sandy: '#4a3a2a',
+      rocky: '#3a3a3a',
+      default: '#1a2a1a'
+    };
+
+    // 获取房间特征图标
+    const getRoomIcon = (room) => {
+      if (room.isBossRoom) return '💀';
+      if (room.isSafeZone) return '🏠';
+      if (room.battlefield && room.battlefield.hazards && room.battlefield.hazards.length > 0) return '⚠';
+      if (room.battlefield && room.battlefield.lootPoints && room.battlefield.lootPoints.length > 0) return '⛏';
+      if (room.battlefield && room.battlefield.npcs && room.battlefield.npcs.length > 0) return '👤';
+      return '';
+    };
+
+    // 检查房间是否有出口连接
+    const hasExitTo = (room, dir) => {
+      const deltas = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] };
+      const [dx, dy] = deltas[dir];
+      const neighbor = roomAt(room.x + dx, room.y + dy, currentZ);
+      return Boolean(neighbor && room.exits[dir] === neighbor.id);
+    };
+
+    // 清空画布
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 计算当前层世界边界，用于将视口钳制在地图范围内（边缘紧贴画面边缘）
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const room of roomsOnLevel) {
       if (room.x !== undefined) {
@@ -1231,60 +1655,107 @@ const Game = {
         minY = Math.min(minY, room.y); maxY = Math.max(maxY, room.y);
       }
     }
- 
-    const offsetX = currentRoom.x - 5;
-    const offsetY = currentRoom.y - 5;
-    const dirInfo = {
-      north: { dx:0, dy:-1, border:'border-top-color' },
-      south: { dx:0, dy:1, border:'border-bottom-color' },
-      east: { dx:1, dy:0, border:'border-right-color' },
-      west: { dx:-1, dy:0, border:'border-left-color' }
-    };
-    const roomAt = (x, y, z = currentZ) => roomsOnLevel.find(r => r.x === x && r.y === y && (r.z || 0) === z);
-    const getCellStyle = (room) => {
-      const borderStyles = [];
-      for (const [dir, info] of Object.entries(dirInfo)) {
-        const neighbor = roomAt(room.x + info.dx, room.y + info.dy, currentZ);
-        const canPass = Boolean(neighbor && room.exits[dir] === neighbor.id);
-        borderStyles.push(`${info.border}:${canPass ? 'var(--rule)' : 'var(--wall)'}`);
-      }
-      return borderStyles.join(';');
-    };
- 
-    let html = '';
-    for (let dy = 0; dy < 10; dy++) {
-      for (let dx = 0; dx < 10; dx++) {
-        const rx = offsetX + dx;
-        const ry = offsetY + dy;
+    if (minX === Infinity) { minX = 0; maxX = gridSize - 1; minY = 0; maxY = gridSize - 1; }
+
+    const half = Math.floor(gridSize / 2);
+    // 视口左上角：以玩家为中心，但钳制到世界边界内，使地图边缘贴紧画面边缘
+    const startX = Math.max(minX, Math.min(currentRoom.x - half, maxX - gridSize + 1));
+    const startY = Math.max(minY, Math.min(currentRoom.y - half, maxY - gridSize + 1));
+
+    for (let gy = 0; gy < gridSize; gy++) {
+      for (let gx = 0; gx < gridSize; gx++) {
+        const rx = startX + gx;
+        const ry = startY + gy;
         const room = roomAt(rx, ry);
+        const px = gx * cellSize;
+        const py = gy * cellSize;
+
         if (room) {
-          const style = getCellStyle(room);
-          const label = MapSystem.getRoomLabel(room);
-          const verticalClass = (room.exits.up || room.exits.down) ? ' vertical' : '';
-          const hasExit = Object.keys(room.exits || {}).length > 0;
-          const exitClass = hasExit ? ' has-exit' : '';
-          if (room.id === Player.room) {
-            html += `<div class="map-cell current${verticalClass}" style="${style}" title="${room.name}｜${MapSystem.getLevelName(room.z || 0)}">@</div>`;
-          } else if (Player.visitedRooms.has(room.id)) {
-            html += `<div class="map-cell visited${verticalClass}" style="${style}" title="${room.name}｜${MapSystem.getLevelName(room.z || 0)}">${label}</div>`;
+          const visited = Player.visitedRooms.has(room.id);
+          const terrain = room.terrain || 'default';
+          const bgColor = terrainColors[terrain] || terrainColors.default;
+
+          if (visited) {
+            ctx.fillStyle = bgColor;
           } else {
-            html += `<div class="map-cell room${verticalClass}${exitClass}" style="${style}" title="${room.name}｜${MapSystem.getLevelName(room.z || 0)}">${hasExit ? label : ''}</div>`;
+            // 未探索：暗色
+            ctx.fillStyle = '#0a0f0a';
+          }
+          ctx.fillRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
+
+          // 当前房间高亮边框
+          if (room.id === Player.room) {
+            ctx.strokeStyle = '#00ffcc';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
+            ctx.lineWidth = 1;
+          } else if (visited) {
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.strokeRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
+          }
+
+          // 未探索房间不显示图标
+          if (!visited) continue;
+
+          // 绘制出口方向指示线
+          const exitDirs = ['north', 'south', 'east', 'west'];
+          const dirAngles = { north: 0, east: Math.PI / 2, south: Math.PI, west: -Math.PI / 2 };
+          for (const dir of exitDirs) {
+            if (hasExitTo(room, dir)) {
+              const angle = dirAngles[dir];
+              const edgeX = px + cellSize / 2 + Math.sin(angle) * (cellSize / 2 - 2);
+              const edgeY = py + cellSize / 2 - Math.cos(angle) * (cellSize / 2 - 2);
+              ctx.fillStyle = 'rgba(0,255,136,0.5)';
+              ctx.beginPath();
+              ctx.arc(edgeX, edgeY, 2, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+
+          // 特征图标
+          const icon = getRoomIcon(room);
+          if (icon) {
+            ctx.font = '16px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(icon, px + cellSize / 2, py + cellSize / 2);
+          }
+
+          // 玩家位置标记
+          if (room.id === Player.room) {
+            const time = Date.now() / 1000;
+            const alpha = 0.5 + 0.5 * Math.sin(time * 3);
+            ctx.fillStyle = `rgba(0, 255, 204, ${alpha})`;
+            ctx.beginPath();
+            ctx.arc(px + cellSize / 2, py + cellSize / 2, 5, 0, Math.PI * 2);
+            ctx.fill();
           }
         } else {
-          html += `<div class="map-cell"></div>`;
+          // 无房间的格子：深色
+          ctx.fillStyle = '#050508';
+          ctx.fillRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
         }
       }
     }
-    el.innerHTML = html;
+
+    // 图例
+    if (legendEl) {
+      legendEl.innerHTML = `@ 当前位置 | <span style="color:#00ffcc;">青色</span> 已探索 | <span style="color:#888;">暗色</span> 未探索 | 💀 Boss | 🏠 安全区 | ⚠ 危害 | ⛏ 资源`;
+    }
   },
  
   updateLocation() {
     const room = MapSystem.getRoom(Player.room);
     const el = document.getElementById('location-info');
     if (room && el) {
-      const exits = Object.keys(room.exits || {}).map(d => MapSystem.getDirectionName(d)).join('、');
-      el.innerHTML = `<div style="color:var(--accent);font-weight:600;margin-bottom:0.3rem">${room.name}</div><div>高度: ${MapSystem.getLevelName(room.z || 0)}</div><div>位置: (${Math.round(Player.position[0])}, ${Math.round(Player.position[1])})</div><div>出口: ${exits}</div>`;
+      el.innerHTML = `<span class="loc-name">${room.name}</span><span class="loc-sep"> | </span><span class="loc-level">${MapSystem.getLevelName(room.z || 0)}</span><span class="loc-sep"> | </span><span class="loc-pos" id="location-pos-value">(${Math.round(Player.position[0])}, ${Math.round(Player.position[1])})</span>`;
     }
+  },
+
+  // 轻量更新坐标（战斗移动时逐帧调用，避免重建整个位置条）
+  updatePlayerPos() {
+    const p = document.getElementById('location-pos-value');
+    if (p) p.textContent = `(${Math.round(Player.position[0])}, ${Math.round(Player.position[1])})`;
   }
 };
 

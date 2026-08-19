@@ -1,17 +1,21 @@
-// ========== 物品数据库 ==========
-// 注：装备类数据已迁移至 EquipmentDB，此处保留消耗品、材料等非装备物品
-const ItemDB = {
-  potions: {
-    repair_kit_small: { id:'repair_kit_small', name:'小型修复包', type:'potion', heal:50, desc:'恢复50点结构值。', price:30, weight:5 },
-    armor_patch: { id:'armor_patch', name:'装甲补片', type:'potion', heal:40, desc:'恢复40点装甲值。', price:25, weight:3 },
-  },
-  materials: {
-    chitin_fragment: { id:'chitin_fragment', name:'虫壳碎片', type:'material', desc:'异星虫子的甲壳碎片，可用于工业加工。', price:8, weight:0.5 },
-    acid_gland: { id:'acid_gland', name:'酸腺', type:'material', desc:'突击虫体内的酸性腺体，含有腐蚀性液体。', price:25, weight:1.0 },
-  },
-  questItems: {
-  },
-  get(id) {
+// ========== 物品数据库门面（数据见 items.json，由 data-loader.js 装配） ==========
+// 注：装备类数据在 EquipmentDB，材料在 MaterialDB，弹药在 AmmoDB；
+// 此处为消耗品等非装备物品（原 consumables/questItems 嵌套已平铺为 {id: 记录}）
+var ItemDB = {};
+
+(function () {
+  function defineProp(obj, key, value) {
+    Object.defineProperty(obj, key, { value: value, writable: true, configurable: true, enumerable: false });
+  }
+
+  defineProp(ItemDB, '_data', {});
+  defineProp(ItemDB, '_load', function (data) {
+    for (var k of Object.keys(ItemDB)) delete ItemDB[k]; // 清旧数据键（方法不可枚举不受影响）
+    ItemDB._data = data || {};
+    Object.assign(ItemDB, ItemDB._data); // 直接键访问 + Object.keys/entries/values 兼容
+  });
+
+  defineProp(ItemDB, 'get', function (id) {
     // 优先从 EquipmentDB 查询装备
     if (typeof EquipmentDB !== 'undefined' && EquipmentDB.get) {
       const eq = EquipmentDB.get(id);
@@ -22,28 +26,39 @@ const ItemDB = {
       const v = VehicleDB[id];
       return { id: v.id, name: v.name, type: 'vehicle', category: 'vehicle', price: v.price || 0, desc: v.desc };
     }
-    // 回退到本地分类查询
-    for (const cat of Object.values(this)) {
-      if (cat && typeof cat === 'object' && cat[id]) return { ...cat[id] };
+    // 查询材料数据库
+    if (typeof MaterialDB !== 'undefined' && MaterialDB.get) {
+      const mat = MaterialDB.get(id);
+      if (mat) return mat;
     }
+    // 查询弹药数据库
+    if (typeof AmmoDB !== 'undefined' && AmmoDB.get) {
+      const ammo = AmmoDB.get(id);
+      if (ammo) return ammo;
+    }
+    // 回退到本地记录（原 consumables/questItems 平铺）
+    if (this._data[id]) return { ...this._data[id] };
     return null;
-  },
-  getAllSellable() {
+  });
+
+  defineProp(ItemDB, 'getAllSellable', function () {
     const list = [];
     // 所有装备
     if (typeof EquipmentDB !== 'undefined' && EquipmentDB.getAll) {
       list.push(...EquipmentDB.getAll());
     }
-    // 消耗品和材料
-    for (const cat of ['potions','materials']) {
-      const items = this[cat];
-      if (items) {
-        for (const key of Object.keys(items)) {
-          list.push({ ...items[key] });
+    // 本地物品（消耗品等，平铺于 _data）
+    for (const key of Object.keys(this._data)) {
+      list.push({ ...this._data[key] });
+    }
+    // 材料
+    if (typeof MaterialDB !== 'undefined') {
+      for (const key of Object.keys(MaterialDB)) {
+        if (typeof MaterialDB[key] === 'object' && MaterialDB[key].id) {
+          list.push({ ...MaterialDB[key] });
         }
       }
     }
     return list;
-  }
-};
-
+  });
+})();

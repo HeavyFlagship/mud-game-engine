@@ -67,6 +67,7 @@ const BattleUI = {
       const primaryWeapon = Player.getEquippedWeapons()[0];
       const inRange = primaryWeapon && dist <= primaryWeapon.range;
       actions = [
+        { label: 'lock 锁定', cmd: `lock ${target.id}`, disabled: target.dead },
         { label: 'fire 开火', cmd: `fire ${target.id}`, disabled: !inRange || target.dead },
         { label: 'look 查看', cmd: `look ${target.id}`, disabled: target.dead },
         { label: 'move 靠近', cmd: `move ${target.id}`, disabled: target.dead }
@@ -118,6 +119,65 @@ const BattleUI = {
     CommandSystem.execute(`move ${dir}`);
   },
 
+  // 锁定敌人后绘制武器散布扇形（示意）：
+  // 扇形自玩家指向锁定目标、随最大射程延伸；最佳射程内为绿色，超出最佳射程渐变到红色
+  drawSpreadSector(ctx, cx, cy, scale) {
+    if (!Battle.active || !Battle.battlefield) return;
+    const enemy = Battle.getLockedEnemy();
+    if (!enemy) return;
+    const weapon = Player.getEquippedWeapons()[0];
+    if (!weapon || !weapon.range) return;
+
+    const px = cx + (Player.position[0] - 500) * scale;
+    const py = cy + (Player.position[1] - 500) * scale;
+    const ex = cx + (enemy.position[0] - 500) * scale;
+    const ey = cy + (enemy.position[1] - 500) * scale;
+
+    const angle = Math.atan2(ey - py, ex - px);
+    const range = weapon.range;
+    // 散布半角（弧度）：spread 为每米散布系数，半角 ≈ spread；
+    // 零散布/高精度武器给出最小示意宽度保证可见
+    const halfAngle = Math.max(weapon.spread || 0, 0.02);
+
+    const endX = px + Math.cos(angle) * range * scale;
+    const endY = py + Math.sin(angle) * range * scale;
+
+    // 扇形路径：玩家位置 → 沿 ±halfAngle 两条边延伸到最大射程末端
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.arc(px, py, range * scale, angle - halfAngle, angle + halfAngle);
+    ctx.closePath();
+
+    // 绿色(最佳射程内) → 红色(射程末端) 渐变
+    const tOpt = weapon.optimalRange > 0 ? Math.min(1, weapon.optimalRange / range) : 0;
+    const grad = ctx.createLinearGradient(px, py, endX, endY);
+    grad.addColorStop(0, 'rgba(0, 255, 136, 0.18)');
+    grad.addColorStop(tOpt, 'rgba(0, 255, 136, 0.18)');
+    grad.addColorStop(1, 'rgba(255, 60, 40, 0.18)');
+
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // 标注最佳射程/最大射程边界刻度（虚线弧）
+    ctx.setLineDash([3, 3]);
+    ctx.lineWidth = 0.8;
+    if (weapon.optimalRange > 0) {
+      ctx.strokeStyle = 'rgba(0, 255, 136, 0.55)';
+      ctx.beginPath();
+      ctx.arc(px, py, weapon.optimalRange * scale, angle - halfAngle, angle + halfAngle);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(255, 60, 40, 0.65)';
+    ctx.beginPath();
+    ctx.arc(px, py, range * scale, angle - halfAngle, angle + halfAngle);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.lineWidth = 1;
+  },
+
   updateRadar() {
     const canvas = document.getElementById('radar-canvas');
     if (!canvas) return;
@@ -155,6 +215,97 @@ const BattleUI = {
     ctx.lineWidth = 1;
     ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
 
+    // 地图实体图块（工业区/交易区等功能区）
+    const entityStyle = {
+      industry: { fill: 'rgba(255, 180, 60, 0.12)',  stroke: 'rgba(255, 180, 60, 0.6)' },
+      trade:    { fill: 'rgba(0, 200, 255, 0.12)',   stroke: 'rgba(0, 200, 255, 0.6)' },
+      default:  { fill: 'rgba(136, 136, 136, 0.12)', stroke: 'rgba(136, 136, 136, 0.5)' }
+    };
+    if (Battle.active && Battle.battlefield && Battle.battlefield.entities) {
+      for (const ent of Battle.battlefield.entities) {
+        const style = entityStyle[ent.type] || entityStyle.default;
+        const ex = cx + (ent.pos[0] - 500) * scale;
+        const ey = cy + (ent.pos[1] - 500) * scale;
+        const ew = (ent.size[0] || 200) * scale;
+        const eh = (ent.size[1] || 150) * scale;
+        ctx.fillStyle = style.fill;
+        ctx.fillRect(ex - ew / 2, ey - eh / 2, ew, eh);
+        ctx.strokeStyle = style.stroke;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+        ctx.strokeRect(ex - ew / 2, ey - eh / 2, ew, eh);
+        ctx.setLineDash([]);
+        // 名称 + 设施数量（工业区显示已安装设施数）
+        let label = ent.name || ent.type;
+        if (ent.type === 'industry') {
+          const room = Battle.battlefield.roomId ? MapSystem.getRoom(Battle.battlefield.roomId) : null;
+          const n = room && room.industryZone ? (room.industryZone.facilities || []).length : 0;
+          label += n > 0 ? ` (${n}设施)` : ' (空)';
+        }
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.font = `${Math.round(11 * (canvas.width / 200))}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, ex, ey);
+      }
+    }
+
+    // 危害区域
+    if (Battle.active && Battle.battlefield && Battle.battlefield.hazards) {
+      for (const hazard of Battle.battlefield.hazards) {
+        const hx = cx + (hazard.pos[0] - 500) * scale;
+        const hy = cy + (hazard.pos[1] - 500) * scale;
+        const hr = (hazard.radius || 100) * scale;
+        let color, alpha;
+        if (hazard.type === 'acid_pool') { color = '255, 68, 68'; alpha = 0.12; }
+        else if (hazard.type === 'emi' || hazard.type === 'em_interference') { color = '68, 136, 255'; alpha = 0.10; }
+        else if (hazard.type === 'toxic_fog') { color = '68, 255, 68'; alpha = 0.10; }
+        else { color = '136, 136, 136'; alpha = 0.08; }
+        ctx.fillStyle = `rgba(${color}, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(hx, hy, hr, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = `rgba(${color}, 0.6)`;
+        ctx.lineWidth = 0.8;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.arc(hx, hy, hr, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.lineWidth = 1;
+        // 标签
+        const label = hazard.label || '';
+        if (label) {
+          ctx.fillStyle = `rgb(${color})`;
+          ctx.font = `${Math.round(9 * (canvas.width / 200))}px monospace`;
+          ctx.textAlign = 'center';
+          ctx.fillText(label, hx, hy - hr - 2);
+        }
+      }
+    }
+
+    // 掩体
+    if (Battle.active && Battle.battlefield && Battle.battlefield.covers) {
+      for (const cover of Battle.battlefield.covers) {
+        const mx = cx + (cover.pos[0] - 500) * scale;
+        const my = cy + (cover.pos[1] - 500) * scale;
+        const mw = (cover.size[0] || 80) * scale;
+        const mh = (cover.size[1] || 60) * scale;
+        ctx.fillStyle = 'rgba(136, 204, 255, 0.14)';
+        ctx.fillRect(mx - mw / 2, my - mh / 2, mw, mh);
+        ctx.strokeStyle = 'rgba(136, 204, 255, 0.55)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.strokeRect(mx - mw / 2, my - mh / 2, mw, mh);
+        ctx.setLineDash([]);
+        const label = cover.label || '掩体';
+        ctx.fillStyle = 'rgba(136, 204, 255, 0.8)';
+        ctx.font = `${Math.round(8 * (canvas.width / 200))}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText(label, mx, my - mh / 2 - 3);
+      }
+    }
+
     // 玩家位置
     let playerX = 500, playerY = 500;
     if (Battle.active && Battle.battlefield) {
@@ -164,14 +315,28 @@ const BattleUI = {
     const px = cx + (playerX - 500) * scale;
     const py = cy + (playerY - 500) * scale;
 
-    // 玩家视野圈
+    // 玩家视野/扫描圈（受雷达加成与干扰影响）
+    const effectiveScan = Player.getEffectiveScanRange();
+    const scanAcc = Player.getEWBonus().scanAccuracy || 0;
     ctx.strokeStyle = 'rgba(0, 255, 136, 0.25)';
     ctx.fillStyle = 'rgba(0, 255, 136, 0.05)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(px, py, Player.visionRadius * scale, 0, Math.PI * 2);
+    ctx.arc(px, py, effectiveScan * scale, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+    // 雷达加成：额外环绕扫描圈
+    if (Player.getBaseScanRange() > effectiveScan + 0.5) {
+      ctx.strokeStyle = 'rgba(0, 200, 255, 0.35)';
+      ctx.setLineDash([6, 5]);
+      ctx.beginPath();
+      ctx.arc(px, py, (Player.getBaseScanRange() + 30) * scale, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // 锁定目标后绘制武器散布扇形（位于敌人标记下层）
+    this.drawSpreadSector(ctx, cx, cy, scale);
 
     // 显示场景中的NPC
     if (Battle.active && Battle.battlefield) {
@@ -181,8 +346,9 @@ const BattleUI = {
         if (!npcDef) continue;
         const dist = Battle.getDistance(Player.position, npcUnit.position);
         const broadcast = npcDef.broadcastPosition === true;
-        if (!broadcast && dist > Player.visionRadius) continue;
+        if (!broadcast && dist > effectiveScan) continue;
 
+        ctx.globalAlpha = Math.max(0.35, Math.min(1, scanAcc || 0.4));
         const nx = cx + (npcUnit.position[0] - 500) * scale;
         const ny = cy + (npcUnit.position[1] - 500) * scale;
         ctx.fillStyle = '#8cf';
@@ -193,13 +359,14 @@ const BattleUI = {
         ctx.font = `${Math.round(9 * (canvas.width / 200))}px monospace`;
         ctx.textAlign = 'center';
         ctx.fillText(npcUnit.instanceId, nx, ny - 7);
+        ctx.globalAlpha = 1;
       }
 
-      // 敌人
+      // 敌人（仅在有效扫描范围内显示，扫描精度越低光点越淡）
       for (const enemy of Battle.battlefield.enemies) {
         if (enemy.hp <= 0) continue;
         const dist = Battle.getDistance(Player.position, enemy.position);
-        if (dist > Player.visionRadius * 1.5) continue;
+        if (dist > effectiveScan) continue;
         const ex = cx + (enemy.position[0] - 500) * scale;
         const ey = cy + (enemy.position[1] - 500) * scale;
 
@@ -211,9 +378,11 @@ const BattleUI = {
           ctx.fillStyle = '#fd0';
         }
 
+        ctx.globalAlpha = Math.max(0.35, Math.min(1, scanAcc || 0.4));
         ctx.beginPath();
         ctx.arc(ex, ey, 4, 0, Math.PI * 2);
         ctx.fill();
+        ctx.globalAlpha = 1;
 
         ctx.fillStyle = '#fff';
         ctx.font = `${Math.round(9 * (canvas.width / 200))}px monospace`;
@@ -313,6 +482,31 @@ const BattleUI = {
     CommandSystem.execute(cmd);
   },
 
+  getStatusEffectsHTML(statusEffects) {
+    if (!statusEffects || statusEffects.length === 0) return '';
+    const iconMap = {
+      burn: { icon: '🔥', name: '灼烧', color: '#f80' },
+      ion_disrupt: { icon: '🔌', name: 'EMP', color: '#8af' },
+      slow: { icon: '🐌', name: '减速', color: '#88f' },
+      corrosion: { icon: '🧪', name: '腐蚀', color: '#0f0' },
+      poison: { icon: '☠', name: '中毒', color: '#8f0' },
+      shock: { icon: '⚡', name: '电击', color: '#ff0' },
+      stun: { icon: '💫', name: '眩晕', color: '#f0f' },
+      jam: { icon: '📡', name: '干扰', color: '#c8f' },
+      track: { icon: '🎯', name: '锁定', color: '#0cf' },
+      em_interference: { icon: '🌩', name: '电磁干扰', color: '#68f' }
+    };
+    let html = '<span class="status-effects-tags">';
+    for (const eff of statusEffects) {
+      const info = iconMap[eff.type] || { icon: '❓', name: eff.type, color: '#aaa' };
+      const stacks = eff.stacks ? `x${eff.stacks}` : '';
+      const dur = (eff.duration || 0).toFixed(0);
+      html += `<span class="status-tag" style="background:${info.color}22;color:${info.color};border:1px solid ${info.color}44;" title="${info.name}${stacks}: 剩余${dur}秒">${info.icon}${info.name}${stacks} ${dur}s</span>`;
+    }
+    html += '</span>';
+    return html;
+  },
+
   render() {
     this.historyEvents = [];
     this.currentActions = [];
@@ -331,14 +525,21 @@ const BattleUI = {
     return `${pad(h)}:${pad(m)}:${pad(s)}`;
   },
 
-  addHistory(text, color = '#aaa', actionType = null) {
+  activeFilters: { attack: true, move: true, system: true, loot: true },
+
+  addHistory(text, color = '#aaa', actionType = null, category = 'system') {
     const time = Timeline.time || 0;
     const formattedTime = this.formatGameTime(time, 'mm:ss');
     const displayText = actionType ? `${text}行动：${actionType}` : `${text}`;
-    this.historyEvents.unshift({ time: formattedTime, text: displayText, color });
+    this.historyEvents.unshift({ time: formattedTime, text: displayText, color, category });
     if (this.historyEvents.length > 30) {
       this.historyEvents.pop();
     }
+  },
+
+  toggleFilter(category) {
+    this.activeFilters[category] = !this.activeFilters[category];
+    this.updateTimeline();
   },
 
   clearCurrentActions() {
@@ -370,6 +571,7 @@ const BattleUI = {
       if (Game.updatePlayerInfo) Game.updatePlayerInfo();
       if (Game.updateEquipInfo) Game.updateEquipInfo();
     }
+    this.updatePlayerStatusEffects();
     if (!Battle.active || !Battle.battlefield) {
       this.clearBattlePanels();
       return;
@@ -377,14 +579,59 @@ const BattleUI = {
     this.updateBattleTime();
     this.updateUnitList();
     this.updateEnemyList();
-    this.updateReadyList();
     this.updateTimeline();
+    if (typeof TimelineGraphic !== 'undefined') TimelineGraphic.render();
+  },
+
+  // 每帧高频动态刷新（由 Timeline.onTickEnd 调用）：
+  // 仅更新随连续时间流逝而变化的内容，避免 60fps 重建静态 DOM
+  updateDynamic() {
+    if (typeof Game !== 'undefined' && Game.updateEquipInfoDynamic) {
+      Game.updateEquipInfoDynamic();
+    }
+    this.updateBattleTime();
+    if (typeof TimelineGraphic !== 'undefined') TimelineGraphic.render();
   },
 
   updateBattleTime() {
     const el = document.getElementById('battle-time');
     if (!el) return;
     el.textContent = this.formatGameTime(Timeline.time || 0, 'hh:mm:ss');
+  },
+
+  updatePlayerStatusEffects() {
+    const el = document.getElementById('player-status-effects');
+    if (!el) return;
+    const effects = Player.statusEffects || [];
+    const section = document.getElementById('player-status-section');
+    if (effects.length === 0) {
+      if (section) section.style.display = 'none';
+      el.innerHTML = '';
+      return;
+    }
+    if (section) section.style.display = '';
+
+    const iconMap = {
+      burn: { icon: '🔥', name: '灼烧', color: '#f80', desc: '持续受到热能伤害，热能易伤' },
+      ion_disrupt: { icon: '🔌', name: 'EMP干扰', color: '#8af', desc: '能量系统受干扰' },
+      slow: { icon: '🐌', name: '减速', color: '#88f', desc: '移动速度降低' },
+      corrosion: { icon: '🧪', name: '腐蚀', color: '#0f0', desc: '装甲持续受损' },
+      poison: { icon: '☠', name: '中毒', color: '#8f0', desc: '持续受到结构伤害' },
+      shock: { icon: '⚡', name: '电击', color: '#ff0', desc: '收到震荡伤害' },
+      stun: { icon: '💫', name: '眩晕', color: '#f0f', desc: '无法行动' },
+      jam: { icon: '📡', name: '干扰', color: '#c8f', desc: '被干扰器压制，命中率与扫描范围降低' },
+      track: { icon: '🎯', name: '锁定', color: '#0cf', desc: '被火控雷达锁定，受到攻击命中率提升' },
+      em_interference: { icon: '🌩', name: '电磁干扰', color: '#68f', desc: '处于电磁干扰区，扫描范围与命中率下降' }
+    };
+    let html = '<div class="status-effects-tags">';
+    for (const eff of effects) {
+      const info = iconMap[eff.type] || { icon: '❓', name: eff.type, color: '#aaa', desc: '' };
+      const stacks = eff.stacks ? `x${eff.stacks}` : '';
+      const dur = (eff.duration || 0).toFixed(0);
+      html += `<div class="status-tag" style="background:${info.color}22;color:${info.color};border:1px solid ${info.color}44;margin:2px 0;" title="${info.desc}">${info.icon} ${info.name}${stacks} · ${dur}秒</div>`;
+    }
+    html += '</div>';
+    el.innerHTML = html;
   },
 
   clearBattlePanels() {
@@ -400,16 +647,14 @@ const BattleUI = {
     if (timelineEl) {
       timelineEl.innerHTML = '<div style="color:var(--muted);font-style:italic;">未在场景中</div>';
     }
-    const readyEl = document.getElementById('ready-list');
-    if (readyEl) {
-      readyEl.innerHTML = '<div class="sidebar-title">🔫 就绪武器</div><div class="ready-item" style="color:var(--muted);font-style:italic;">（未在场景中）</div>';
-    }
+    if (typeof TimelineGraphic !== 'undefined') TimelineGraphic.clear();
   },
 
   updateEnemyList() {
     const enemyEl = document.getElementById('enemy-list');
     if (!enemyEl || !Battle.battlefield) return;
-    let html = `<div style="color:var(--muted);font-size:var(--font-enemy-header);margin-bottom:6px;">存活 ${Battle.battlefield.enemies.filter(e => e.hp > 0).length}/${Battle.battlefield.enemies.length}</div>`;
+    let html = '<div class="enemy-list-inner">';
+    html += `<div style="color:var(--muted);font-size:var(--font-enemy-header);margin-bottom:6px;">存活 ${Battle.battlefield.enemies.filter(e => e.hp > 0).length}/${Battle.battlefield.enemies.length}</div>`;
     for (const enemy of Battle.battlefield.enemies) {
       const dist = Battle.getDistance(Player.position, enemy.position);
       const hpPct = (enemy.hp / enemy.maxHp * 100).toFixed(0);
@@ -420,135 +665,56 @@ const BattleUI = {
       const nameText = `${enemy.instanceId} ${enemy.name}`;
       const distText = `${dist.toFixed(0)}m ${inRange ? '🎯' : '📏'}`;
       const id = enemy.instanceId;
-      const fireDisabled = !inRange || dead ? ' disabled' : '';
       const disabledStyle = dead ? 'background:#222;opacity:0.5;' : '';
-      html += `<div class="enemy-card" style="${disabledStyle}">
+      const locked = Battle.lockedTarget === enemy.instanceId;
+      html += `<div class="enemy-card${locked ? ' locked' : ''}" style="${disabledStyle}">
         <div class="unit-card-header">
           <span class="name" style="color:${dead ? '#666' : '#f66'};" title="${nameText}">${nameText}</span>
           <span class="dist" style="color:var(--muted);font-size:var(--font-enemy-header);">${distText}</span>
         </div>
-        <span class="sub" style="color:var(--muted-bright);">结构: ${enemy.hp}/${enemy.maxHp}
-          <div style="display:inline-block;width:90px;height:7px;background:#333;border-radius:2px;vertical-align:middle;margin-left:4px;">
-          <div style="width:${hpPct}%;height:7px;background:${hpPct>50?'#4f4':hpPct>25?'#fa2':'#f44'};border-radius:2px;"></div></div>
-        </span>
-        <span class="sub" style="color:var(--muted-bright);">装甲: ${enemy.armor}/${enemy.maxArmor}
-          <div style="display:inline-block;width:90px;height:7px;background:#333;border-radius:2px;vertical-align:middle;margin-left:4px;">
-          <div style="width:${arPct}%;height:7px;background:#88f;border-radius:2px;"></div></div>
-        </span>
+        <div class="enemy-bars">
+          <div class="enemy-bar">
+            <span class="enemy-bar-label">结构</span>
+            <div class="enemy-bar-track"><div class="enemy-bar-fill hp" style="width:${hpPct}%"></div><span class="enemy-bar-text">${enemy.hp}/${enemy.maxHp}</span></div>
+          </div>
+          <div class="enemy-bar">
+            <span class="enemy-bar-label">装甲</span>
+            <div class="enemy-bar-track"><div class="enemy-bar-fill ar" style="width:${arPct}%"></div><span class="enemy-bar-text">${enemy.armor}/${enemy.maxArmor}</span></div>
+          </div>
+        </div>
+        ${this.getStatusEffectsHTML(enemy.statusEffects)}
         <div class="unit-quick-actions">
-          <button class="quick-action-btn fire${fireDisabled}" onclick="BattleUI.execCmd('fire ${id}')"${fireDisabled ? ' disabled' : ''} title="开火">开火</button>
-          <button class="quick-action-btn" onclick="BattleUI.execCmd('move ${id}')"${dead ? ' disabled' : ''} title="靠近">靠近</button>
+          <button class="quick-action-btn lock${locked ? ' active' : ''}" onclick="BattleUI.execCmd('lock ${id}')" title="锁定/取消锁定目标">锁定</button>
           <button class="quick-action-btn" onclick="BattleUI.execCmd('look ${id}')" title="查看">查看</button>
         </div>
       </div>`;
     }
+    html += '</div>';
     enemyEl.innerHTML = html;
-  },
-
-  updateReadyList() {
-    const el = document.getElementById('ready-list');
-    if (!el) return;
-
-    const readyWeapons = [];
-    for (const [slotKey, slot] of Object.entries(Player.equipment)) {
-      const cd = Player.weaponCooldowns[slotKey] || 0;
-      const w = slot.equip;
-      if (w && w.category === 'weapon' && cd <= 0) {
-        readyWeapons.push({ slot: slotKey, name: w.name });
-      }
-    }
-
-    let html = '<div class="sidebar-title">🔫 就绪武器</div>';
-    if (readyWeapons.length > 0) {
-      for (let i = 0; i < readyWeapons.length; i++) {
-        const w = readyWeapons[i];
-        const slotNum = Object.keys(Player.equipment).indexOf(w.slot) + 1;
-        html += `<div class="ready-item" style="color:var(--accent4);">${i + 1}. ${w.name} <span style="color:var(--muted);font-size:var(--font-hint);">(#${slotNum})</span></div>`;
-      }
-    } else {
-      html += '<div class="ready-item" style="color:var(--muted);font-style:italic;">（无就绪武器）</div>';
-    }
-    el.innerHTML = html;
   },
 
   updateTimeline() {
     const content = document.getElementById('timeline-content');
-    if (!content || !Timeline.eventQueue) return;
+    if (!content) return;
 
     let html = '';
-
-    const upcoming = [...Timeline.eventQueue]
-      .filter(evt => evt.type === 'player_turn' || evt.type === 'enemy_turn' || evt.type === 'weapon_ready' || evt.type === 'player_fire')
-      .sort((a, b) => b.time - a.time)
-      .slice(0, 6);
-    html += '<div class="timeline-section timeline-upcoming">';
-    html += '<div class="timeline-divider">— 即将到来 —</div>';
-    for (const evt of upcoming) {
-      const timeOffset = (evt.time - (Timeline.time || 0)).toFixed(1);
-      let label = '';
-      let color = '#aaa';
-      if (evt.type === 'player_turn') {
-        label = '你的行动';
-        color = '#0ff';
-      } else if (evt.type === 'enemy_turn') {
-        const enemy = Battle.battlefield ? Battle.battlefield.enemies.find(e => e.instanceId === evt.actor) : null;
-        label = enemy ? `${enemy.name}[${evt.actor}]行动` : `敌人[${evt.actor}]行动`;
-        color = '#f66';
-      } else if (evt.type === 'weapon_ready') {
-        const weapon = Player.equipment[evt.slot]?.equip;
-        label = weapon ? `${weapon.name}就绪` : `${evt.slot}就绪`;
-        color = '#ff8';
-      } else if (evt.type === 'player_fire') {
-        const weapon = Player.equipment[evt.slot]?.equip;
-        const wName = weapon ? weapon.name : evt.slot;
-        label = `开火(${wName})→${evt.target}`;
-        color = '#f80';
-      }
-      html += `<div class="timeline-item upcoming" style="color:${color};">+${timeOffset}秒 ${label}</div>`;
-    }
-    if (upcoming.length === 0) {
-      html += '<div class="timeline-item upcoming" style="color:#555;">（无）</div>';
-    }
-    html += '</div>';
-
-    html += '<div class="timeline-section timeline-current">';
-    html += '<div class="timeline-divider current-divider">▶ 当前行动';
-    if (Battle.active && Timeline.paused && Battle.currentActor === 'player') {
-      html += ' <button class="skip-action-btn" onclick="BattleUI.execCmd(\'continue\')" title="跳过当前行动阶段">跳过</button>';
-    }
-    html += '</div>';
-    for (const act of this.currentActions) {
-      html += `<div class="timeline-item current" style="color:${act.color};">${act.text}</div>`;
-    }
-    if (this.currentActions.length === 0) {
-      html += '<div class="timeline-item current" style="color:#555;">（等待中）</div>';
-    }
-    html += '</div>';
-
-    const continuousActions = Timeline.continuousActions || [];
-    if (continuousActions.length > 0) {
-      html += '<div class="timeline-section timeline-continuous">';
-      html += '<div class="timeline-divider">— 持续动作 —</div>';
-      for (const action of continuousActions) {
-        const remaining = Math.max(0, action.endTime - (Timeline.time || 0)).toFixed(0);
-        const total = action.duration || 1;
-        const elapsed = (Timeline.time || 0) - action.startTime;
-        const pct = Math.max(0, Math.min(100, (elapsed / total) * 100));
-        const typeLabel = action.type === 'move' ? '移动' : action.type;
-        const actorLabel = action.actor === 'player' ? '你' : action.actor;
-        html += `<div class="timeline-item continuous" style="color:#8f8;">${actorLabel} ${typeLabel} (剩余${remaining}秒)</div>`;
-        html += `<div style="width:90%;height:4px;background:#333;border-radius:2px;margin:2px 0 4px 8px;"><div style="width:${pct}%;height:4px;background:#8f8;border-radius:2px;"></div></div>`;
-      }
-      html += '</div>';
-    }
-
     html += '<div class="timeline-section timeline-history">';
-    html += '<div class="timeline-divider">— 历史记录 —</div>';
-    for (const h of this.historyEvents.slice(0, 8)) {
-      html += `<div class="timeline-item history" style="color:${h.color};opacity:0.7;">${h.time} ${h.text}</div>`;
+    html += '<div class="timeline-divider">— 历史记录 —';
+    const catNames = { attack: '攻击', move: '移动', system: '系统', loot: '战利品' };
+    for (const [cat, catLabel] of Object.entries(catNames)) {
+      const active = this.activeFilters[cat];
+      html += ` <button class="filter-btn ${active ? 'active' : ''}" onclick="BattleUI.toggleFilter('${cat}')" title="${active ? '隐藏' : '显示'}${catLabel}">${catLabel}</button>`;
     }
-    if (this.historyEvents.length === 0) {
+    html += '</div>';
+    const filteredHistory = this.historyEvents.filter(h => this.activeFilters[h.category]);
+    for (const h of filteredHistory.slice(0, 8)) {
+      const dotColor = { attack: '#f84', move: '#4f4', system: '#8af', loot: '#f8f' }[h.category] || h.color;
+      html += `<div class="timeline-item history" style="color:${h.color};opacity:0.7;"><span class="log-dot" style="background:${dotColor};"></span>${h.time} ${h.text}</div>`;
+    }
+    if (filteredHistory.length === 0 && this.historyEvents.length === 0) {
       html += '<div class="timeline-item history" style="color:#555;opacity:0.5;">（无）</div>';
+    } else if (filteredHistory.length === 0) {
+      html += '<div class="timeline-item history" style="color:#555;opacity:0.5;">（已过滤）</div>';
     }
     html += '</div>';
 
@@ -560,6 +726,7 @@ const BattleUI = {
     this.currentActions = [];
     const tlPanel = document.getElementById('timeline-panel');
     if (tlPanel) tlPanel.classList.remove('active');
+    if (typeof TimelineGraphic !== 'undefined') TimelineGraphic.clear();
     this.clearBattlePanels();
     this.updateRadar();
   }

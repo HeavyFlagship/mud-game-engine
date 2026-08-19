@@ -1,0 +1,89 @@
+{
+  "id": "materials",
+  "nameZh": "材料库",
+  "description": "原材料物品数据（虫族掉落物/机械零件/矿物/弹药制造原料等）",
+  "globalVar": "MaterialDB",
+  "dataFile": "materials.json",
+  "primaryKey": "id",
+  "recordNameZh": "材料",
+  "structure": "records",
+  "fields": [
+    {
+      "name": "id",
+      "nameZh": "材料标识",
+      "comment": "材料唯一标识符（英文下划线格式，如 chitin_fragment），同时作为记录键",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "name",
+      "nameZh": "材料名称",
+      "comment": "材料的中文名称（如 虫壳碎片）",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "type",
+      "nameZh": "物品类型",
+      "comment": "物品类型标识，材料库固定为 material（材料）",
+      "type": "enum",
+      "required": true,
+      "default": "material",
+      "options": ["material"],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "desc",
+      "nameZh": "描述",
+      "comment": "材料的来源与用途描述文本",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "price",
+      "nameZh": "市场价格",
+      "comment": "交易系统中的基础买卖价格，单位：信用点",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "weight",
+      "nameZh": "重量",
+      "comment": "单位材料质量，单位：千克（kg）",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "cargoVolume",
+      "nameZh": "货舱体积",
+      "comment": "单个物品占用的货舱体积，单位：立方米（m³）",
+      "type": "number",
+      "required": true,
+      "default": 0.01,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    }
+  ]
+}

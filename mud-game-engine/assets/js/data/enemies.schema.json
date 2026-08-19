@@ -1,0 +1,243 @@
+{
+  "id": "enemies",
+  "nameZh": "敌人库",
+  "description": "敌人数据（虫族/机械阵营单位与 Boss，含属性、攻击、战利品表）",
+  "globalVar": "EnemyDB",
+  "dataFile": "enemies.json",
+  "primaryKey": "id",
+  "recordNameZh": "敌人",
+  "structure": "records",
+  "fields": [
+    {
+      "name": "id",
+      "nameZh": "敌人标识",
+      "comment": "敌人唯一标识符（英文下划线格式，如 worker_bug），同时作为记录键",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "name",
+      "nameZh": "敌人名称",
+      "comment": "敌人的中文名称（如 工虫）",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "faction",
+      "nameZh": "阵营",
+      "comment": "敌人所属阵营：zerg 虫族 / mech 机械阵营（设计书规划另有 rebel 叛军阵营可扩展）",
+      "type": "enum",
+      "required": true,
+      "default": "zerg",
+      "options": ["zerg", "mech"],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "category",
+      "nameZh": "类别",
+      "comment": "敌人类别标签（与阵营对应）：bug 虫类 / mech 机械类",
+      "type": "enum",
+      "required": true,
+      "default": "bug",
+      "options": ["bug", "mech"],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "isBoss",
+      "nameZh": "是否Boss",
+      "comment": "是否为 Boss 级敌人（true 为 Boss，拥有更高的属性、专属掉落与信用点奖励）",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "options": [],
+      "refDatabase": null,
+      "scope": "仅 Boss 类敌人"
+    },
+    {
+      "name": "hp",
+      "nameZh": "结构值",
+      "comment": "敌人结构值（生命值），归零则被消灭",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "armor",
+      "nameZh": "装甲值",
+      "comment": "敌人装甲值，优先于结构值被消耗",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "speed",
+      "nameZh": "移动速度",
+      "comment": "敌人的移动速率，单位：米/秒；固定炮台类为 0",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "visionRadius",
+      "nameZh": "视野半径",
+      "comment": "敌人发现玩家的视野范围，单位：米",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "signalRadius",
+      "nameZh": "信号半径",
+      "comment": "被雷达探测到的信号半径（敌方雷达探测等效），单位：米",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "targetRadius",
+      "nameZh": "目标半径",
+      "comment": "目视等效的目标锁定半径（命中判定相关），单位：米",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "damage",
+      "nameZh": "伤害值",
+      "comment": "敌人单次攻击的基础伤害数值",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "damageType",
+      "nameZh": "伤害类型",
+      "comment": "敌人攻击的伤害类型：kinetic 动能 / corrosion 腐蚀 / thermal 热能 / ion 离子 / shock 激波",
+      "type": "enum",
+      "required": true,
+      "default": "kinetic",
+      "options": ["kinetic", "corrosion", "thermal", "ion", "shock"],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "attackRange",
+      "nameZh": "攻击射程",
+      "comment": "敌人攻击生效的最大距离，单位：米",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "attackCooldown",
+      "nameZh": "攻击冷却",
+      "comment": "敌人两次攻击之间的间隔时间，单位：秒",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "spread",
+      "nameZh": "攻击散布",
+      "comment": "敌人攻击的散布系数（小数），越小命中越准",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "exp",
+      "nameZh": "击杀经验",
+      "comment": "击杀该敌人获得的经验值",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "loot",
+      "nameZh": "战利品表",
+      "comment": "击杀掉落表，数组元素结构 {item: 物品/材料 id（主要引用 materials 库主键，部分引用 items 库消耗品 id，如 repair_kit_large）, chance: 掉落概率(0~1), min: 最小掉落数量, max: 最大掉落数量}",
+      "type": "array",
+      "required": true,
+      "default": [],
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "creditReward",
+      "nameZh": "信用点奖励",
+      "comment": "击杀后额外掉落的信用点奖励区间，对象结构 {min: 最小信用点, max: 最大信用点}",
+      "type": "object",
+      "required": false,
+      "default": null,
+      "options": [],
+      "refDatabase": null,
+      "scope": "仅 Boss 类敌人"
+    },
+    {
+      "name": "aiType",
+      "nameZh": "AI行为类型",
+      "comment": "敌人 AI 行为类型标识（如 bug_simple 简单虫群 / bug_charge 冲锋 / bug_ranged 远程 / bug_swarm 蜂群 / mech_turret 炮台 / boss_guardian 守护者Boss 等）",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "desc",
+      "nameZh": "描述",
+      "comment": "敌人的外观与战斗特点描述文本",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    }
+  ]
+}

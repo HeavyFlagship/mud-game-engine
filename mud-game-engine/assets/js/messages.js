@@ -7,6 +7,9 @@ const Msg = {
     this.el = document.getElementById('output');
     this.queryEl = document.getElementById('query-output');
     this.queryTitleEl = document.getElementById('query-title');
+    // 页面载入时清空消息区，避免残留上一次会话/缓存的旧消息
+    if (this.el) this.el.innerHTML = '';
+    if (this.queryEl) this.queryEl.innerHTML = '<div class="msg system">查询类指令的信息会显示在这里。</div>';
   },
   getTargetEl(target = this.target) {
     if (target === 'query' && this.queryEl) return this.queryEl;
@@ -40,9 +43,53 @@ const Msg = {
   queryCmd(t) { this.add(t, 'command', 'query'); },
   divider() { this.add('─'.repeat(40), 'divider'); },
   clear() { if (this.el) this.el.innerHTML = ''; },
+  // 提示栏：显示在命令输入框上方，不进入命令行记录
+  hint(t) {
+    const bar = document.getElementById('hint-bar');
+    const text = document.getElementById('hint-text');
+    if (bar && text) {
+      text.innerHTML = t;
+      bar.style.display = '';
+    }
+  },
+  hintClose() {
+    const bar = document.getElementById('hint-bar');
+    if (bar) bar.style.display = 'none';
+  },
   clearQuery() {
     if (this.queryEl) this.queryEl.innerHTML = '<div class="msg system">查询类指令的信息会显示在这里。</div>';
     if (this.queryTitleEl) this.queryTitleEl.textContent = '查询窗口';
+    this.collapseQuery();
+  },
+  // 悬浮查询窗口：显示信息时浮出，把手移到抽屉左边缘中间
+  openQuery() {
+    const panel = document.getElementById('query-panel');
+    const tab = document.getElementById('query-tab');
+    if (panel) panel.classList.add('open');
+    if (tab) {
+      tab.classList.add('open');
+      tab.textContent = '▸';
+      tab.title = '收起查询窗口';
+    }
+  },
+  // 悬浮查询窗口：收起到右侧边，把手回到屏幕右边缘
+  collapseQuery() {
+    const panel = document.getElementById('query-panel');
+    const tab = document.getElementById('query-tab');
+    if (panel) panel.classList.remove('open');
+    if (tab) {
+      tab.classList.remove('open');
+      tab.textContent = '查询';
+      tab.title = '显示查询窗口';
+    }
+  },
+  toggleQuery() {
+    const panel = document.getElementById('query-panel');
+    if (panel && panel.classList.contains('open')) {
+      this.collapseQuery();
+    } else {
+      this.openQuery();
+    }
   },
   withQuery(title, raw, callback) {
     if (!this.queryEl) {
@@ -60,6 +107,7 @@ const Msg = {
       this.target = previousTarget;
       this.queryEl.scrollTop = this.queryEl.scrollHeight;
     }
+    this.openQuery();
   }
 };
 

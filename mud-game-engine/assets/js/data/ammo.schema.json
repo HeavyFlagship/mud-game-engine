@@ -1,0 +1,100 @@
+{
+  "id": "ammo",
+  "nameZh": "弹药库",
+  "description": "武器弹药数据（炮弹/轨道弹/离子电荷/导弹等）",
+  "globalVar": "AmmoDB",
+  "dataFile": "ammo.json",
+  "primaryKey": "id",
+  "recordNameZh": "弹药",
+  "structure": "records",
+  "fields": [
+    {
+      "name": "id",
+      "nameZh": "弹药标识",
+      "comment": "弹药唯一标识符（英文下划线格式，如 20mm_ap），同时作为记录键",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "name",
+      "nameZh": "弹药名称",
+      "comment": "弹药的中文名称（如 20mm穿甲弹）",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "type",
+      "nameZh": "物品类型",
+      "comment": "物品类型标识，弹药库固定为 ammo（弹药）",
+      "type": "enum",
+      "required": true,
+      "default": "ammo",
+      "options": ["ammo"],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "ammoType",
+      "nameZh": "弹药型号",
+      "comment": "弹药口径/型号标识，与使用该弹药的武器匹配；当前数据中取值与弹药 id 相同（20mm_ap/railgun_slug/ion_charge/missile_he）",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "desc",
+      "nameZh": "描述",
+      "comment": "弹药的性能与适用武器描述文本",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "price",
+      "nameZh": "市场价格",
+      "comment": "交易系统中的基础买卖价格，单位：信用点",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "weight",
+      "nameZh": "重量",
+      "comment": "单位弹药质量，单位：千克（kg）",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "cargoVolume",
+      "nameZh": "货舱体积",
+      "comment": "单个物品占用的货舱体积，单位：立方米（m³）",
+      "type": "number",
+      "required": true,
+      "default": 0.01,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    }
+  ]
+}
