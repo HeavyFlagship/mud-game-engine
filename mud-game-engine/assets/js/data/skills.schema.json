@@ -1,0 +1,133 @@
+{
+  "id": "skills",
+  "nameZh": "技能库",
+  "description": "人物技能数据（物理攻击/魔法/治疗/增益类技能）",
+  "globalVar": "SkillDB",
+  "dataFile": "skills.json",
+  "primaryKey": "id",
+  "recordNameZh": "技能",
+  "structure": "records",
+  "fields": [
+    {
+      "name": "id",
+      "nameZh": "技能标识",
+      "comment": "技能唯一标识符（英文下划线格式，如 slash），同时作为记录键",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "name",
+      "nameZh": "技能名称",
+      "comment": "技能的中文名称（如 猛力斩）",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "mpCost",
+      "nameZh": "魔力消耗",
+      "comment": "释放技能消耗的魔力值（MP），单位：点",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "type",
+      "nameZh": "技能类型",
+      "comment": "技能类型：attack 物理攻击 / magic 魔法攻击 / heal 治疗 / buff 增益",
+      "type": "enum",
+      "required": true,
+      "default": "attack",
+      "options": ["attack", "magic", "heal", "buff"],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "mult",
+      "nameZh": "效果倍率",
+      "comment": "伤害/治疗倍率：攻击与魔法类为攻击力/魔力的伤害倍数，治疗类为魔力的治疗倍数，增益类填 0",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "desc",
+      "nameZh": "描述",
+      "comment": "技能效果描述文本（一般注明倍率与持续回合）",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "levelReq",
+      "nameZh": "解锁等级",
+      "comment": "解锁该技能所需的人物等级",
+      "type": "number",
+      "required": true,
+      "default": 1,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "element",
+      "nameZh": "魔法元素",
+      "comment": "魔法元素属性：fire 火 / ice 冰 / thunder 雷；空值（未设置）表示无元素属性",
+      "type": "enum",
+      "required": false,
+      "default": "",
+      "options": ["fire", "ice", "thunder"],
+      "refDatabase": null,
+      "scope": "仅魔法类技能"
+    },
+    {
+      "name": "effect",
+      "nameZh": "附加效果",
+      "comment": "技能附带的特殊效果：stun 眩晕 / berserk 狂暴（攻击力提升）/ shield 护盾（减伤）/ poison 中毒；空值（未设置）表示无附加效果",
+      "type": "enum",
+      "required": false,
+      "default": "",
+      "options": ["stun", "berserk", "shield", "poison"],
+      "refDatabase": null,
+      "scope": "仅攻击类与增益类技能"
+    },
+    {
+      "name": "duration",
+      "nameZh": "持续回合",
+      "comment": "增益效果的持续时间，单位：回合",
+      "type": "number",
+      "required": false,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": "仅增益类技能（buff）"
+    },
+    {
+      "name": "hits",
+      "nameZh": "连击段数",
+      "comment": "连续攻击的段数，每段均按 mult 倍率计算伤害；未设置时为单段攻击",
+      "type": "number",
+      "required": false,
+      "default": 1,
+      "options": [],
+      "refDatabase": null,
+      "scope": "仅攻击类技能（多段攻击）"
+    }
+  ]
+}

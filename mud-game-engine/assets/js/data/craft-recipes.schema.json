@@ -1,0 +1,89 @@
+{
+  "id": "craft-recipes",
+  "nameZh": "制造配方数据库",
+  "description": "玩家手工制造配方（弹药/导弹/特种弹药等），在指定设施消耗材料清单与信用点产出物品，与工业设施的自动生产互补",
+  "globalVar": "CraftRecipeDB",
+  "dataFile": "craft-recipes.json",
+  "primaryKey": "id",
+  "recordNameZh": "配方",
+  "structure": "records",
+  "fields": [
+    {
+      "name": "id",
+      "nameZh": "配方ID",
+      "comment": "配方唯一标识（主键，recipe_ 前缀，如 recipe_20mm_ap）",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "name",
+      "nameZh": "配方名称",
+      "comment": "配方显示名称（制造界面展示，如：20mm穿甲弹制造）",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "output",
+      "nameZh": "产物",
+      "comment": "制造产物对象，结构：{id: 产物物品 id（ref 物品类：ammo 弹药库等，如 20mm_ap、missile_he）, name: 产物显示名称, count: 单次制造产出数量（个）}",
+      "type": "object",
+      "required": true,
+      "default": {},
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "materials",
+      "nameZh": "材料清单",
+      "comment": "所需材料列表，元素结构：{id: 材料 id（ref 物品类：materials 材料库等，如 iron_ore 铁矿石、gunpowder 火药）, name: 材料显示名称, count: 所需数量（个）}，制造时从玩家背包一次性扣除，任一不足则无法制造",
+      "type": "array",
+      "required": true,
+      "default": [],
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "cost",
+      "nameZh": "制造费用",
+      "comment": "单次制造消耗的信用点（货币单位：CR），制造时从玩家账户扣除",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "facility",
+      "nameZh": "制造设施",
+      "comment": "执行制造所在的设施/场景代号：repair_station=维修站（对应地图房间 outpost_repair 的维修师工程师服务），当前全部配方在维修站制造",
+      "type": "string",
+      "required": true,
+      "default": "repair_station",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "desc",
+      "nameZh": "配方描述",
+      "comment": "配方说明文本（制造界面展示，概述消耗材料与产出，如：消耗铁矿石和火药，在维修站制造20mm穿甲弹。）",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    }
+  ]
+}

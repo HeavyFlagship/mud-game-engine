@@ -1,19 +1,21 @@
-// ========== 物品数据库 ==========
-// 注：装备类数据已迁移至 EquipmentDB，此处保留消耗品、材料等非装备物品
-// 材料类数据已迁移至 MaterialDB，弹药类数据已迁移至 AmmoDB
-const ItemDB = {
-  consumables: {
-    repair_kit_small: { id:'repair_kit_small', name:'小型修复包', type:'consumable', healHp:50, desc:'恢复50点结构值。', price:30, weight:5, cargoVolume:0.02 },
-    repair_kit_medium: { id:'repair_kit_medium', name:'中型修复包', type:'consumable', healHp:120, desc:'恢复120点结构值。', price:80, weight:8, cargoVolume:0.03 },
-    repair_kit_large: { id:'repair_kit_large', name:'大型修复包', type:'consumable', healHp:250, desc:'恢复250点结构值。', price:200, weight:12, cargoVolume:0.05 },
-    armor_patch: { id:'armor_patch', name:'装甲补片', type:'consumable', healArmor:40, desc:'恢复40点装甲值。', price:25, weight:3, cargoVolume:0.015 },
-    armor_patch_medium: { id:'armor_patch_medium', name:'中型装甲补片', type:'consumable', healArmor:100, desc:'恢复100点装甲值。', price:70, weight:5, cargoVolume:0.02 },
-    energy_cell: { id:'energy_cell', name:'能量电池', type:'consumable', energy:80, desc:'恢复80点能量。', price:40, weight:3, cargoVolume:0.015 },
-    energy_cell_large: { id:'energy_cell_large', name:'大型能量电池', type:'consumable', energy:200, desc:'恢复200点能量。', price:100, weight:6, cargoVolume:0.025 },
-  },
-  questItems: {
-  },
-  get(id) {
+// ========== 物品数据库门面（数据见 items.json，由 data-loader.js 装配） ==========
+// 注：装备类数据在 EquipmentDB，材料在 MaterialDB，弹药在 AmmoDB；
+// 此处为消耗品等非装备物品（原 consumables/questItems 嵌套已平铺为 {id: 记录}）
+var ItemDB = {};
+
+(function () {
+  function defineProp(obj, key, value) {
+    Object.defineProperty(obj, key, { value: value, writable: true, configurable: true, enumerable: false });
+  }
+
+  defineProp(ItemDB, '_data', {});
+  defineProp(ItemDB, '_load', function (data) {
+    for (var k of Object.keys(ItemDB)) delete ItemDB[k]; // 清旧数据键（方法不可枚举不受影响）
+    ItemDB._data = data || {};
+    Object.assign(ItemDB, ItemDB._data); // 直接键访问 + Object.keys/entries/values 兼容
+  });
+
+  defineProp(ItemDB, 'get', function (id) {
     // 优先从 EquipmentDB 查询装备
     if (typeof EquipmentDB !== 'undefined' && EquipmentDB.get) {
       const eq = EquipmentDB.get(id);
@@ -34,24 +36,20 @@ const ItemDB = {
       const ammo = AmmoDB.get(id);
       if (ammo) return ammo;
     }
-    // 回退到本地分类查询
-    for (const cat of Object.values(this)) {
-      if (cat && typeof cat === 'object' && cat[id]) return { ...cat[id] };
-    }
+    // 回退到本地记录（原 consumables/questItems 平铺）
+    if (this._data[id]) return { ...this._data[id] };
     return null;
-  },
-  getAllSellable() {
+  });
+
+  defineProp(ItemDB, 'getAllSellable', function () {
     const list = [];
     // 所有装备
     if (typeof EquipmentDB !== 'undefined' && EquipmentDB.getAll) {
       list.push(...EquipmentDB.getAll());
     }
-    // 消耗品
-    const consumables = this.consumables;
-    if (consumables) {
-      for (const key of Object.keys(consumables)) {
-        list.push({ ...consumables[key] });
-      }
+    // 本地物品（消耗品等，平铺于 _data）
+    for (const key of Object.keys(this._data)) {
+      list.push({ ...this._data[key] });
     }
     // 材料
     if (typeof MaterialDB !== 'undefined') {
@@ -62,5 +60,5 @@ const ItemDB = {
       }
     }
     return list;
-  }
-};
+  });
+})();

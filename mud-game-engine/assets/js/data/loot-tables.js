@@ -1,67 +1,20 @@
-// ========== 战利品掉落表 ==========
-const LootTableDB = {
-  // Zerg
-  worker_bug: [
-    { item: 'chitin_fragment', chance: 0.6, min: 1, max: 3 }
-  ],
-  assault_bug: [
-    { item: 'chitin_fragment', chance: 0.8, min: 2, max: 5 },
-    { item: 'acid_gland', chance: 0.3, min: 1, max: 1 }
-  ],
-  acid_spitter: [
-    { item: 'acid_gland', chance: 0.6, min: 1, max: 2 },
-    { item: 'chitin_fragment', chance: 0.4, min: 1, max: 2 }
-  ],
-  flying_bug: [
-    { item: 'bug_gel', chance: 0.4, min: 1, max: 1 },
-    { item: 'chitin_fragment', chance: 0.3, min: 1, max: 1 }
-  ],
-  beetle: [
-    { item: 'carapace_plate', chance: 0.5, min: 1, max: 2 },
-    { item: 'chitin_fragment', chance: 0.3, min: 1, max: 3 }
-  ],
-  hopper: [
-    { item: 'bug_gel', chance: 0.3, min: 1, max: 1 },
-    { item: 'chitin_fragment', chance: 0.2, min: 1, max: 1 }
-  ],
-  toxic_bug: [
-    { item: 'acid_gland', chance: 0.5, min: 1, max: 2 },
-    { item: 'chitin_fragment', chance: 0.4, min: 1, max: 2 }
-  ],
-  giant_guardian: [
-    { item: 'carapace_plate', chance: 1.0, min: 3, max: 5 },
-    { item: 'giant_acid_gland', chance: 1.0, min: 1, max: 1 },
-    { item: 'repair_kit_large', chance: 0.5, min: 1, max: 2 }
-  ],
-  // Mech
-  recon_probe: [
-    { item: 'mech_parts', chance: 0.4, min: 1, max: 2 },
-    { item: 'energy_core_remnant', chance: 0.2, min: 1, max: 1 }
-  ],
-  defense_node: [
-    { item: 'mech_parts', chance: 0.6, min: 2, max: 3 },
-    { item: 'alloy_fragment', chance: 0.3, min: 1, max: 2 }
-  ],
-  particle_sentry: [
-    { item: 'mech_parts', chance: 0.5, min: 1, max: 2 },
-    { item: 'germanite_shard', chance: 0.3, min: 1, max: 1 }
-  ],
-  self_repair_guardian: [
-    { item: 'mech_parts', chance: 0.6, min: 2, max: 4 },
-    { item: 'energy_core_remnant', chance: 0.3, min: 1, max: 2 }
-  ],
-  gravity_distorter: [
-    { item: 'mech_parts', chance: 0.5, min: 1, max: 3 },
-    { item: 'germanite_shard', chance: 0.2, min: 1, max: 1 }
-  ],
-  colossus_guardian: [
-    { item: 'alloy_fragment', chance: 1.0, min: 3, max: 5 },
-    { item: 'ancient_core', chance: 1.0, min: 1, max: 1 },
-    { item: 'energy_battery_large', chance: 0.5, min: 1, max: 2 }
-  ],
-  
-  getLoot(enemyId) {
-    const table = this[enemyId];
+// ========== 战利品掉落表门面（数据见 loot-tables.json，由 data-loader.js 装配） ==========
+var LootTableDB = {};
+
+(function () {
+  function defineProp(obj, key, value) {
+    Object.defineProperty(obj, key, { value: value, writable: true, configurable: true, enumerable: false });
+  }
+
+  defineProp(LootTableDB, '_data', {});
+  defineProp(LootTableDB, '_load', function (data) {
+    for (var k of Object.keys(LootTableDB)) delete LootTableDB[k]; // 清旧数据键（方法不可枚举不受影响）
+    LootTableDB._data = data || {};
+    Object.assign(LootTableDB, LootTableDB._data); // 直接键访问（如 LootTableDB['worker_bug']）+ Object.keys/entries/values 兼容
+  });
+
+  defineProp(LootTableDB, 'getLoot', function (enemyId) {
+    const table = this._data[enemyId];
     if (!table) return [];
     const loot = [];
     for (const entry of table) {
@@ -71,5 +24,5 @@ const LootTableDB = {
       }
     }
     return loot;
-  }
-};
+  });
+})();

@@ -1,0 +1,111 @@
+{
+  "id": "quests",
+  "nameZh": "任务库",
+  "description": "任务数据（主线/支线任务，含目标、奖励与前置依赖）",
+  "globalVar": "QuestDB",
+  "dataFile": "quests.json",
+  "primaryKey": "id",
+  "recordNameZh": "任务",
+  "structure": "records",
+  "fields": [
+    {
+      "name": "id",
+      "nameZh": "任务标识",
+      "comment": "任务唯一标识符（英文下划线格式，如 quest_main_1），同时作为记录键",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "name",
+      "nameZh": "任务名称",
+      "comment": "任务的中文名称（如 清除荒原虫群）",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "type",
+      "nameZh": "任务类型",
+      "comment": "任务类型：main 主线任务 / side 支线任务",
+      "type": "enum",
+      "required": true,
+      "default": "main",
+      "options": ["main", "side"],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "desc",
+      "nameZh": "任务描述",
+      "comment": "任务背景与目标说明文本",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "giver",
+      "nameZh": "发布者",
+      "comment": "任务发布者 NPC 标识（如 commander 指挥官 / quartermaster 军需官）",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "objectives",
+      "nameZh": "任务目标",
+      "comment": "任务目标列表，数组元素结构 {id: 目标唯一标识, type: 目标类型（枚举 kill 击杀 / explore 探索 / collect 收集）, target: 目标数量, desc: 目标描述}",
+      "type": "array",
+      "required": true,
+      "default": [],
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "rewards",
+      "nameZh": "任务奖励",
+      "comment": "完成任务获得的奖励，对象结构 {credits: 信用点, exp: 经验值, items: 物品奖励数组（元素为 {id: 物品id（引用 items 库主键）, count: 数量}，无物品奖励时可省略）}",
+      "type": "object",
+      "required": true,
+      "default": null,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "repeatable",
+      "nameZh": "可重复",
+      "comment": "是否为可重复完成的任务（true 可重复接取，如日常收集任务；false 仅可完成一次）",
+      "type": "boolean",
+      "required": true,
+      "default": false,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "prerequisites",
+      "nameZh": "前置任务",
+      "comment": "接取本任务前必须完成的前置任务 id 数组（元素引用 quests 库主键），无前置任务时不填写",
+      "type": "array",
+      "required": false,
+      "default": [],
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    }
+  ]
+}
