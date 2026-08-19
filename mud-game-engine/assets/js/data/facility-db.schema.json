@@ -1,0 +1,199 @@
+{
+  "id": "facility",
+  "nameZh": "工业设施数据库",
+  "description": "可安装在基地工业区的自动生产设施（熔炉/高炉/装甲工厂），定义产出、原材料消耗、存储与安装成本，运行时按小时自动产出",
+  "globalVar": "FacilityDB",
+  "dataFile": "facility-db.json",
+  "primaryKey": "facilityId",
+  "recordNameZh": "设施",
+  "structure": "records",
+  "fields": [
+    {
+      "name": "facilityId",
+      "nameZh": "设施ID",
+      "comment": "设施唯一标识（主键，英文小写下划线，如 furnace_small）；安装时实例 id 格式为 {facilityId}_{时间戳}",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "name",
+      "nameZh": "名称",
+      "comment": "设施显示名称（含规模后缀，如：熔炉（小型）），用于建造面板与设施列表",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "type",
+      "nameZh": "设施类型",
+      "comment": "设施分类：smelter=冶炼炉、furnace=高炉、factory=制造工厂，决定可建造的设施种类、外观与生产品类",
+      "type": "enum",
+      "required": true,
+      "default": "smelter",
+      "options": ["smelter", "furnace", "factory"],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "scale",
+      "nameZh": "规模等级",
+      "comment": "设施规模等级（设计规划 small/medium/large 三档，规模决定产出速率与建造消耗；当前数据均为 small 小型）",
+      "type": "enum",
+      "required": true,
+      "default": "small",
+      "options": ["small"],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "footprint",
+      "nameZh": "占地面积",
+      "comment": "设施安装后占用的工业区面积（单位：m²），安装时累加到所在房间 industryZone.areaUsed，超过 area 总量则无法安装",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "requiresNode",
+      "nameZh": "前置科技节点",
+      "comment": "安装该设施前必须已解锁的科技树节点 id（ref tech-tree，如 iron_ore），未解锁时无法安装",
+      "type": "ref",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": "tech-tree",
+      "scope": null
+    },
+    {
+      "name": "unlocksNode",
+      "nameZh": "解锁科技节点",
+      "comment": "该设施投产后解锁的科技树节点 id（ref tech-tree，如 iron_ingot 铁锭节点由熔炉解锁）",
+      "type": "ref",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": "tech-tree",
+      "scope": null
+    },
+    {
+      "name": "outputItemId",
+      "nameZh": "产出物品ID",
+      "comment": "设施自动产出的物品 id（ref 物品类：materials 材料库等，如 iron_ingot 铁锭、armor_plate 装甲板）",
+      "type": "ref",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": "items",
+      "scope": null
+    },
+    {
+      "name": "outputRate",
+      "nameZh": "产出速率",
+      "comment": "每小时自动产出的物品数量（单位：个/小时），由规模等级决定，产出先存入设施内置仓库",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "storageLimit",
+      "nameZh": "存储上限",
+      "comment": "设施内置仓库的容量（单位：个），存满后暂停产出，直至玩家领取/入库腾出空间",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "inputItemId",
+      "nameZh": "消耗物品ID",
+      "comment": "设施运行所需的原材料 id（ref 物品类：materials 材料库等，如 iron_ore 铁矿石），不足时设施暂停运行",
+      "type": "ref",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": "items",
+      "scope": null
+    },
+    {
+      "name": "inputRate",
+      "nameZh": "消耗速率",
+      "comment": "每小时消耗的原材料数量（单位：个/小时），通常略高于产出速率，从输入来源扣除",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "inputSource",
+      "nameZh": "输入来源",
+      "comment": "原材料来源方式：warehouse=消耗基地仓库库存（设计书规划另一种 market=市场采购，用运转资金自动采购原材料）",
+      "type": "enum",
+      "required": true,
+      "default": "warehouse",
+      "options": ["warehouse"],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "outputTarget",
+      "nameZh": "输出去向",
+      "comment": "产出物资的去向：warehouse=进入基地仓库（设计书规划另一种 market=市场分销）",
+      "type": "enum",
+      "required": true,
+      "default": "warehouse",
+      "options": ["warehouse"],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "creditCost",
+      "nameZh": "信用点费用",
+      "comment": "安装设施一次性消耗的信用点（货币单位：CR），安装时从玩家账户扣除，信用点不足则无法安装",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "installCost",
+      "nameZh": "安装物资",
+      "comment": "安装所需物资列表，元素结构：{id: 物资 id（ref 物品类：materials/items 等，如 iron_ore 铁矿石、mech_parts 机械零件）, name: 物资显示名称, count: 所需数量（个）}，安装时从玩家背包一次性扣除，任一不足则无法安装",
+      "type": "array",
+      "required": true,
+      "default": [],
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "newsText",
+      "nameZh": "新闻文本",
+      "comment": "设施安装投产时在日志/通知中显示的新闻消息（🏭 前缀工业新闻，如：🏭 熔炉投产！铁矿石→铁锭生产线已启动。）",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    }
+  ]
+}

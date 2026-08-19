@@ -1,0 +1,199 @@
+{
+  "id": "map",
+  "nameZh": "地图数据库",
+  "description": "世界地图房间表（前哨基地/荒原/结晶峡谷/矿洞等），含出口、NPC、战场配置、地面物品与工业区。map.json 顶层的 _grid（10x10 网格布局）、_zoneConfig（区域类型配置）、areas（区域分组）为地图生成配置，由 map.js 的 generateRooms/_updateAreas 逻辑使用，暂不纳入记录编辑",
+  "globalVar": "MapDB",
+  "dataFile": "map.json",
+  "primaryKey": "id",
+  "recordNameZh": "房间",
+  "structure": "records",
+  "fields": [
+    {
+      "name": "id",
+      "nameZh": "房间ID",
+      "comment": "房间唯一标识（主键，英文小写下划线，如 outpost_hub），供 exits 出口与其他系统引用",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "name",
+      "nameZh": "房间名称",
+      "comment": "房间显示名称（如：前哨基地·中央大厅、荒原北部）",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "label",
+      "nameZh": "地图标注",
+      "comment": "迷你地图上的单字标注（如：基/指/库/修/门/原）",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "x",
+      "nameZh": "X坐标",
+      "comment": "三维地图网格列号（东西向，与 _grid 布局对应），与 y/z 共同定位房间",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "y",
+      "nameZh": "Y坐标",
+      "comment": "三维地图网格行号（南北向，与 _grid 布局对应），与 x/z 共同定位房间",
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "z",
+      "nameZh": "层级坐标",
+      "comment": "垂直层级坐标：0=地表（缺省值），-1=地下（矿洞层）；仅矿洞房间设置，与 x/y 构成三维坐标",
+      "type": "number",
+      "required": false,
+      "default": 0,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "desc",
+      "nameZh": "房间描述",
+      "comment": "进入房间时的场景风貌描述文本（自然语言，描述地貌/气味/敌意迹象，服务沉浸感）",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "exits",
+      "nameZh": "出口",
+      "comment": "可通行出口映射对象：键为方向（north 北/south 南/east 东/west 西/up 向上/down 向下，矿洞用 up/down 连接地表与地下），值为目标房间 id（ref 本库 map 的房间 id，如 {north: 'outpost_command', down: 'mine_tunnel'}）",
+      "type": "object",
+      "required": true,
+      "default": {},
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "npcs",
+      "nameZh": "NPC列表",
+      "comment": "房间内的 NPC id 数组，元素为 npcs 库的 NPC id（ref npcs，如 commander 指挥官、quartermaster 军械士）；安全区房间通过 NPC 提供对话/商店/维修服务",
+      "type": "array",
+      "required": true,
+      "default": [],
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "sceneType",
+      "nameZh": "场景类型",
+      "comment": "场景模式分类：safe=安全区场景（可对话/购物/正常移动，不进入战斗）、battle=战斗场景（探索时可遭遇敌人自动进入战斗模式）",
+      "type": "enum",
+      "required": true,
+      "default": "safe",
+      "options": ["safe", "battle"],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "isSafeZone",
+      "nameZh": "安全区",
+      "comment": "是否为安全区：true 时不会自动进入战斗模式，可购物/对话/正常移动（与 sceneType=safe 配套；battle 房间通常缺省此字段）",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "isShop",
+      "nameZh": "商店房间",
+      "comment": "该房间是否可直接使用 shop 指令购物（如装备库/维修站）；房间内有 dialog.shop='shop' 标记的 NPC 时也可触发商店",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "isBossRoom",
+      "nameZh": "Boss房间",
+      "comment": "是否为 Boss 战房间（守护强敌的关键房间，如结晶峡谷、矿石大厅，击败 Boss 推进剧情/科技解锁）",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "enemies",
+      "nameZh": "敌人列表",
+      "comment": "房间敌人 id 备用数组（当前数据均为空数组且未被引擎消费；实际敌人生成以 battlefield.enemies 生成点配置为准，新增敌人请配置 battlefield.enemies）",
+      "type": "array",
+      "required": false,
+      "default": [],
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "items",
+      "nameZh": "地面物品",
+      "comment": "房间地面上可拾取的物品 id 数组（ref 物品类：items 等物品库，如 repair_kit_small），玩家可用 pick 指令拾取，拾取后从数组移除；战斗掉落也会写入此列表",
+      "type": "array",
+      "required": false,
+      "default": [],
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "industryZone",
+      "nameZh": "工业区",
+      "comment": "基地工业区配置对象（仅前哨基地等据点房间设置），结构：{area: 工业区总面积（单位：m²，如 1000）, areaUsed: 已占用面积（单位：m²，安装设施时累加其 footprint）, facilities: 已安装设施实例 id 列表（元素为 facility 库设施实例 id，格式 '{facilityId}_{时间戳}'，初始为空、由设施系统运行时写入）}",
+      "type": "object",
+      "required": false,
+      "default": null,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "battlefield",
+      "nameZh": "战场配置",
+      "comment": "战斗场景配置对象（1000m×1000m 战场），结构：{terrain: 地形类型（metal_floor 金属地面/rocky 岩石/crystal 晶体/sandy 沙地/cave 洞穴）；terrainPenalty: 地形速度惩罚映射 {biped: 双足系数, wheel: 轮式系数}（0-1，越小越慢，如 {biped:0.9, wheel:0.7}）；covers: 掩体数组，元素 {id: 掩体id, pos: [x,y] 坐标, size: [宽,高] 尺寸, height: 高度, durability: 耐久值, label: 掩体名称}；hazards: 环境危害数组，元素 {type: 危害类型（em_interference 电磁干扰/toxic_fog 毒雾/acid_pool 酸液池）, pos: [x,y] 坐标, radius: 影响半径, effect: 效果（reduce_vision 降低视野/poison 中毒/corrosion 腐蚀）, value: 效果数值 或 dps: 每秒伤害, label: 危害区名称}；entryPoints: 各方向入场坐标映射 {north/south/east/west: [x,y]}（默认 north:[500,50], south:[500,950], east:[950,500], west:[50,500]）；enemies: 敌人生成点数组，元素 {enemyId: 敌人 id（ref enemies 敌人库，如 worker_bug）, pos: [x,y] 生成坐标, pattern: 行为模式（guard 驻守/patrol 巡逻）, path: 巡逻路径点 [[x,y],...]（仅 patrol 模式配置）}；lootPoints: 战利品/资源点数组，元素 {pos: [x,y] 坐标, itemId: 物品 id（ref 物品类）, count: 数量}}",
+      "type": "object",
+      "required": true,
+      "default": {},
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    }
+  ]
+}

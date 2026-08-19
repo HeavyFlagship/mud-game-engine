@@ -1,0 +1,78 @@
+{
+  "id": "npcs",
+  "nameZh": "NPC库",
+  "description": "游戏中的非玩家角色（对话/商店/任务发布），如指挥官、军械士、维修师",
+  "globalVar": "NPCDB",
+  "dataFile": "npcs.json",
+  "primaryKey": "id",
+  "recordNameZh": "NPC",
+  "structure": "records",
+  "fields": [
+    {
+      "name": "id",
+      "nameZh": "ID",
+      "comment": "NPC 唯一标识（主键，英文小写下划线，如 commander）",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "name",
+      "nameZh": "名称",
+      "comment": "NPC 显示名称（姓名·代号格式，如：指挥官·李远）",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "title",
+      "nameZh": "头衔",
+      "comment": "NPC 职务头衔，展示其身份（如：前哨基地指挥官、装备库管理员）",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "broadcastPosition",
+      "nameZh": "广播位置",
+      "comment": "是否始终在场景地图上显示位置：true=基地固定 NPC 始终可见；false/未设置=仅在玩家视野范围内显示",
+      "type": "boolean",
+      "required": true,
+      "default": true,
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "dialog",
+      "nameZh": "对话配置",
+      "comment": "对话对象，结构：{default: 通用台词数组（交谈时随机抽取一条显示）；quest: 任务简报文本（多行字符串，\\n 分行显示，任务发布 NPC 使用）；shop: 商店标记（值为 'shop' 时该 NPC 开通商店，玩家可对其使用 shop 指令）}",
+      "type": "object",
+      "required": true,
+      "default": {},
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    },
+    {
+      "name": "shopItems",
+      "nameZh": "商店商品",
+      "comment": "商店出售的商品 id 数组，元素为物品类库的 id 引用（ref 物品类：items 物品/equipment 装备/vehicles 载具机体等，如机体 assault、武器 auto_cannon_mk1、维修包 repair_kit_small）；配合 dialog.shop='shop' 使用，未配置时商店使用默认商品列表",
+      "type": "array",
+      "required": false,
+      "default": [],
+      "options": [],
+      "refDatabase": null,
+      "scope": null
+    }
+  ]
+}
